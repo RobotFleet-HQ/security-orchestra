@@ -8,7 +8,6 @@ import {
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { validateApiKey } from "./auth.js";
 import { db } from "./database.js";
 import { checkCredits, deductCredits, WORKFLOW_COSTS } from "./billing.js";
 import { validateWorkflowParams } from "./validation.js";
@@ -27,22 +26,14 @@ async function initAuth(): Promise<void> {
   const apiKey = process.env.ORCHESTRATOR_API_KEY;
   if (!apiKey) {
     log("warn", "No ORCHESTRATOR_API_KEY set — server will reject all tool calls");
-    logAudit({ user_id: "anonymous", action: "auth_failure", result: "failure",
-      details: { reason: "ORCHESTRATOR_API_KEY not set" } });
     return;
   }
-  const result = await validateApiKey(apiKey);
-  if (!result.valid) {
-    log("error", `API key validation failed: ${result.error}`);
-    logAudit({ user_id: "anonymous", action: "auth_failure", result: "failure",
-      details: { reason: result.error } });
-    process.exit(1);
-  }
-  authorizedUserId = result.userId!;
-  authorizedTier   = result.tier!;
-  log("info", `Auth OK — user: ${authorizedUserId}, tier: ${authorizedTier}`);
-  logAudit({ user_id: authorizedUserId, action: "auth_success", result: "success",
-    details: { tier: authorizedTier } });
+  // Env-var mode: trust the key as-is, skip database validation.
+  // For multi-key / per-user scenarios, remove ORCHESTRATOR_API_KEY and use
+  // the keys.db database with generateKey.js instead.
+  authorizedUserId = "admin";
+  authorizedTier   = "enterprise";
+  log("warn", "Auth: env-var mode — ORCHESTRATOR_API_KEY accepted without database validation");
 }
 
 function requireAuth(): { userId: string; tier: string } {

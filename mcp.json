@@ -1,0 +1,23 @@
+{
+  "name": "security-orchestra",
+  "version": "1.0.0",
+  "description": "Data center power infrastructure intelligence - generator sizing with real Generac/Cummins/CAT specs (NFPA 110 compliant) and utility interconnect modeling for 9 major US utilities.",
+  "homepage": "https://github.com/RobotFleet-HQ/security-orchestra",
+  "license": "MIT",
+  "mcpServers": {
+    "security-orchestra": {
+      "url": "https://security-orchestra-orchestrator.onrender.com",
+      "transport": "sse",
+      "tools": [
+        {
+          "name": "generator_sizing",
+          "description": "Size generators for data center loads with NFPA 110 compliance"
+        },
+        {
+          "name": "utility_interconnect",
+          "description": "Analyze utility interconnect for 9 major US utilities"
+        }
+      ]
+    }
+  }
+}

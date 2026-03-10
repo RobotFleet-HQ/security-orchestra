@@ -17,7 +17,7 @@ WORKDIR /app
 
 # ── Node dependencies (cached layer) ─────────────────────────────────────────
 COPY orchestrator/package*.json ./orchestrator/
-RUN cd orchestrator && npm ci --omit=dev
+RUN cd orchestrator && npm ci
 
 # ── TypeScript build ──────────────────────────────────────────────────────────
 COPY orchestrator/tsconfig.json ./orchestrator/

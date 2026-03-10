@@ -11,7 +11,7 @@ WORKDIR /app
 
 # ── Node dependencies (cached layer) ─────────────────────────────────────────
 COPY billing-api/package*.json ./billing-api/
-RUN cd billing-api && npm ci --omit=dev
+RUN cd billing-api && npm ci
 
 # ── TypeScript build ──────────────────────────────────────────────────────────
 COPY billing-api/tsconfig.json ./billing-api/

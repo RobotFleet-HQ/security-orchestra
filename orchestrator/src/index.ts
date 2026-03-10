@@ -123,12 +123,12 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     credits: WORKFLOW_COSTS.vulnerability_assessment,
   },
   generator_sizing: {
-    description: "Size diesel generator sets for data center loads with NFPA 110 / IEEE 446 compliance. Returns genset kVA, fuel consumption, tank size, runtime, ATS sizing, and cost estimates.",
+    description: "Size generators for data center loads with industry-standard compliance. Returns genset kVA, fuel consumption, tank size, runtime, ATS sizing, and cost estimates.",
     params: ["load_kw", "tier"],
     credits: WORKFLOW_COSTS.generator_sizing,
   },
   utility_interconnect: {
-    description: "Model grid interconnection for large loads (1–500 MW) across 9 major US utilities covering 80%+ of data center development. Returns per-load-size timelines, deposit $/kW ranges, first-year cost, competitive intel, and constraint warnings.",
+    description: "Analyze utility interconnect requirements for major US power providers. Returns per-load-size timelines, deposit $/kW ranges, first-year cost, competitive intel, and constraint warnings.",
     params: ["utility", "load_mw"],
     credits: WORKFLOW_COSTS.utility_interconnect,
   },
@@ -375,7 +375,7 @@ async function main() {
       res.json({
         name: "security-orchestra",
         version: "1.0.0",
-        description: "MCP orchestrator for security and data center engineering workflows",
+        description: "MCP orchestrator for data center power infrastructure intelligence",
         transport: "sse",
         endpoints: {
           sse:     "/sse",

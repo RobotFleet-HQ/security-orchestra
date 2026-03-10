@@ -1,0 +1,12 @@
+# orchestrator/.dockerignore
+# Used when building from the orchestrator/ directory directly.
+# Note: Railway builds from the repo root — the root .dockerignore takes effect.
+
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.db
+coverage
+.DS_Store

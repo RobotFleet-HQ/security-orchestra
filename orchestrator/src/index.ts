@@ -371,6 +371,21 @@ async function main() {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
 
+    app.get("/", (_req, res) => {
+      res.json({
+        name: "security-orchestra",
+        version: "1.0.0",
+        description: "MCP orchestrator for security and data center engineering workflows",
+        transport: "sse",
+        endpoints: {
+          sse:     "/sse",
+          message: "/message",
+          health:  "/health",
+        },
+        workflows: Object.keys(WORKFLOWS),
+      });
+    });
+
     app.get("/health", (_req, res) => {
       res.json({ status: "ok", service: "orchestrator", uptime: process.uptime() });
     });

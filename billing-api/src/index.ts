@@ -5,6 +5,8 @@ import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
 import webhooksRouter from "./routes/webhooks.js";
 import auditRouter from "./routes/audit.js";
+import supportRouter from "./routes/support.js";
+import dashboardRouter from "./routes/dashboard.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -28,6 +30,8 @@ app.use("/users", usersRouter);
 app.use("/credits", creditsRouter);
 app.use("/checkout", checkoutRouter);
 app.use("/audit", auditRouter);
+app.use("/contact", supportRouter);
+app.use("/dashboard", dashboardRouter);
 
 // Generic error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

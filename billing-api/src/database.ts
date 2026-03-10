@@ -52,6 +52,17 @@ export function initDb(): Promise<void> {
           updated_at TEXT NOT NULL,
           FOREIGN KEY (user_id) REFERENCES users(id)
         )
+      `);
+
+      db.run(`
+        CREATE TABLE IF NOT EXISTS support_tickets (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL,
+          issue_type TEXT NOT NULL,
+          message TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'unread',
+          created_at TEXT NOT NULL
+        )
       `, (err) => {
         if (err) reject(err);
         else resolve();

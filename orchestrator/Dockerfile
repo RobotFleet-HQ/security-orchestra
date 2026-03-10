@@ -37,4 +37,4 @@ WORKDIR /app/orchestrator
 # PORT is injected by Railway; when set, the server uses HTTP/SSE transport
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]

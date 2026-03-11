@@ -3,16 +3,45 @@ Proprietary Software License
 Copyright (c) 2026 Rashaun Saunders / RobotFleet-HQ
 All Rights Reserved
 
+================================================================================
 NOTICE: This software and all associated files are proprietary and confidential.
+================================================================================
+
+GRANT OF RIGHTS:
+No rights are granted to use, copy, modify, merge, publish, distribute, 
+sublicense, or sell this software without explicit written permission from 
+the copyright holder.
 
 RESTRICTIONS:
-- No copying, distribution, or modification without written permission
-- No reverse engineering or decompilation
-- API access requires paid subscription
-- Source code access is prohibited
+1. No copying, distribution, or modification without written permission
+2. No reverse engineering, decompilation, or disassembly
+3. API service access requires paid subscription via official channels
+4. Source code access is strictly prohibited
+5. This license applies to all files in this repository
 
-LIABILITY:
-This software is provided "as is" without warranty of any kind. The author 
-shall not be liable for any damages arising from the use of this software.
+API SERVICE:
+Access to the Security Orchestra API service is provided separately under 
+paid subscription terms. This license does NOT grant rights to use the API.
 
-For licensing inquiries: contact.securityorchestra@gmail.com
+CONFIDENTIALITY:
+All code, documentation, algorithms, and business logic contained herein 
+are trade secrets and confidential information.
+
+LIABILITY DISCLAIMER:
+THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL 
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, 
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, 
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+TERMINATION:
+Any unauthorized use of this software will result in immediate termination 
+of any rights and may result in legal action.
+
+CONTACT:
+For licensing inquiries, partnership opportunities, or questions:
+Email: contact.securityorchestra@gmail.com
+GitHub: https://github.com/RobotFleet-HQ/security-orchestra
+
+Last Updated: March 2026

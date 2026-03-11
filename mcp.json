@@ -28,6 +28,34 @@
         {
           "name": "construction_cost",
           "description": "Estimate construction costs for data center development. Analyzes $/MW costs, regional pricing factors, tier requirements, and provides detailed cost breakdowns for shell, electrical, mechanical, and IT infrastructure."
+        },
+        {
+          "name": "nfpa_110_checker",
+          "description": "Check emergency generator compliance per NFPA 110 Level 1 and Level 2 requirements. Validates fuel capacity, ATS transfer time, runtime hours, and returns compliance status with violation details."
+        },
+        {
+          "name": "ats_sizing",
+          "description": "Size automatic transfer switches per NEC Articles 700, 701, and 702. Calculates load current with 125% continuous factor, selects standard ATS ratings, and returns enclosure and installation requirements."
+        },
+        {
+          "name": "ups_sizing",
+          "description": "Size uninterruptible power supplies per IEEE 485 and 1184. Calculates kVA, selects battery strings (VRLA or Li-ion), determines runtime for N/N+1/2N configurations, and provides cost estimates."
+        },
+        {
+          "name": "fuel_storage",
+          "description": "Design diesel fuel storage systems for emergency generators. Calculates tank size, runtime, secondary containment, SPCC thresholds, NFPA 30 compliance, and day tank recommendations."
+        },
+        {
+          "name": "cooling_load",
+          "description": "Calculate data center cooling load per ASHRAE TC 9.9. Computes IT heat, UPS losses, envelope gains, converts to tons, sizes CRAC/CRAH units with N+1 redundancy."
+        },
+        {
+          "name": "power_density",
+          "description": "Analyze rack power density for data centers. Classifies kW/rack density, sizes PDUs and branch circuits per NEC 645, calculates airflow requirements, and provides expansion capacity analysis."
+        },
+        {
+          "name": "redundancy_validator",
+          "description": "Validate data center redundancy design against Uptime Institute Tier I–IV standards. Identifies single points of failure, assesses concurrent maintainability, and maps achieved tier with gaps to next level."
         }
       ]
     }

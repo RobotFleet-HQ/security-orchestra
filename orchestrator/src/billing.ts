@@ -12,6 +12,13 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   nc_utility_interconnect:  50,
   pue_calculator:           10,
   construction_cost:        10,
+  nfpa_110_checker:         15,
+  ats_sizing:               10,
+  ups_sizing:               10,
+  fuel_storage:             10,
+  cooling_load:             10,
+  power_density:            10,
+  redundancy_validator:     15,
 };
 
 interface CreditsResponse {

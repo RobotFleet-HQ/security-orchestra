@@ -91,6 +91,34 @@ const LANDING_HTML = `<!DOCTYPE html>
         <div class="agent-name">Construction Cost</div>
         <div class="agent-price">$0.10 / call</div>
       </div>
+      <div class="agent">
+        <div class="agent-name">NFPA 110 Checker</div>
+        <div class="agent-price">$0.15 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">ATS Sizing</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">UPS Sizing</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">Fuel Storage</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">Cooling Load</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">Power Density</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">Redundancy Validator</div>
+        <div class="agent-price">$0.15 / call</div>
+      </div>
     </div>
 
     <hr class="divider">

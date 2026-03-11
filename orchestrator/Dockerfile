@@ -30,6 +30,13 @@ COPY utility-interconnect-agent/      ./utility-interconnect-agent/
 COPY nc-utility-interconnect-agent/   ./nc-utility-interconnect-agent/
 COPY pue-calculator-agent/            ./pue-calculator-agent/
 COPY construction-cost-agent/         ./construction-cost-agent/
+COPY nfpa-110-checker-agent/          ./nfpa-110-checker-agent/
+COPY ats-sizing-agent/                ./ats-sizing-agent/
+COPY ups-sizing-agent/                ./ups-sizing-agent/
+COPY fuel-storage-agent/              ./fuel-storage-agent/
+COPY cooling-load-agent/              ./cooling-load-agent/
+COPY power-density-agent/             ./power-density-agent/
+COPY redundancy-validator-agent/      ./redundancy-validator-agent/
 
 # ── Persistent volume mount point for SQLite databases ────────────────────────
 # Mount a Railway volume at /data to persist keys.db and audit.db across deploys

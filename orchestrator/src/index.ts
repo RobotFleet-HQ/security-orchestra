@@ -19,6 +19,13 @@ import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
 import { runNcUtilityInterconnect } from "./workflows/ncUtilityInterconnect.js";
 import { runPueCalculator } from "./workflows/pueCalculator.js";
 import { runConstructionCost } from "./workflows/constructionCost.js";
+import { runNfpa110Checker } from "./workflows/nfpa110Checker.js";
+import { runAtsSizing } from "./workflows/atsSizing.js";
+import { runUpsSizing } from "./workflows/upsSizing.js";
+import { runFuelStorage } from "./workflows/fuelStorage.js";
+import { runCoolingLoad } from "./workflows/coolingLoad.js";
+import { runPowerDensity } from "./workflows/powerDensity.js";
+import { runRedundancyValidator } from "./workflows/redundancyValidator.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -150,6 +157,41 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     params: ["capacity_mw"],
     credits: WORKFLOW_COSTS.construction_cost,
   },
+  nfpa_110_checker: {
+    description: "Check emergency generator compliance per NFPA 110 Level 1 and Level 2 requirements. Validates fuel capacity, ATS transfer time, runtime hours, and returns compliance status with violation details and remediation steps.",
+    params: ["generator_kw", "fuel_capacity_gallons", "runtime_hours", "ats_transfer_time_seconds", "level"],
+    credits: WORKFLOW_COSTS.nfpa_110_checker,
+  },
+  ats_sizing: {
+    description: "Size automatic transfer switches per NEC Articles 700, 701, and 702. Calculates load current, applies 125% continuous load factor, selects standard ATS ratings, and returns enclosure options and installation requirements.",
+    params: ["load_kw", "voltage", "phases"],
+    credits: WORKFLOW_COSTS.ats_sizing,
+  },
+  ups_sizing: {
+    description: "Size uninterruptible power supplies per IEEE 485 and 1184. Calculates kVA, selects battery strings (VRLA or Li-ion), determines runtime across N/N+1/2N configurations, and provides cost estimates.",
+    params: ["load_kw", "runtime_minutes"],
+    credits: WORKFLOW_COSTS.ups_sizing,
+  },
+  fuel_storage: {
+    description: "Design diesel fuel storage systems for emergency generators. Calculates tank size, runtime, secondary containment, SPCC thresholds, NFPA 30 compliance, and day tank recommendations.",
+    params: ["generator_kw", "target_runtime_hours"],
+    credits: WORKFLOW_COSTS.fuel_storage,
+  },
+  cooling_load: {
+    description: "Calculate data center cooling load per ASHRAE TC 9.9. Computes IT heat, UPS losses, envelope gains, converts to tons, sizes CRAC/CRAH units with N+1 redundancy, and checks ASHRAE thermal envelopes.",
+    params: ["it_load_kw", "ups_capacity_kw", "room_sqft"],
+    credits: WORKFLOW_COSTS.cooling_load,
+  },
+  power_density: {
+    description: "Analyze rack power density for data centers. Classifies kW/rack density, sizes PDUs and branch circuits per NEC 645, calculates airflow requirements, and provides expansion capacity analysis.",
+    params: ["total_it_load_kw", "rack_count"],
+    credits: WORKFLOW_COSTS.power_density,
+  },
+  redundancy_validator: {
+    description: "Validate data center redundancy design against Uptime Institute Tier I–IV standards. Identifies single points of failure, assesses concurrent maintainability, and maps achieved tier with gaps to next level.",
+    params: ["design_type", "total_load_kw", "generator_count", "generator_capacity_kw", "ups_count", "ups_capacity_kw", "cooling_units"],
+    credits: WORKFLOW_COSTS.redundancy_validator,
+  },
 };
 
 async function dispatchWorkflow(
@@ -230,6 +272,92 @@ async function dispatchWorkflow(
       });
       log("info", `nc_utility_interconnect complete — ${ncResult.target} in ${ncResult.results.duration_ms}ms`);
       return ncResult as unknown as WorkflowResult;
+    }
+
+    case "nfpa_110_checker": {
+      const nfpaResult = await runNfpa110Checker({
+        generator_kw:              parseFloat(args.generator_kw),
+        fuel_capacity_gallons:     parseFloat(args.fuel_capacity_gallons),
+        runtime_hours:             parseFloat(args.runtime_hours),
+        ats_transfer_time_seconds: parseFloat(args.ats_transfer_time_seconds),
+        level:                     (parseInt(args.level) as 1 | 2),
+        fuel_type:                 (args.fuel_type as "diesel" | "natural_gas" | "propane") ?? undefined,
+      });
+      log("info", `nfpa_110_checker complete — ${nfpaResult.target} in ${nfpaResult.results.duration_ms}ms`);
+      return nfpaResult as unknown as WorkflowResult;
+    }
+
+    case "ats_sizing": {
+      const atsResult = await runAtsSizing({
+        load_kw:          parseFloat(args.load_kw),
+        voltage:          (parseInt(args.voltage) as 120 | 208 | 240 | 277 | 480 | 600),
+        phases:           (parseInt(args.phases) as 1 | 3),
+        application_type: (args.application_type as "emergency" | "legally_required" | "optional" | "critical") ?? undefined,
+      });
+      log("info", `ats_sizing complete — ${atsResult.target} in ${atsResult.results.duration_ms}ms`);
+      return atsResult as unknown as WorkflowResult;
+    }
+
+    case "ups_sizing": {
+      const upsResult = await runUpsSizing({
+        load_kw:          parseFloat(args.load_kw),
+        runtime_minutes:  parseFloat(args.runtime_minutes),
+        redundancy:       (args.redundancy as "N" | "N+1" | "2N") ?? undefined,
+        voltage:          args.voltage ? (parseInt(args.voltage) as 208 | 480) : undefined,
+        battery_type:     (args.battery_type as "VRLA" | "Li-ion") ?? undefined,
+      });
+      log("info", `ups_sizing complete — ${upsResult.target} in ${upsResult.results.duration_ms}ms`);
+      return upsResult as unknown as WorkflowResult;
+    }
+
+    case "fuel_storage": {
+      const fsResult = await runFuelStorage({
+        generator_kw:          parseFloat(args.generator_kw),
+        target_runtime_hours:  parseFloat(args.target_runtime_hours),
+        tank_type:             (args.tank_type as "above_ground" | "underground" | "day_tank") ?? undefined,
+        jurisdiction:          (args.jurisdiction as "epa" | "california" | "nfpa30") ?? undefined,
+      });
+      log("info", `fuel_storage complete — ${fsResult.target} in ${fsResult.results.duration_ms}ms`);
+      return fsResult as unknown as WorkflowResult;
+    }
+
+    case "cooling_load": {
+      const clResult = await runCoolingLoad({
+        it_load_kw:       parseFloat(args.it_load_kw),
+        ups_capacity_kw:  parseFloat(args.ups_capacity_kw),
+        room_sqft:        parseFloat(args.room_sqft),
+        ceiling_height_ft: args.ceiling_height_ft ? parseFloat(args.ceiling_height_ft) : undefined,
+        ambient_temp_f:   args.ambient_temp_f ? parseFloat(args.ambient_temp_f) : undefined,
+      });
+      log("info", `cooling_load complete — ${clResult.target} in ${clResult.results.duration_ms}ms`);
+      return clResult as unknown as WorkflowResult;
+    }
+
+    case "power_density": {
+      const pdResult = await runPowerDensity({
+        total_it_load_kw:           parseFloat(args.total_it_load_kw),
+        rack_count:                  parseInt(args.rack_count),
+        cabinet_height_u:            args.cabinet_height_u ? parseInt(args.cabinet_height_u) : undefined,
+        cooling_type:                (args.cooling_type as "air" | "liquid" | "hybrid") ?? undefined,
+        target_density_kw_per_rack:  args.target_density_kw_per_rack ? parseFloat(args.target_density_kw_per_rack) : undefined,
+      });
+      log("info", `power_density complete — ${pdResult.target} in ${pdResult.results.duration_ms}ms`);
+      return pdResult as unknown as WorkflowResult;
+    }
+
+    case "redundancy_validator": {
+      const rvResult = await runRedundancyValidator({
+        design_type:            (args.design_type as "N" | "N+1" | "2N" | "2N+1"),
+        total_load_kw:          parseFloat(args.total_load_kw),
+        generator_count:        parseInt(args.generator_count),
+        generator_capacity_kw:  parseFloat(args.generator_capacity_kw),
+        ups_count:              parseInt(args.ups_count),
+        ups_capacity_kw:        parseFloat(args.ups_capacity_kw),
+        cooling_units:          parseInt(args.cooling_units),
+        has_bypass:             args.has_bypass === "true" ? true : undefined,
+      });
+      log("info", `redundancy_validator complete — ${rvResult.target} in ${rvResult.results.duration_ms}ms`);
+      return rvResult as unknown as WorkflowResult;
     }
 
     default:

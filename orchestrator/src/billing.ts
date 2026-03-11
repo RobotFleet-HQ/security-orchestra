@@ -9,6 +9,7 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   vulnerability_assessment: 25,
   generator_sizing:         10,
   utility_interconnect:     30,
+  nc_utility_interconnect:  50,
 };
 
 interface CreditsResponse {

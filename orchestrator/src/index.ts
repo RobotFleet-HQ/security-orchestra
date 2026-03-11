@@ -16,6 +16,7 @@ import { logAudit, auditDb } from "./audit.js";
 import { runSubdomainDiscovery } from "./workflows/subdomain.js";
 import { runGeneratorSizing } from "./workflows/generatorSizing.js";
 import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
+import { runNcUtilityInterconnect } from "./workflows/ncUtilityInterconnect.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,11 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     params: ["utility", "load_mw"],
     credits: WORKFLOW_COSTS.utility_interconnect,
   },
+  nc_utility_interconnect: {
+    description: "Analyze utility interconnect requirements for North Carolina power provider with detailed timeline, cost estimates, and regional regulatory requirements.",
+    params: ["load_mw"],
+    credits: WORKFLOW_COSTS.nc_utility_interconnect,
+  },
 };
 
 async function dispatchWorkflow(
@@ -175,6 +181,17 @@ async function dispatchWorkflow(
       });
       log("info", `utility_interconnect complete — ${uiResult.target} in ${uiResult.results.duration_ms}ms`);
       return uiResult as unknown as WorkflowResult;
+    }
+
+    case "nc_utility_interconnect": {
+      const ncResult = await runNcUtilityInterconnect({
+        load_mw:    parseFloat(args.load_mw),
+        voltage_kv: args.voltage_kv ? parseFloat(args.voltage_kv) : undefined,
+        load_type:  (args.load_type as "data_center" | "industrial" | "commercial") ?? "data_center",
+        state:      args.state ?? undefined,
+      });
+      log("info", `nc_utility_interconnect complete — ${ncResult.target} in ${ncResult.results.duration_ms}ms`);
+      return ncResult as unknown as WorkflowResult;
     }
 
     default:

@@ -237,6 +237,57 @@ export function validateWorkflowParams(
       break;
     }
 
+    case "nc_utility_interconnect": {
+      // load_mw — required, numeric, 1–500
+      const rawMw  = params.load_mw ?? "";
+      const loadMw = parseFloat(sanitizeInput(rawMw));
+      if (isNaN(loadMw) || loadMw < 1 || loadMw > 500) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `400: Invalid load_mw: "${rawMw}". Must be a number between 1 and 500`
+        );
+      }
+      clean.load_mw = String(loadMw);
+
+      // voltage_kv — optional, numeric, 4–765 kV
+      if (params.voltage_kv !== undefined) {
+        const kv = parseFloat(sanitizeInput(params.voltage_kv));
+        if (isNaN(kv) || kv < 4 || kv > 765) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid voltage_kv: "${params.voltage_kv}". Must be 4–765 kV`
+          );
+        }
+        clean.voltage_kv = String(kv);
+      }
+
+      // load_type — optional, enum
+      const VALID_LOAD_TYPES_NC = ["data_center", "industrial", "commercial"];
+      if (params.load_type !== undefined) {
+        const lt = sanitizeInput(params.load_type);
+        if (!VALID_LOAD_TYPES_NC.includes(lt)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid load_type: "${lt}". Must be one of: ${VALID_LOAD_TYPES_NC.join(", ")}`
+          );
+        }
+        clean.load_type = lt;
+      }
+
+      // state — optional, 2-letter US state code
+      if (params.state !== undefined) {
+        const st = sanitizeInput(params.state).toUpperCase();
+        if (!/^[A-Z]{2}$/.test(st)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid state: "${params.state}". Must be a 2-letter US state code (e.g. NC, SC)`
+          );
+        }
+        clean.state = st;
+      }
+      break;
+    }
+
     default:
       throw new McpError(
         ErrorCode.InvalidParams,

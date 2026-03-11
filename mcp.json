@@ -16,6 +16,10 @@
         {
           "name": "utility_interconnect",
           "description": "Analyze utility interconnect for 9 major US utilities"
+        },
+        {
+          "name": "nc_utility_interconnect",
+          "description": "Analyze utility interconnect requirements for North Carolina power provider with detailed timeline, cost estimates, and regional regulatory requirements"
         }
       ]
     }

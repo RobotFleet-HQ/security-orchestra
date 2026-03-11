@@ -77,7 +77,11 @@ const LANDING_HTML = `<!DOCTYPE html>
       </div>
       <div class="agent">
         <div class="agent-name">Utility Interconnect</div>
-        <div class="agent-price">$0.30 / call</div>
+        <div class="agent-price">$0.30 / call &mdash; nationwide</div>
+      </div>
+      <div class="agent">
+        <div class="agent-name">NC Utility Interconnect</div>
+        <div class="agent-price">$0.50 / call &mdash; NC premium</div>
       </div>
     </div>
 

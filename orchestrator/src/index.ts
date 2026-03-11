@@ -18,6 +18,7 @@ import { runGeneratorSizing } from "./workflows/generatorSizing.js";
 import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
 import { runNcUtilityInterconnect } from "./workflows/ncUtilityInterconnect.js";
 import { runPueCalculator } from "./workflows/pueCalculator.js";
+import { runConstructionCost } from "./workflows/constructionCost.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,11 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     params: ["it_load_kw"],
     credits: WORKFLOW_COSTS.pue_calculator,
   },
+  construction_cost: {
+    description: "Estimate construction costs for data center development. Analyzes $/MW costs, regional pricing factors, tier requirements, and provides detailed cost breakdowns for shell, electrical, mechanical, and IT infrastructure.",
+    params: ["capacity_mw"],
+    credits: WORKFLOW_COSTS.construction_cost,
+  },
 };
 
 async function dispatchWorkflow(
@@ -187,6 +193,18 @@ async function dispatchWorkflow(
       });
       log("info", `utility_interconnect complete — ${uiResult.target} in ${uiResult.results.duration_ms}ms`);
       return uiResult as unknown as WorkflowResult;
+    }
+
+    case "construction_cost": {
+      const ccResult = await runConstructionCost({
+        capacity_mw:              parseFloat(args.capacity_mw),
+        tier:                     (args.tier as "tier1" | "tier2" | "tier3" | "tier4") ?? undefined,
+        region:                   (args.region as "northeast" | "mid_atlantic" | "southeast" | "midwest" | "southwest" | "mountain" | "pacific" | "pacific_nw") ?? undefined,
+        building_type:            (args.building_type as "new_build" | "shell_core" | "retrofit") ?? undefined,
+        electricity_rate_per_kwh: args.electricity_rate_per_kwh ? parseFloat(args.electricity_rate_per_kwh) : undefined,
+      });
+      log("info", `construction_cost complete — ${ccResult.target} in ${ccResult.results.duration_ms}ms`);
+      return ccResult as unknown as WorkflowResult;
     }
 
     case "pue_calculator": {

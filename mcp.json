@@ -24,6 +24,10 @@
         {
           "name": "pue_calculator",
           "description": "Calculate Power Usage Effectiveness (PUE) and efficiency metrics for data center facilities. Analyzes IT load, cooling systems, power distribution, and provides optimization recommendations."
+        },
+        {
+          "name": "construction_cost",
+          "description": "Estimate construction costs for data center development. Analyzes $/MW costs, regional pricing factors, tier requirements, and provides detailed cost breakdowns for shell, electrical, mechanical, and IT infrastructure."
         }
       ]
     }

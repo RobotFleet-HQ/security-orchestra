@@ -87,6 +87,10 @@ const LANDING_HTML = `<!DOCTYPE html>
         <div class="agent-name">PUE Calculator</div>
         <div class="agent-price">$0.10 / call</div>
       </div>
+      <div class="agent">
+        <div class="agent-name">Construction Cost</div>
+        <div class="agent-price">$0.10 / call</div>
+      </div>
     </div>
 
     <hr class="divider">

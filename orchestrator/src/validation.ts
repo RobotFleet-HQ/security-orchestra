@@ -237,6 +237,74 @@ export function validateWorkflowParams(
       break;
     }
 
+    case "construction_cost": {
+      // capacity_mw — required, numeric, 0.1–1000
+      const rawMw  = params.capacity_mw ?? "";
+      const capMw  = parseFloat(sanitizeInput(rawMw));
+      if (isNaN(capMw) || capMw < 0.1 || capMw > 1000) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `400: Invalid capacity_mw: "${rawMw}". Must be a number between 0.1 and 1000`
+        );
+      }
+      clean.capacity_mw = String(capMw);
+
+      // tier — optional, enum
+      const VALID_TIERS_CC = ["tier1", "tier2", "tier3", "tier4"];
+      if (params.tier !== undefined) {
+        const t = sanitizeInput(params.tier);
+        if (!VALID_TIERS_CC.includes(t)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid tier: "${t}". Must be one of: ${VALID_TIERS_CC.join(", ")}`
+          );
+        }
+        clean.tier = t;
+      }
+
+      // region — optional, enum
+      const VALID_REGIONS = [
+        "northeast", "mid_atlantic", "southeast", "midwest",
+        "southwest", "mountain", "pacific", "pacific_nw",
+      ];
+      if (params.region !== undefined) {
+        const r = sanitizeInput(params.region);
+        if (!VALID_REGIONS.includes(r)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid region: "${r}". Must be one of: ${VALID_REGIONS.join(", ")}`
+          );
+        }
+        clean.region = r;
+      }
+
+      // building_type — optional, enum
+      const VALID_BUILDING_TYPES = ["new_build", "shell_core", "retrofit"];
+      if (params.building_type !== undefined) {
+        const bt = sanitizeInput(params.building_type);
+        if (!VALID_BUILDING_TYPES.includes(bt)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid building_type: "${bt}". Must be one of: ${VALID_BUILDING_TYPES.join(", ")}`
+          );
+        }
+        clean.building_type = bt;
+      }
+
+      // electricity_rate_per_kwh — optional, numeric, 0.01–2.0
+      if (params.electricity_rate_per_kwh !== undefined) {
+        const rate = parseFloat(sanitizeInput(params.electricity_rate_per_kwh));
+        if (isNaN(rate) || rate < 0.01 || rate > 2.0) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid electricity_rate_per_kwh: "${params.electricity_rate_per_kwh}". Must be 0.01–2.0`
+          );
+        }
+        clean.electricity_rate_per_kwh = String(rate);
+      }
+      break;
+    }
+
     case "pue_calculator": {
       // it_load_kw — required, numeric, 1–500000
       const rawKw  = params.it_load_kw ?? "";

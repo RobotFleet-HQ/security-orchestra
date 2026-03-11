@@ -10,6 +10,7 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   generator_sizing:         10,
   utility_interconnect:     30,
   nc_utility_interconnect:  50,
+  pue_calculator:           10,
 };
 
 interface CreditsResponse {

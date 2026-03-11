@@ -237,6 +237,93 @@ export function validateWorkflowParams(
       break;
     }
 
+    case "pue_calculator": {
+      // it_load_kw — required, numeric, 1–500000
+      const rawKw  = params.it_load_kw ?? "";
+      const itLoad = parseFloat(sanitizeInput(rawKw));
+      if (isNaN(itLoad) || itLoad < 1 || itLoad > 500_000) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `400: Invalid it_load_kw: "${rawKw}". Must be a number between 1 and 500000`
+        );
+      }
+      clean.it_load_kw = String(itLoad);
+
+      // cooling_load_kw — optional, numeric, 0–2000000
+      if (params.cooling_load_kw !== undefined) {
+        const cl = parseFloat(sanitizeInput(params.cooling_load_kw));
+        if (isNaN(cl) || cl < 0 || cl > 2_000_000) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid cooling_load_kw: "${params.cooling_load_kw}". Must be 0–2000000`
+          );
+        }
+        clean.cooling_load_kw = String(cl);
+      }
+
+      // ups_efficiency_pct — optional, numeric, 50–100
+      if (params.ups_efficiency_pct !== undefined) {
+        const eff = parseFloat(sanitizeInput(params.ups_efficiency_pct));
+        if (isNaN(eff) || eff < 50 || eff > 100) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid ups_efficiency_pct: "${params.ups_efficiency_pct}". Must be 50–100`
+          );
+        }
+        clean.ups_efficiency_pct = String(eff);
+      }
+
+      // pdu_loss_pct — optional, numeric, 0–20
+      if (params.pdu_loss_pct !== undefined) {
+        const pdu = parseFloat(sanitizeInput(params.pdu_loss_pct));
+        if (isNaN(pdu) || pdu < 0 || pdu > 20) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid pdu_loss_pct: "${params.pdu_loss_pct}". Must be 0–20`
+          );
+        }
+        clean.pdu_loss_pct = String(pdu);
+      }
+
+      // lighting_kw — optional, numeric, 0–10000
+      if (params.lighting_kw !== undefined) {
+        const lkw = parseFloat(sanitizeInput(params.lighting_kw));
+        if (isNaN(lkw) || lkw < 0 || lkw > 10_000) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid lighting_kw: "${params.lighting_kw}". Must be 0–10000`
+          );
+        }
+        clean.lighting_kw = String(lkw);
+      }
+
+      // cooling_type — optional, enum
+      const VALID_COOLING = ["air_cooled", "water_cooled", "free_cooling", "hybrid", "liquid_immersion"];
+      if (params.cooling_type !== undefined) {
+        const ct = sanitizeInput(params.cooling_type);
+        if (!VALID_COOLING.includes(ct)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid cooling_type: "${ct}". Must be one of: ${VALID_COOLING.join(", ")}`
+          );
+        }
+        clean.cooling_type = ct;
+      }
+
+      // electricity_rate_per_kwh — optional, numeric, 0.01–2.0
+      if (params.electricity_rate_per_kwh !== undefined) {
+        const rate = parseFloat(sanitizeInput(params.electricity_rate_per_kwh));
+        if (isNaN(rate) || rate < 0.01 || rate > 2.0) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `400: Invalid electricity_rate_per_kwh: "${params.electricity_rate_per_kwh}". Must be 0.01–2.0`
+          );
+        }
+        clean.electricity_rate_per_kwh = String(rate);
+      }
+      break;
+    }
+
     case "nc_utility_interconnect": {
       // load_mw — required, numeric, 1–500
       const rawMw  = params.load_mw ?? "";

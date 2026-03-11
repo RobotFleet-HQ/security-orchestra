@@ -17,6 +17,7 @@ import { runSubdomainDiscovery } from "./workflows/subdomain.js";
 import { runGeneratorSizing } from "./workflows/generatorSizing.js";
 import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
 import { runNcUtilityInterconnect } from "./workflows/ncUtilityInterconnect.js";
+import { runPueCalculator } from "./workflows/pueCalculator.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,11 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     params: ["load_mw"],
     credits: WORKFLOW_COSTS.nc_utility_interconnect,
   },
+  pue_calculator: {
+    description: "Calculate Power Usage Effectiveness (PUE) and efficiency metrics for data center facilities. Analyzes IT load, cooling systems, power distribution, and provides optimization recommendations.",
+    params: ["it_load_kw"],
+    credits: WORKFLOW_COSTS.pue_calculator,
+  },
 };
 
 async function dispatchWorkflow(
@@ -181,6 +187,20 @@ async function dispatchWorkflow(
       });
       log("info", `utility_interconnect complete — ${uiResult.target} in ${uiResult.results.duration_ms}ms`);
       return uiResult as unknown as WorkflowResult;
+    }
+
+    case "pue_calculator": {
+      const pueResult = await runPueCalculator({
+        it_load_kw:               parseFloat(args.it_load_kw),
+        cooling_load_kw:          args.cooling_load_kw          ? parseFloat(args.cooling_load_kw)          : undefined,
+        ups_efficiency_pct:       args.ups_efficiency_pct       ? parseFloat(args.ups_efficiency_pct)       : undefined,
+        pdu_loss_pct:             args.pdu_loss_pct             ? parseFloat(args.pdu_loss_pct)             : undefined,
+        lighting_kw:              args.lighting_kw              ? parseFloat(args.lighting_kw)              : undefined,
+        cooling_type:             (args.cooling_type as "air_cooled" | "water_cooled" | "free_cooling" | "hybrid" | "liquid_immersion") ?? undefined,
+        electricity_rate_per_kwh: args.electricity_rate_per_kwh ? parseFloat(args.electricity_rate_per_kwh) : undefined,
+      });
+      log("info", `pue_calculator complete — ${pueResult.target} in ${pueResult.results.duration_ms}ms`);
+      return pueResult as unknown as WorkflowResult;
     }
 
     case "nc_utility_interconnect": {

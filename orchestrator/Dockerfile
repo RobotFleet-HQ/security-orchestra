@@ -28,6 +28,7 @@ RUN cd orchestrator && npx tsc
 COPY generator-sizing-agent/          ./generator-sizing-agent/
 COPY utility-interconnect-agent/      ./utility-interconnect-agent/
 COPY nc-utility-interconnect-agent/   ./nc-utility-interconnect-agent/
+COPY pue-calculator-agent/            ./pue-calculator-agent/
 
 # ── Persistent volume mount point for SQLite databases ────────────────────────
 # Mount a Railway volume at /data to persist keys.db and audit.db across deploys

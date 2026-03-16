@@ -44,6 +44,11 @@ app.use(
 
 app.use(express.json());
 
+// ─── Credit purchase — registered immediately after express.json() ────────────
+// IMPORTANT: Must be here, before express.static and creditsRouter, so that
+// POST /credits/purchase reaches this handler with a parsed req.body.
+app.use("/credits/purchase", creditPurchaseRouter);
+
 // ─── Static files (signup.html, etc.) ────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const publicDir = path.join(__dirname, "..", "public");
@@ -112,7 +117,6 @@ app.use("/signup", signupRouter);
 app.use("/verify", verifyRouter);
 app.use("/users", usersRouter);
 app.use("/credits", creditsRouter);
-app.use("/credits/purchase", creditPurchaseRouter);
 app.use("/checkout", checkoutRouter);
 app.use("/subscription", subscriptionRouter);
 app.use("/audit", auditRouter);

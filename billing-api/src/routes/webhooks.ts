@@ -241,18 +241,34 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log(`[webhook] User ${userId} (${user.email}) → ${tier}, +${tierConfig.credits} credits`);
 
   // Provision API key (with retry for 429/503)
+  console.log(`[webhook-email] Step 1: calling provisionApiKey for user ${userId}`);
   const apiKey = await provisionApiKey(userId, tier);
+  console.log(`[webhook-email] Step 2: provisionApiKey returned: ${apiKey ? "KEY_OBTAINED" : "NULL"}`);
 
   // Email customer
+  console.log(`[webhook-email] Step 3: preparing to send email to "${user.email}" — SENDGRID_API_KEY set: ${!!process.env.SENDGRID_API_KEY}`);
+  if (!user.email) {
+    console.error("[webhook-email] ABORT: user.email is empty/null — cannot send email");
+    return;
+  }
+
   try {
     if (apiKey) {
+      console.log(`[webhook-email] Step 4a: calling sendApiKeyEmail(to="${user.email}", tier="${tierConfig.label}")`);
       await sendApiKeyEmail(user.email, apiKey, tierConfig.label);
+      console.log(`[webhook-email] Step 5a: sendApiKeyEmail completed successfully for ${user.email}`);
     } else {
-      console.error(`[webhook] provision-key failed for user ${userId} after all retries`);
+      console.error(`[webhook-email] Step 4b: provision-key returned null — sending upgrade confirmation instead`);
       await sendUpgradeConfirmation(user.email, tierConfig.label, tierConfig.credits);
+      console.log(`[webhook-email] Step 5b: sendUpgradeConfirmation completed for ${user.email}`);
     }
   } catch (err) {
-    console.error("[webhook] Email error:", (err as Error).message);
+    // SendGrid errors carry response body in err.response — log everything
+    const sgErr = err as { message?: string; response?: { body?: unknown; status?: number } };
+    console.error("[webhook-email] FAILED — message:", sgErr.message);
+    console.error("[webhook-email] FAILED — status:", sgErr.response?.status);
+    console.error("[webhook-email] FAILED — body:", JSON.stringify(sgErr.response?.body));
+    console.error("[webhook-email] FAILED — full error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
   }
 }
 

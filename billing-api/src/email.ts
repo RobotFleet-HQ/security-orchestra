@@ -7,6 +7,7 @@ function initSg(): void {
   const key = process.env.SENDGRID_API_KEY;
   if (!key) throw new Error("SENDGRID_API_KEY not set");
   sgMail.setApiKey(key);
+  console.log(`[email] SendGrid initialised — key prefix: ${key.slice(0, 8)}... from: ${process.env.SENDGRID_FROM_EMAIL ?? "(default)"}`);
 }
 
 export async function sendApiKeyEmail(
@@ -15,8 +16,9 @@ export async function sendApiKeyEmail(
   tier: string
 ): Promise<void> {
   initSg();
+  console.log(`[email] sendApiKeyEmail → to="${to}" tier="${tier}" keyPrefix="${apiKey.slice(0, 16)}"`);
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
-  await sgMail.send({
+  const [response] = await sgMail.send({
     to,
     from: FROM_EMAIL,
     subject: "Your Security Orchestra API Key",
@@ -48,6 +50,7 @@ export async function sendApiKeyEmail(
       </div>
     `,
   });
+  console.log(`[email] sendApiKeyEmail → sent OK, statusCode=${response.statusCode}`);
 }
 
 export async function sendVerificationEmail(

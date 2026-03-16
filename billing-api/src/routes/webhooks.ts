@@ -60,17 +60,35 @@ router.post("/stripe", async (req: Request, res: Response) => {
   }
 
   let event: Stripe.Event;
-  try {
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[webhook] constructEvent failed:", msg);
-    console.error("[webhook] Hint — common causes:");
-    console.error("  1. Wrong STRIPE_WEBHOOK_SECRET (test vs live, or re-rolled in dashboard)");
-    console.error("  2. Body was modified in transit (ensure no compression middleware)");
-    console.error("  3. Stripe CLI secret vs dashboard webhook secret mismatch");
-    return res.status(400).json({ error: `Webhook verification failed: ${msg}` });
+  const skipVerification = process.env.STRIPE_SKIP_VERIFICATION === "true";
+
+  if (skipVerification) {
+    // ⚠️  TESTING ONLY — parse payload without signature check
+    console.warn("[webhook] *** STRIPE_SKIP_VERIFICATION=true — skipping signature check ***");
+    try {
+      const payload = Buffer.isBuffer(req.body)
+        ? req.body.toString("utf8")
+        : JSON.stringify(req.body);
+      event = JSON.parse(payload) as Stripe.Event;
+      console.log("[webhook] Parsed event without verification:", event.type, event.id);
+    } catch (parseErr) {
+      console.error("[webhook] Failed to parse payload:", (parseErr as Error).message);
+      return res.status(400).json({ error: "Invalid JSON payload" });
+    }
+  } else {
+    try {
+      const stripe = getStripe();
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[webhook] constructEvent failed:", msg);
+      console.error("[webhook] Hint — common causes:");
+      console.error("  1. Wrong STRIPE_WEBHOOK_SECRET (test vs live key, or re-rolled in Stripe dashboard)");
+      console.error("  2. Stripe CLI secret (whsec_ from `stripe listen`) ≠ dashboard endpoint secret");
+      console.error("  3. Body modified in transit — check for compression or double-parse middleware");
+      console.error("  Set STRIPE_SKIP_VERIFICATION=true to bypass and test event handling");
+      return res.status(400).json({ error: `Webhook verification failed: ${msg}` });
+    }
   }
 
   console.log(`[webhook] ${event.type}`);

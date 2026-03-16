@@ -17,10 +17,24 @@ const app = express();
 const PORT = process.env.PORT ?? 3001;
 
 // ─── Stripe webhooks: MUST receive raw body for signature verification ────────
-// Use type:'*/*' so the raw buffer is captured regardless of any Content-Type
-// variation (e.g. "application/json; charset=utf-8") that proxies may inject.
-// This route is registered BEFORE express.json() so the body is never parsed.
-app.use("/webhooks", express.raw({ type: "*/*" }), webhooksRouter);
+// express.raw() captures the body as a Buffer BEFORE express.json() can touch it.
+// The probe middleware below runs between raw() and the router to confirm the
+// buffer is intact — look for "[webhook-probe]" lines in logs.
+app.use(
+  "/webhooks",
+  express.raw({ type: "*/*" }),
+  // Probe: runs after express.raw(), before the router
+  (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    console.log("[webhook-probe] path         :", req.path);
+    console.log("[webhook-probe] method       :", req.method);
+    console.log("[webhook-probe] isBuffer     :", Buffer.isBuffer(req.body));
+    console.log("[webhook-probe] typeof body  :", typeof req.body);
+    console.log("[webhook-probe] body.length  :", Buffer.isBuffer(req.body) ? req.body.length : "N/A");
+    console.log("[webhook-probe] content-type :", req.headers["content-type"]);
+    next();
+  },
+  webhooksRouter
+);
 
 app.use(express.json());
 

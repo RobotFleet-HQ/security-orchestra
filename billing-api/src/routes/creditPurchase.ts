@@ -6,11 +6,11 @@ const router = Router();
 
 export const CREDIT_PACKS: Record<
   string,
-  { credits: number; price_cents: number; label: string }
+  { credits: number; price_cents: number; label: string; envKey: string }
 > = {
-  "100": { credits: 100, price_cents: 1000, label: "100 Credits" },
-  "250": { credits: 250, price_cents: 2000, label: "250 Credits" },
-  "500": { credits: 500, price_cents: 3500, label: "500 Credits" },
+  "100": { credits: 100, price_cents: 1000, label: "100 Credits", envKey: "CREDIT_PACK_100_PRICE_ID" },
+  "250": { credits: 250, price_cents: 2000, label: "250 Credits", envKey: "CREDIT_PACK_250_PRICE_ID" },
+  "500": { credits: 500, price_cents: 3500, label: "500 Credits", envKey: "CREDIT_PACK_500_PRICE_ID" },
 };
 
 function getStripe(): Stripe {
@@ -40,18 +40,20 @@ router.post("/purchase", async (req: Request, res: Response) => {
   );
   if (!user) {
     return res.status(404).json({
-      error: "Account not found. Sign up first at /signup",
+      error: "No account found for that email. Please sign up first.",
     });
   }
+
+  // Resolve Stripe Price ID from env var; fall back to inline price_data if not configured
+  const priceId = process.env[packConfig.envKey];
 
   try {
     const stripe = getStripe();
     const baseUrl = process.env.BASE_URL ?? "https://security-orchestra-billing.onrender.com";
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items: [
-        {
+
+    const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = priceId
+      ? { price: priceId, quantity: 1 }
+      : {
           price_data: {
             currency: "usd",
             unit_amount: packConfig.price_cents,
@@ -61,8 +63,14 @@ router.post("/purchase", async (req: Request, res: Response) => {
             },
           },
           quantity: 1,
-        },
-      ],
+        };
+
+    console.log(`[credits/purchase] user=${user.id} pack=${pack} priceId=${priceId ?? "inline"}`);
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [lineItem],
       customer_email: email.toLowerCase(),
       metadata: {
         user_id: user.id,
@@ -70,15 +78,11 @@ router.post("/purchase", async (req: Request, res: Response) => {
         credits: String(packConfig.credits),
       },
       success_url: `${baseUrl}/credits-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/`,
+      cancel_url: `${baseUrl}/credits.html?pack=${pack}`,
     });
 
-    return res.json({
-      checkoutUrl: session.url,
-      credits: packConfig.credits,
-      price_cents: packConfig.price_cents,
-      price_usd: `$${(packConfig.price_cents / 100).toFixed(2)}`,
-    });
+    console.log(`[credits/purchase] session created: ${session.id}`);
+    return res.json({ checkoutUrl: session.url });
   } catch (err) {
     console.error("[credits/purchase] Stripe error:", (err as Error).message);
     return res.status(500).json({ error: "Failed to create checkout session" });

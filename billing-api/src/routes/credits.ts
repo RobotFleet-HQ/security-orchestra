@@ -155,7 +155,9 @@ router.post("/:userId/low-credit-warning", async (req: Request, res: Response) =
 router.get("/buy", (req: Request, res: Response) => {
   const pack = req.query.pack ?? "250";
   const email = req.query.email ?? "";
-  res.redirect(`/signup?tier=paid#topup&pack=${pack}&email=${encodeURIComponent(String(email))}`);
+  const params = new URLSearchParams({ pack: String(pack) });
+  if (email) params.set("email", String(email));
+  res.redirect(`/credits.html?${params.toString()}`);
 });
 
 export default router;

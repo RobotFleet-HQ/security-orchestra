@@ -10,7 +10,7 @@ import supportRouter from "./routes/support.js";
 import dashboardRouter from "./routes/dashboard.js";
 import signupRouter from "./routes/signup.js";
 import verifyRouter from "./routes/verify.js";
-import creditPurchaseRouter from "./routes/creditPurchase.js";
+import creditPurchaseRouter, { handleCreditPurchase } from "./routes/creditPurchase.js";
 import subscriptionRouter from "./routes/subscription.js";
 
 const app = express();
@@ -44,10 +44,9 @@ app.use(
 
 app.use(express.json());
 
-// ─── Credit purchase — registered immediately after express.json() ────────────
-// IMPORTANT: Must be here, before express.static and creditsRouter, so that
-// POST /credits/purchase reaches this handler with a parsed req.body.
-app.use("/credits/purchase", creditPurchaseRouter);
+// ─── Credit purchase ──────────────────────────────────────────────────────────
+// Registered as app.post() directly — avoids sub-router mounting path issues.
+app.post("/credits/purchase", handleCreditPurchase);
 
 // ─── Static files (signup.html, etc.) ────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-var-requires

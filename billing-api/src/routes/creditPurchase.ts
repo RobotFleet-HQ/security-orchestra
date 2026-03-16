@@ -1,8 +1,6 @@
-import { Router, Request, Response } from "express";
+import { Request, Response, Router } from "express";
 import Stripe from "stripe";
 import { dbGet } from "../database.js";
-
-const router = Router();
 
 export const CREDIT_PACKS: Record<
   string,
@@ -19,19 +17,21 @@ function getStripe(): Stripe {
   return new Stripe(key, { apiVersion: "2023-10-16" });
 }
 
-// POST /credits/purchase — one-time credit pack purchase (mounted at /credits/purchase)
-router.post("/", async (req: Request, res: Response) => {
-  const { email, pack } = req.body;
+// Exported directly so index.ts can register as app.post("/credits/purchase", handleCreditPurchase)
+// Avoids Express sub-router mounting path-stripping ambiguity.
+export async function handleCreditPurchase(req: Request, res: Response): Promise<void> {
+  console.log("[credits/purchase] handler invoked, body:", JSON.stringify(req.body));
+  const { email, pack } = req.body ?? {};
 
   if (!email || !pack) {
-    return res.status(400).json({ error: "email and pack (100/250/500) are required" });
+    res.status(400).json({ error: "email and pack (100/250/500) are required" });
+    return;
   }
 
   const packConfig = CREDIT_PACKS[String(pack)];
   if (!packConfig) {
-    return res.status(400).json({
-      error: `Invalid pack. Options: ${Object.keys(CREDIT_PACKS).join(", ")}`,
-    });
+    res.status(400).json({ error: `Invalid pack. Options: ${Object.keys(CREDIT_PACKS).join(", ")}` });
+    return;
   }
 
   const user = await dbGet<{ id: string }>(
@@ -39,13 +39,12 @@ router.post("/", async (req: Request, res: Response) => {
     [email.toLowerCase()]
   );
   if (!user) {
-    return res.status(404).json({
-      error: "No account found for that email. Please sign up first.",
-    });
+    res.status(404).json({ error: "No account found for that email. Please sign up first." });
+    return;
   }
 
-  // Resolve Stripe Price ID from env var; fall back to inline price_data if not configured
   const priceId = process.env[packConfig.envKey];
+  console.log(`[credits/purchase] user=${user.id} pack=${pack} priceId=${priceId ?? "inline"}`);
 
   try {
     const stripe = getStripe();
@@ -65,8 +64,6 @@ router.post("/", async (req: Request, res: Response) => {
           quantity: 1,
         };
 
-    console.log(`[credits/purchase] user=${user.id} pack=${pack} priceId=${priceId ?? "inline"}`);
-
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -82,14 +79,15 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     console.log(`[credits/purchase] session created: ${session.id}`);
-    return res.json({ checkoutUrl: session.url });
+    res.json({ checkoutUrl: session.url });
   } catch (err) {
     console.error("[credits/purchase] Stripe error:", (err as Error).message);
-    return res.status(500).json({ error: "Failed to create checkout session" });
+    res.status(500).json({ error: "Failed to create checkout session" });
   }
-});
+}
 
 // GET /credits/packs — list available credit packs
+const router = Router();
 router.get("/packs", (_req: Request, res: Response) => {
   const packs = Object.entries(CREDIT_PACKS).map(([id, cfg]) => ({
     id,
@@ -98,7 +96,7 @@ router.get("/packs", (_req: Request, res: Response) => {
     price_usd: `$${(cfg.price_cents / 100).toFixed(2)}`,
     label: cfg.label,
   }));
-  return res.json({ packs });
+  res.json({ packs });
 });
 
 export default router;

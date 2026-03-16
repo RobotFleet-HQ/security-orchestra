@@ -18,6 +18,9 @@ COPY billing-api/tsconfig.json ./billing-api/
 COPY billing-api/src/           ./billing-api/src/
 RUN cd billing-api && npx tsc
 
+# ── Static assets ─────────────────────────────────────────────────────────────
+COPY billing-api/public/        ./billing-api/public/
+
 # ── Persistent volume mount point for SQLite database ─────────────────────────
 # Mount a Railway volume at /data to persist billing.db across deploys
 RUN mkdir -p /data

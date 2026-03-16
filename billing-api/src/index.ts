@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import { initDb } from "./database.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
@@ -7,190 +8,76 @@ import webhooksRouter from "./routes/webhooks.js";
 import auditRouter from "./routes/audit.js";
 import supportRouter from "./routes/support.js";
 import dashboardRouter from "./routes/dashboard.js";
+import signupRouter from "./routes/signup.js";
+import verifyRouter from "./routes/verify.js";
+import creditPurchaseRouter from "./routes/creditPurchase.js";
+import subscriptionRouter from "./routes/subscription.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-const LANDING_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Security Orchestra — Data Center Power Intelligence</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0d1117;
-      color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 24px;
-    }
-    .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      padding: 48px 52px;
-      max-width: 560px;
-      width: 100%;
-      text-align: center;
-    }
-    .icon { font-size: 36px; margin-bottom: 20px; }
-    h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
-    .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 36px; line-height: 1.5; }
-    .agents { display: flex; gap: 12px; margin-bottom: 36px; }
-    .agent {
-      flex: 1;
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 16px;
-      text-align: left;
-    }
-    .agent-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-    .agent-price { font-size: 12px; color: #3fb950; font-weight: 600; }
-    .divider { border: none; border-top: 1px solid #21262d; margin: 0 0 28px; }
-    .info-row { display: flex; flex-direction: column; gap: 10px; text-align: left; }
-    .info-item { display: flex; align-items: flex-start; gap: 12px; }
-    .info-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.6px; min-width: 72px; padding-top: 2px; }
-    .info-value { font-size: 13px; font-family: 'SFMono-Regular', Consolas, monospace; color: #58a6ff; word-break: break-all; }
-    .info-value a { color: inherit; text-decoration: none; }
-    .info-value a:hover { text-decoration: underline; }
-    .info-value.plain { color: #e6edf3; font-family: inherit; }
-    footer { margin-top: 28px; color: #484f58; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">&#9670;</div>
-    <h1>Security Orchestra</h1>
-    <p class="subtitle">Data Center Power Infrastructure Intelligence</p>
-
-    <div class="agents">
-      <div class="agent">
-        <div class="agent-name">Generator Sizing</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Utility Interconnect</div>
-        <div class="agent-price">$0.30 / call &mdash; nationwide</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">NC Utility Interconnect</div>
-        <div class="agent-price">$0.50 / call &mdash; NC premium</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">PUE Calculator</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Construction Cost</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">NFPA 110 Checker</div>
-        <div class="agent-price">$0.15 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">ATS Sizing</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">UPS Sizing</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Fuel Storage</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Cooling Load</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Power Density</div>
-        <div class="agent-price">$0.10 / call</div>
-      </div>
-      <div class="agent">
-        <div class="agent-name">Redundancy Validator</div>
-        <div class="agent-price">$0.15 / call</div>
-      </div>
-    </div>
-
-    <hr class="divider">
-
-    <div class="info-row">
-      <div class="info-item">
-        <span class="info-label">API</span>
-        <span class="info-value">
-          <a href="https://security-orchestra-orchestrator.onrender.com" target="_blank">
-            security-orchestra-orchestrator.onrender.com
-          </a>
-        </span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Support</span>
-        <span class="info-value">
-          <a href="mailto:rsaunders612@gmail.com">rsaunders612@gmail.com</a>
-        </span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Status</span>
-        <span class="info-value">
-          <a href="/dashboard" target="_blank">
-            security-orchestra-billing.onrender.com/dashboard
-          </a>
-        </span>
-      </div>
-    </div>
-  </div>
-  <footer>Powered by MCP &mdash; Model Context Protocol</footer>
-</body>
-</html>`;
-
-// Stripe webhooks need raw body — mount BEFORE json middleware
-app.use(
-  "/webhooks",
-  express.raw({ type: "application/json" }),
-  webhooksRouter
-);
+// ─── Stripe webhooks: raw body BEFORE json middleware ────────────────────────
+app.use("/webhooks", express.raw({ type: "application/json" }), webhooksRouter);
 
 app.use(express.json());
 
-// Landing page
+// ─── Static files (signup.html, etc.) ────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
+
+// ─── Landing page ─────────────────────────────────────────────────────────────
 app.get("/", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(LANDING_HTML);
 });
 
-// Health check
+// ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "billing-api" });
 });
 
-// Routes
+// ─── Success pages ────────────────────────────────────────────────────────────
+app.get("/signup-success", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(successPage("Payment successful! Your API key and setup instructions have been emailed to you."));
+});
+app.get("/credits-success", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(successPage("Credits added! Your new balance will be reflected immediately."));
+});
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.use("/signup", signupRouter);
+app.use("/verify", verifyRouter);
 app.use("/users", usersRouter);
 app.use("/credits", creditsRouter);
+app.use("/credits", creditPurchaseRouter);
 app.use("/checkout", checkoutRouter);
+app.use("/subscription", subscriptionRouter);
 app.use("/audit", auditRouter);
 app.use("/contact", supportRouter);
 app.use("/dashboard", dashboardRouter);
 
-// Generic error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[error]", err.message);
-  res.status(500).json({ error: "Internal server error" });
-});
+// ─── Error handler ────────────────────────────────────────────────────────────
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("[error]", err.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+);
 
 async function main() {
   await initDb();
   app.listen(PORT, () => {
     console.log(`Billing API running on http://localhost:${PORT}`);
     console.log("Stripe configured:", !!process.env.STRIPE_SECRET_KEY);
+    console.log("SendGrid configured:", !!process.env.SENDGRID_API_KEY);
   });
 }
 
@@ -198,3 +85,314 @@ main().catch((err) => {
   console.error("Fatal:", err.message);
   process.exit(1);
 });
+
+// ─── Page helpers ─────────────────────────────────────────────────────────────
+
+function successPage(message: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Orchestra — Success</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background:#0d1117; color:#e6edf3; font-family:-apple-system,sans-serif;
+           display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:12px;
+            padding:48px; max-width:480px; width:100%; text-align:center; }
+    .icon { font-size:52px; color:#238636; margin-bottom:20px; }
+    h1 { font-size:22px; font-weight:700; margin-bottom:16px; }
+    p { color:#8b949e; line-height:1.6; }
+    a { color:#58a6ff; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✓</div>
+    <h1>Security Orchestra</h1>
+    <p>${message}</p>
+    <p style="margin-top:20px"><a href="/">Return home</a></p>
+  </div>
+</body>
+</html>`;
+}
+
+const LANDING_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Orchestra — Data Center Intelligence Platform</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 40px 24px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .hero { text-align: center; padding: 60px 0 40px; }
+    .icon { font-size: 42px; margin-bottom: 20px; }
+    h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .tagline { color: #8b949e; font-size: 16px; margin-bottom: 36px; line-height: 1.5; }
+    .btn {
+      display: inline-block; background: #238636; color: #fff;
+      padding: 14px 32px; border-radius: 8px; text-decoration: none;
+      font-weight: 600; font-size: 15px; margin: 0 8px 12px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #2ea043; }
+    .btn-secondary {
+      background: transparent; border: 1px solid #30363d; color: #e6edf3;
+    }
+    .btn-secondary:hover { background: #161b22; }
+    .section { margin: 48px 0; }
+    .section-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #f0f6fc; }
+    .category { margin-bottom: 32px; }
+    .cat-title {
+      font-size: 13px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: #8b949e; margin-bottom: 12px; padding-bottom: 8px;
+      border-bottom: 1px solid #21262d;
+    }
+    .agents { display: flex; flex-wrap: wrap; gap: 8px; }
+    .agent {
+      background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+      padding: 10px 14px; font-size: 13px;
+    }
+    .agent-name { font-weight: 600; color: #f0f6fc; }
+    .agent-cost { font-size: 11px; color: #3fb950; margin-top: 2px; }
+    .pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .plan {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px;
+    }
+    .plan.featured { border-color: #238636; }
+    .plan-name { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+    .plan-price { font-size: 24px; font-weight: 700; color: #3fb950; margin-bottom: 4px; }
+    .plan-credits { font-size: 13px; color: #8b949e; margin-bottom: 16px; }
+    .plan-cta {
+      display: block; text-align: center; background: #21262d;
+      color: #e6edf3; padding: 10px; border-radius: 6px;
+      text-decoration: none; font-weight: 600; font-size: 13px;
+    }
+    .plan.featured .plan-cta { background: #238636; }
+    .plan-cta:hover { opacity: 0.85; }
+    .info-block {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 24px; margin-bottom: 16px; font-size: 13px; line-height: 1.7;
+    }
+    .info-block code {
+      background: #0d1117; padding: 2px 6px; border-radius: 4px;
+      font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px;
+      color: #58a6ff;
+    }
+    .info-block pre {
+      background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+      padding: 16px; overflow-x: auto; margin: 12px 0; font-size: 12px;
+      font-family: 'SFMono-Regular', Consolas, monospace; color: #e6edf3; line-height: 1.5;
+    }
+    .links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+    .links a { color: #58a6ff; font-size: 13px; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    footer { text-align: center; color: #484f58; font-size: 12px; padding: 40px 0 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div class="icon">&#9670;</div>
+      <h1>Security Orchestra</h1>
+      <p class="tagline">Data Center Intelligence Platform — 54 AI-powered tools via MCP</p>
+      <a href="/signup" class="btn">Get Started Free</a>
+      <a href="#pricing" class="btn btn-secondary">View Plans</a>
+    </div>
+
+    <div class="section">
+      <div class="section-title">All 54 Tools</div>
+
+      <div class="category">
+        <div class="cat-title">Power Infrastructure (12 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Generator Sizing</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Utility Interconnect</div><div class="agent-cost">30 credits</div></div>
+          <div class="agent"><div class="agent-name">NC Utility Interconnect</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">ATS Sizing</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">UPS Sizing</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Fuel Storage</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Cooling Load</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Power Density</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">PUE Calculator</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Redundancy Validator</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Harmonic Analysis</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Voltage Drop</div><div class="agent-cost">10 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Network &amp; Connectivity (6 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Network Topology</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Bandwidth Sizing</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Latency Calculator</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">IP Addressing</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">DNS Architecture</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">BGP Peering</div><div class="agent-cost">15 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Security &amp; Access (6 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Physical Security</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Biometric Design</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Surveillance Coverage</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Cybersecurity Controls</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Compliance Checker</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Fire Suppression</div><div class="agent-cost">10 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Mechanical / HVAC (6 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Chiller Sizing</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">CRAC vs CRAH</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Airflow Modeling</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Humidification</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Economizer Analysis</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Construction Cost</div><div class="agent-cost">10 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Site &amp; Finance (8 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Site Scoring</div><div class="agent-cost">25 credits</div></div>
+          <div class="agent"><div class="agent-name">ROI Calculator</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">TCO Analyzer</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Water Availability</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Noise Compliance</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Incentive Finder</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Permit Timeline</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Fiber Connectivity</div><div class="agent-cost">20 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Project &amp; Operations (6 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Construction Timeline</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Commissioning Plan</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Maintenance Schedule</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Capacity Planning</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">SLA Calculator</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Change Management</div><div class="agent-cost">10 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Energy &amp; Sustainability (6 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">Carbon Footprint</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Solar Feasibility</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Battery Storage</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Energy Procurement</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Demand Response</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Environmental Impact</div><div class="agent-cost">15 credits</div></div>
+        </div>
+      </div>
+
+      <div class="category">
+        <div class="cat-title">Compliance &amp; Standards (4 tools)</div>
+        <div class="agents">
+          <div class="agent"><div class="agent-name">NFPA 110 Checker</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Subdomain Discovery</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Asset Discovery</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Vulnerability Assessment</div><div class="agent-cost">25 credits</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="section" id="pricing">
+      <div class="section-title">Plans &amp; Pricing</div>
+      <div class="pricing">
+        <div class="plan">
+          <div class="plan-name">Free</div>
+          <div class="plan-price">$0</div>
+          <div class="plan-credits">100 credits / signup</div>
+          <a href="/signup" class="plan-cta">Get Started</a>
+        </div>
+        <div class="plan featured">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">$29</div>
+          <div class="plan-credits">500 credits</div>
+          <a href="/signup?tier=starter" class="plan-cta">Buy Starter</a>
+        </div>
+        <div class="plan">
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$99</div>
+          <div class="plan-credits">2,000 credits</div>
+          <a href="/signup?tier=pro" class="plan-cta">Buy Pro</a>
+        </div>
+        <div class="plan">
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-price">$499</div>
+          <div class="plan-credits">10,000 credits</div>
+          <a href="/signup?tier=enterprise" class="plan-cta">Buy Enterprise</a>
+        </div>
+      </div>
+      <p style="color:#8b949e;font-size:13px;margin-top:16px;text-align:center">
+        Need more credits?
+        <a href="#" style="color:#58a6ff" onclick="document.getElementById('topup').scrollIntoView()">Buy credit top-ups</a> — 100 for $10, 250 for $20, 500 for $35.
+      </p>
+    </div>
+
+    <!-- Credit top-ups -->
+    <div class="section" id="topup">
+      <div class="section-title">Credit Top-Ups</div>
+      <div class="info-block">
+        <p>Running low? Add credits any time — no subscription required.</p>
+        <pre>POST /credits/purchase
+{ "email": "you@example.com", "pack": "250" }
+
+# Returns: { "checkoutUrl": "https://checkout.stripe.com/..." }</pre>
+        <p>Packs: <strong>100 credits ($10)</strong> &middot; <strong>250 credits ($20)</strong> &middot; <strong>500 credits ($35)</strong></p>
+      </div>
+    </div>
+
+    <!-- Setup instructions -->
+    <div class="section">
+      <div class="section-title">Claude Desktop Setup</div>
+      <div class="info-block">
+        <p>Add this to your <code>claude_desktop_config.json</code>:</p>
+        <pre>{
+  "mcpServers": {
+    "security-orchestra": {
+      "url": "https://security-orchestra-orchestrator.onrender.com/sse",
+      "headers": {
+        "Authorization": "Bearer sk_live_YOUR_API_KEY"
+      }
+    }
+  }
+}</pre>
+        <p>Config file location:</p>
+        <ul style="margin:12px 0 0 20px;line-height:2">
+          <li><strong>macOS:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+          <li><strong>Windows:</strong> <code>%APPDATA%\\Claude\\claude_desktop_config.json</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="links">
+      <a href="/signup">Sign Up</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/health">API Status</a>
+      <a href="mailto:rsaunders612@gmail.com">Support</a>
+    </div>
+  </div>
+  <footer>Powered by MCP &mdash; Model Context Protocol &mdash; Security Orchestra</footer>
+</body>
+</html>`;

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Orchestra — Sign Up</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 48px 40px;
+      max-width: 460px;
+      width: 100%;
+    }
+    .icon { font-size: 36px; margin-bottom: 20px; text-align: center; }
+    h1 { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+    .sub { color: #8b949e; font-size: 14px; text-align: center; margin-bottom: 32px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #f0f6fc; margin-bottom: 6px; }
+    input, select {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-size: 14px;
+      padding: 10px 12px;
+      margin-bottom: 20px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus { border-color: #58a6ff; }
+    select option { background: #161b22; }
+    .btn {
+      display: block;
+      width: 100%;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #2ea043; }
+    .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+    .message {
+      margin-top: 20px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+      display: none;
+    }
+    .message.success { background: #0f2619; border: 1px solid #238636; color: #3fb950; }
+    .message.error { background: #2d1117; border: 1px solid #da3633; color: #f85149; }
+    .back { text-align: center; margin-top: 20px; font-size: 13px; color: #8b949e; }
+    .back a { color: #58a6ff; text-decoration: none; }
+    .back a:hover { text-decoration: underline; }
+    .tier-note { font-size: 12px; color: #8b949e; margin-top: -16px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">&#9670;</div>
+    <h1>Security Orchestra</h1>
+    <p class="sub">Get API access to 54 data center intelligence tools</p>
+
+    <form id="signup-form">
+      <label for="email">Email address</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        placeholder="you@example.com"
+        required
+        autocomplete="email"
+      />
+
+      <label for="tier">Plan</label>
+      <select id="tier" name="tier">
+        <option value="free">Free — 100 credits (no payment required)</option>
+        <option value="starter">Starter — 500 credits ($29)</option>
+        <option value="pro">Pro — 2,000 credits ($99)</option>
+        <option value="enterprise">Enterprise — 10,000 credits ($499)</option>
+      </select>
+      <p class="tier-note">Free plan: verify email to get your API key instantly.</p>
+
+      <button type="submit" class="btn" id="submit-btn">Get Started Free</button>
+    </form>
+
+    <div class="message" id="message"></div>
+    <div class="back"><a href="/">&#8592; Back to home</a></div>
+  </div>
+
+  <script>
+    // Pre-select tier from URL param
+    const urlParams = new URLSearchParams(window.location.search);
+    const tierParam = urlParams.get('tier');
+    if (tierParam) {
+      const sel = document.getElementById('tier');
+      if ([...sel.options].some(o => o.value === tierParam)) {
+        sel.value = tierParam;
+        updateButton();
+      }
+    }
+
+    document.getElementById('tier').addEventListener('change', updateButton);
+
+    function updateButton() {
+      const tier = document.getElementById('tier').value;
+      const btn = document.getElementById('submit-btn');
+      const labels = {
+        free: 'Get Started Free',
+        starter: 'Continue to Payment — $29',
+        pro: 'Continue to Payment — $99',
+        enterprise: 'Continue to Payment — $499',
+      };
+      btn.textContent = labels[tier] || 'Get Started';
+    }
+
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const tier = document.getElementById('tier').value;
+      const btn = document.getElementById('submit-btn');
+      const msgEl = document.getElementById('message');
+
+      btn.disabled = true;
+      btn.textContent = 'Please wait…';
+      msgEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, tier }),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          if (data.checkoutUrl) {
+            // Redirect to Stripe checkout
+            window.location.href = data.checkoutUrl;
+            return;
+          }
+          msgEl.className = 'message success';
+          msgEl.textContent = data.message || 'Check your email!';
+          msgEl.style.display = 'block';
+          document.getElementById('signup-form').reset();
+        } else {
+          msgEl.className = 'message error';
+          msgEl.textContent = data.error || 'Something went wrong. Please try again.';
+          msgEl.style.display = 'block';
+        }
+      } catch (err) {
+        msgEl.className = 'message error';
+        msgEl.textContent = 'Network error. Please try again.';
+        msgEl.style.display = 'block';
+      }
+
+      btn.disabled = false;
+      updateButton();
+    });
+  </script>
+</body>
+</html>

@@ -26,9 +26,21 @@ export function initDb(): Promise<void> {
           id TEXT PRIMARY KEY,
           email TEXT UNIQUE NOT NULL,
           tier TEXT NOT NULL DEFAULT 'free',
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL,
+          ip_address TEXT,
+          verification_token TEXT,
+          verification_status TEXT NOT NULL DEFAULT 'verified'
         )
       `);
+
+      // Migration: add columns to existing databases (ignore "duplicate column" errors)
+      for (const col of [
+        "ip_address TEXT",
+        "verification_token TEXT",
+        "verification_status TEXT NOT NULL DEFAULT 'verified'",
+      ]) {
+        db.run(`ALTER TABLE users ADD COLUMN ${col}`, () => { /* ignore errors */ });
+      }
 
       db.run(`
         CREATE TABLE IF NOT EXISTS subscriptions (

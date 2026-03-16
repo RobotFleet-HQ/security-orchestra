@@ -24,6 +24,19 @@ interface User {
 
 // POST /webhooks/stripe — handle Stripe events
 router.post("/stripe", async (req: Request, res: Response) => {
+  // ── DEBUG: dump everything we received ──────────────────────────────────────
+  const secret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+  console.log("[webhook-debug] ============================================");
+  console.log("[webhook-debug] content-type   :", req.headers["content-type"]);
+  console.log("[webhook-debug] stripe-sig      :", req.headers["stripe-signature"]?.slice(0, 60) + "...");
+  console.log("[webhook-debug] typeof req.body :", typeof req.body);
+  console.log("[webhook-debug] isBuffer        :", Buffer.isBuffer(req.body));
+  console.log("[webhook-debug] body length     :", Buffer.isBuffer(req.body) ? req.body.length : (req.body ? JSON.stringify(req.body).length : 0));
+  console.log("[webhook-debug] body preview    :", Buffer.isBuffer(req.body) ? req.body.slice(0, 100).toString("utf8") : JSON.stringify(req.body)?.slice(0, 100));
+  console.log("[webhook-debug] WEBHOOK_SECRET  :", secret ? secret.slice(0, 10) + "..." + secret.slice(-4) : "NOT SET");
+  console.log("[webhook-debug] ============================================");
+  // ────────────────────────────────────────────────────────────────────────────
+
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
     console.error("[webhook] STRIPE_WEBHOOK_SECRET not set");
@@ -38,8 +51,10 @@ router.post("/stripe", async (req: Request, res: Response) => {
   // req.body must be a Buffer — if it's already a parsed object, raw body was lost
   if (!Buffer.isBuffer(req.body)) {
     console.error(
-      "[webhook] req.body is not a Buffer — raw body was not captured. " +
-      `Got type: ${typeof req.body}. Check that /webhooks uses express.raw() before express.json().`
+      "[webhook] req.body is NOT a Buffer — raw body was consumed before reaching this handler.\n" +
+      `  typeof req.body = ${typeof req.body}\n` +
+      `  value = ${JSON.stringify(req.body)?.slice(0, 200)}\n` +
+      "  Fix: ensure /webhooks uses express.raw() BEFORE express.json() in index.ts"
     );
     return res.status(500).json({ error: "Server misconfiguration: raw body not available" });
   }
@@ -50,7 +65,11 @@ router.post("/stripe", async (req: Request, res: Response) => {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[webhook] Signature verification failed:", msg);
+    console.error("[webhook] constructEvent failed:", msg);
+    console.error("[webhook] Hint — common causes:");
+    console.error("  1. Wrong STRIPE_WEBHOOK_SECRET (test vs live, or re-rolled in dashboard)");
+    console.error("  2. Body was modified in transit (ensure no compression middleware)");
+    console.error("  3. Stripe CLI secret vs dashboard webhook secret mismatch");
     return res.status(400).json({ error: `Webhook verification failed: ${msg}` });
   }
 

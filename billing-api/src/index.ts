@@ -50,6 +50,43 @@ app.get("/credits-success", (_req, res) => {
   res.send(successPage("Credits added! Your new balance will be reflected immediately."));
 });
 
+// ─── Webhook diagnostic endpoint ──────────────────────────────────────────────
+// POST /webhook-test — logs everything about the incoming request body & headers
+// Used to diagnose Stripe webhook body-parsing issues. Remove after debugging.
+app.post("/webhook-test", express.raw({ type: "*/*" }), (req, res) => {
+  const info = {
+    headers: {
+      "content-type": req.headers["content-type"],
+      "stripe-signature": req.headers["stripe-signature"]
+        ? (req.headers["stripe-signature"] as string).slice(0, 40) + "..."
+        : null,
+      "transfer-encoding": req.headers["transfer-encoding"],
+      "x-forwarded-for": req.headers["x-forwarded-for"],
+    },
+    body: {
+      isBuffer: Buffer.isBuffer(req.body),
+      type: typeof req.body,
+      length: Buffer.isBuffer(req.body)
+        ? req.body.length
+        : req.body
+        ? JSON.stringify(req.body).length
+        : 0,
+      preview: Buffer.isBuffer(req.body)
+        ? req.body.slice(0, 200).toString("utf8")
+        : JSON.stringify(req.body)?.slice(0, 200),
+    },
+    env: {
+      STRIPE_WEBHOOK_SECRET_SET: !!process.env.STRIPE_WEBHOOK_SECRET,
+      STRIPE_WEBHOOK_SECRET_PREFIX: process.env.STRIPE_WEBHOOK_SECRET
+        ? process.env.STRIPE_WEBHOOK_SECRET.slice(0, 10) + "..."
+        : null,
+      STRIPE_SECRET_KEY_SET: !!process.env.STRIPE_SECRET_KEY,
+    },
+  };
+  console.log("[webhook-test]", JSON.stringify(info, null, 2));
+  res.json({ received: true, debug: info });
+});
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/signup", signupRouter);
 app.use("/verify", verifyRouter);

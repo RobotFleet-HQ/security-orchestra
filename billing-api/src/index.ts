@@ -407,14 +407,31 @@ const LANDING_HTML = `<!DOCTYPE html>
     <!-- Credit top-ups -->
     <div class="section" id="topup">
       <div class="section-title">Credit Top-Ups</div>
-      <div class="info-block">
-        <p>Running low? Add credits any time — no subscription required.</p>
-        <pre>POST /credits/purchase
-{ "email": "you@example.com", "pack": "250" }
-
-# Returns: { "checkoutUrl": "https://checkout.stripe.com/..." }</pre>
-        <p>Packs: <strong>100 credits ($10)</strong> &middot; <strong>250 credits ($20)</strong> &middot; <strong>500 credits ($35)</strong></p>
+      <p style="color:#8b949e;font-size:14px;text-align:center;margin-bottom:24px">Running low? Add credits any time — one-time payment, no subscription required.</p>
+      <div class="pricing">
+        <div class="plan">
+          <div class="plan-name">Starter Pack</div>
+          <div class="plan-price">$10</div>
+          <div class="plan-credits">100 credits</div>
+          <div style="color:#8b949e;font-size:12px;margin-bottom:16px">≈ 10 generator sizings</div>
+          <a href="/credits.html?pack=100" class="plan-cta">Purchase Now</a>
+        </div>
+        <div class="plan featured">
+          <div class="plan-name">Value Pack</div>
+          <div class="plan-price">$20</div>
+          <div class="plan-credits">250 credits</div>
+          <div style="color:#8b949e;font-size:12px;margin-bottom:16px">≈ 25 generator sizings</div>
+          <a href="/credits.html?pack=250" class="plan-cta">Purchase Now</a>
+        </div>
+        <div class="plan">
+          <div class="plan-name">Power Pack</div>
+          <div class="plan-price">$35</div>
+          <div class="plan-credits">500 credits</div>
+          <div style="color:#8b949e;font-size:12px;margin-bottom:16px">≈ 50 generator sizings</div>
+          <a href="/credits.html?pack=500" class="plan-cta">Purchase Now</a>
+        </div>
       </div>
+      <p style="color:#8b949e;font-size:12px;text-align:center;margin-top:16px">Credits never expire &middot; Secure checkout via Stripe</p>
     </div>
 
     <!-- Setup instructions -->

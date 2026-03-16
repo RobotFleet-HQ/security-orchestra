@@ -35,6 +35,15 @@ router.post("/stripe", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing stripe-signature header" });
   }
 
+  // req.body must be a Buffer — if it's already a parsed object, raw body was lost
+  if (!Buffer.isBuffer(req.body)) {
+    console.error(
+      "[webhook] req.body is not a Buffer — raw body was not captured. " +
+      `Got type: ${typeof req.body}. Check that /webhooks uses express.raw() before express.json().`
+    );
+    return res.status(500).json({ error: "Server misconfiguration: raw body not available" });
+  }
+
   let event: Stripe.Event;
   try {
     const stripe = getStripe();

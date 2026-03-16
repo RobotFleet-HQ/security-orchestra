@@ -16,8 +16,11 @@ import subscriptionRouter from "./routes/subscription.js";
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-// ─── Stripe webhooks: raw body BEFORE json middleware ────────────────────────
-app.use("/webhooks", express.raw({ type: "application/json" }), webhooksRouter);
+// ─── Stripe webhooks: MUST receive raw body for signature verification ────────
+// Use type:'*/*' so the raw buffer is captured regardless of any Content-Type
+// variation (e.g. "application/json; charset=utf-8") that proxies may inject.
+// This route is registered BEFORE express.json() so the body is never parsed.
+app.use("/webhooks", express.raw({ type: "*/*" }), webhooksRouter);
 
 app.use(express.json());
 

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Orchestra — Payment Successful</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 48px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .icon { font-size: 52px; color: #3fb950; margin-bottom: 20px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+    p { color: #8b949e; line-height: 1.6; margin-bottom: 12px; }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .home-btn {
+      display: inline-block;
+      margin-top: 24px;
+      background: #238636;
+      color: #fff;
+      padding: 10px 28px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .home-btn:hover { background: #2ea043; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✓</div>
+    <h1>Payment Successful!</h1>
+    <p>Check your email — your API key and setup instructions are on their way.</p>
+    <p>It may take a minute or two to arrive. Check your spam folder if you don't see it.</p>
+    <a href="/" class="home-btn">Return Home</a>
+  </div>
+</body>
+</html>

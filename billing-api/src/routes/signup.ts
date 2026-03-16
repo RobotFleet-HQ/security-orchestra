@@ -135,7 +135,7 @@ router.post("/", async (req: Request, res: Response) => {
 
   try {
     const stripe = getStripe();
-    const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
+    const baseUrl = process.env.BASE_URL ?? "https://security-orchestra-billing.onrender.com";
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",

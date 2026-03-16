@@ -106,7 +106,7 @@ app.use("/signup", signupRouter);
 app.use("/verify", verifyRouter);
 app.use("/users", usersRouter);
 app.use("/credits", creditsRouter);
-app.use("/credits", creditPurchaseRouter);
+app.use("/credits/purchase", creditPurchaseRouter);
 app.use("/checkout", checkoutRouter);
 app.use("/subscription", subscriptionRouter);
 app.use("/audit", auditRouter);

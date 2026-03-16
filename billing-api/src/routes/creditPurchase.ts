@@ -19,8 +19,8 @@ function getStripe(): Stripe {
   return new Stripe(key, { apiVersion: "2023-10-16" });
 }
 
-// POST /credits/purchase — one-time credit pack purchase
-router.post("/purchase", async (req: Request, res: Response) => {
+// POST /credits/purchase — one-time credit pack purchase (mounted at /credits/purchase)
+router.post("/", async (req: Request, res: Response) => {
   const { email, pack } = req.body;
 
   if (!email || !pack) {

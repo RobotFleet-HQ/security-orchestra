@@ -16,6 +16,12 @@ import subscriptionRouter from "./routes/subscription.js";
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+// ─── Global request logger ────────────────────────────────────────────────────
+app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  console.log(`[req] ${req.method} ${req.path}`);
+  next();
+});
+
 // ─── Stripe webhooks: MUST receive raw body for signature verification ────────
 // express.raw() captures the body as a Buffer BEFORE express.json() can touch it.
 // The probe middleware below runs between raw() and the router to confirm the
@@ -112,6 +118,12 @@ app.use("/subscription", subscriptionRouter);
 app.use("/audit", auditRouter);
 app.use("/contact", supportRouter);
 app.use("/dashboard", dashboardRouter);
+
+// ─── 404 handler — catches any unmatched route ────────────────────────────────
+app.use((req: express.Request, res: express.Response) => {
+  console.warn(`[404] ${req.method} ${req.originalUrl} — no route matched`);
+  res.status(404).json({ error: `Cannot ${req.method} ${req.originalUrl}` });
+});
 
 // ─── Error handler ────────────────────────────────────────────────────────────
 app.use(

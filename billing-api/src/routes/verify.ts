@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { dbGet, dbRun } from "../database.js";
 import { sendApiKeyEmail, sendVerificationEmail } from "../email.js";
+import { provisionApiKey } from "../provisionKey.js";
 
 const router = Router();
 
@@ -43,39 +44,8 @@ router.get("/", async (req: Request, res: Response) => {
     [user.id]
   );
 
-  // Provision API key from orchestrator
-  let apiKey: string | null = null;
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL;
-  const adminKey = process.env.ORCHESTRATOR_ADMIN_KEY;
-
-  if (orchestratorUrl && adminKey) {
-    try {
-      const provRes = await fetch(`${orchestratorUrl}/admin/provision-key`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": adminKey,
-        },
-        body: JSON.stringify({ userId: user.id, tier: user.tier }),
-      });
-      if (provRes.ok) {
-        const data = (await provRes.json()) as { apiKey: string };
-        apiKey = data.apiKey;
-      } else {
-        console.error(
-          "[verify] Orchestrator provision-key failed:",
-          provRes.status,
-          await provRes.text()
-        );
-      }
-    } catch (err) {
-      console.error("[verify] Failed to call provision-key:", (err as Error).message);
-    }
-  } else {
-    console.warn(
-      "[verify] ORCHESTRATOR_URL or ORCHESTRATOR_ADMIN_KEY not set — skipping key provisioning"
-    );
-  }
+  // Provision API key from orchestrator (with retry for 429/503)
+  const apiKey = await provisionApiKey(user.id, user.tier);
 
   // Email the API key
   if (apiKey) {
@@ -84,13 +54,15 @@ router.get("/", async (req: Request, res: Response) => {
     } catch (err) {
       console.error("[verify] Email send failed:", (err as Error).message);
     }
+  } else {
+    console.error(`[verify] Could not provision key for user ${user.id} — they will need manual key delivery`);
   }
 
   return res.send(
     page(
       apiKey
         ? "Email verified! Your API key has been sent to your inbox."
-        : "Email verified! Your API key will be provisioned and emailed shortly.",
+        : "Email verified! Your API key will be emailed shortly — if you don't receive it within 5 minutes, contact support.",
       true
     )
   );

@@ -6,6 +6,7 @@ import {
   sendCreditPurchaseConfirmation,
   sendUpgradeConfirmation,
 } from "../email.js";
+import { provisionApiKey } from "../provisionKey.js";
 
 const router = Router();
 
@@ -199,37 +200,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   console.log(`[webhook] User ${userId} upgraded to ${tier}, +${tierConfig.credits} credits`);
 
-  // Provision API key
-  let apiKey: string | null = null;
-  const orchestratorUrl = process.env.ORCHESTRATOR_URL;
-  const adminKey = process.env.ORCHESTRATOR_ADMIN_KEY;
-
-  if (orchestratorUrl && adminKey) {
-    try {
-      const provRes = await fetch(`${orchestratorUrl}/admin/provision-key`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": adminKey,
-        },
-        body: JSON.stringify({ userId, tier }),
-      });
-      if (provRes.ok) {
-        const data = (await provRes.json()) as { apiKey: string };
-        apiKey = data.apiKey;
-      } else {
-        console.error("[webhook] provision-key failed:", provRes.status, await provRes.text());
-      }
-    } catch (err) {
-      console.error("[webhook] provision-key error:", (err as Error).message);
-    }
-  }
+  // Provision API key (with retry for 429/503 — Render spins down idle services)
+  const apiKey = await provisionApiKey(userId, tier);
 
   // Email customer
   try {
     if (apiKey) {
       await sendApiKeyEmail(user.email, apiKey, tierConfig.label);
     } else {
+      console.error(`[webhook] provision-key failed for user ${userId} after all retries`);
       await sendUpgradeConfirmation(user.email, tierConfig.label, tierConfig.credits);
     }
   } catch (err) {

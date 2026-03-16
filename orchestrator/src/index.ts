@@ -1232,29 +1232,35 @@ async function main() {
     });
 
     // Admin: provision an API key for a user (called by billing-api after payment/verification)
+    // Protected by ORCHESTRATOR_ADMIN_KEY — no rate limiting applied here.
     app.post("/admin/provision-key", express.json(), async (req, res) => {
+      log("info", `[provision-key] Received request from ${req.ip} — content-type: ${req.headers["content-type"]}`);
+
       const adminKey = process.env.ORCHESTRATOR_ADMIN_KEY;
       if (!adminKey) {
+        log("error", "[provision-key] ORCHESTRATOR_ADMIN_KEY not set");
         res.status(503).json({ error: "Admin key provisioning not configured" });
         return;
       }
       const suppliedKey = req.headers["x-admin-key"];
       if (!suppliedKey || suppliedKey !== adminKey) {
+        log("warn", `[provision-key] Unauthorized — x-admin-key mismatch (supplied prefix: ${String(suppliedKey).slice(0, 6)})`);
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
       const { userId, tier } = req.body as { userId?: string; tier?: string };
       if (!userId || !tier) {
+        log("warn", `[provision-key] Missing params — userId: ${userId}, tier: ${tier}`);
         res.status(400).json({ error: "userId and tier are required" });
         return;
       }
       try {
         const apiKey = generateApiKey(userId, tier);
         await storeApiKey(apiKey, userId, tier);
-        log("info", `Provisioned API key for user ${userId} (tier: ${tier})`);
+        log("info", `[provision-key] Success — user: ${userId}, tier: ${tier}, prefix: ${apiKey.slice(0, 16)}`);
         res.json({ apiKey });
       } catch (err) {
-        log("error", `provision-key error: ${(err as Error).message}`);
+        log("error", `[provision-key] Error: ${(err as Error).message}`);
         res.status(500).json({ error: "Failed to provision key" });
       }
     });

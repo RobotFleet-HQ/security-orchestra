@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { v4 as uuidv4 } from "uuid";
 import Stripe from "stripe";
 import { dbGet, dbRun, TIERS } from "../database.js";
 import {
@@ -120,41 +121,31 @@ router.post("/stripe", async (req: Request, res: Response) => {
 });
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const userId = session.metadata?.user_id;
+  const metaUserId = session.metadata?.user_id;
   const tier = session.metadata?.tier;
   const purchaseType = session.metadata?.purchase_type;
   const creditsStr = session.metadata?.credits;
 
-  if (!userId) {
-    console.error("[webhook] checkout.session.completed: missing user_id in metadata", session.id);
-    return;
-  }
-
-  const user = await dbGet<User>("SELECT * FROM users WHERE id = ?", [userId]);
-  if (!user) {
-    console.error(`[webhook] User not found: ${userId}`);
-    return;
-  }
-
   const now = new Date().toISOString();
 
-  // Credit pack purchase
-  if (purchaseType === "credit_pack" && creditsStr) {
+  // ── Credit pack purchase ────────────────────────────────────────────────────
+  if (purchaseType === "credit_pack" && creditsStr && metaUserId) {
+    const user = await dbGet<User>("SELECT * FROM users WHERE id = ?", [metaUserId]);
+    if (!user) {
+      console.error(`[webhook] credit_pack: user not found: ${metaUserId}`);
+      return;
+    }
     const credits = parseInt(creditsStr, 10);
-    const currentCredits = await dbGet<{ balance: number; total_purchased: number }>(
-      "SELECT balance, total_purchased FROM credits WHERE user_id = ?",
-      [userId]
+    const current = await dbGet<{ balance: number; total_purchased: number }>(
+      "SELECT balance, total_purchased FROM credits WHERE user_id = ?", [metaUserId]
     );
-    const newBalance = (currentCredits?.balance ?? 0) + credits;
-    const newPurchased = (currentCredits?.total_purchased ?? 0) + credits;
-
+    const newBalance = (current?.balance ?? 0) + credits;
+    const newPurchased = (current?.total_purchased ?? 0) + credits;
     await dbRun(
       "UPDATE credits SET balance = ?, total_purchased = ?, updated_at = ? WHERE user_id = ?",
-      [newBalance, newPurchased, now, userId]
+      [newBalance, newPurchased, now, metaUserId]
     );
-
-    console.log(`[webhook] Credit pack: user ${userId} +${credits} credits (balance: ${newBalance})`);
-
+    console.log(`[webhook] Credit pack: user ${metaUserId} +${credits} (balance: ${newBalance})`);
     try {
       await sendCreditPurchaseConfirmation(user.email, credits, newBalance);
     } catch (err) {
@@ -163,44 +154,93 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Tier upgrade / new paid signup
+  // ── Tier purchase / new signup ──────────────────────────────────────────────
   if (!tier) {
     console.error("[webhook] checkout.session.completed: missing tier in metadata", session.id);
     return;
   }
-
   const tierConfig = TIERS[tier];
   if (!tierConfig) {
     console.error(`[webhook] Unknown tier: ${tier}`);
     return;
   }
 
-  // Upgrade user tier
-  await dbRun("UPDATE users SET tier = ?, verification_status = 'verified' WHERE id = ?", [tier, userId]);
+  // Resolve user — prefer metadata user_id, fall back to email lookup, then create fresh
+  let user = metaUserId
+    ? await dbGet<User>("SELECT * FROM users WHERE id = ?", [metaUserId])
+    : null;
+
+  const email: string =
+    session.customer_details?.email ??
+    session.customer_email ??
+    (user?.email ?? "");
+
+  if (!user && email) {
+    // Try lookup by email (handles case where DB was reset but user signed up before)
+    user = await dbGet<User>("SELECT * FROM users WHERE email = ?", [email.toLowerCase()]);
+  }
+
+  if (!user) {
+    // User genuinely doesn't exist (DB reset, direct Stripe payment, etc.) — create them now
+    if (!email) {
+      console.error(`[webhook] Cannot create user — no email in session ${session.id}`);
+      return;
+    }
+    const newId = metaUserId ?? uuidv4();
+    console.log(`[webhook] User ${newId} not found — creating from Stripe session`);
+    await dbRun(
+      `INSERT INTO users (id, email, tier, created_at, verification_status)
+       VALUES (?, ?, ?, ?, 'verified')`,
+      [newId, email.toLowerCase(), tier, now]
+    );
+    await dbRun(
+      "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, 0, 0, 0, ?)",
+      [newId, now]
+    );
+    user = await dbGet<User>("SELECT * FROM users WHERE id = ?", [newId]);
+    if (!user) {
+      console.error(`[webhook] Failed to create user ${newId}`);
+      return;
+    }
+  }
+
+  const userId = user.id;
+
+  // Upgrade tier + mark verified
+  await dbRun(
+    "UPDATE users SET tier = ?, verification_status = 'verified' WHERE id = ?",
+    [tier, userId]
+  );
 
   // Add credits
-  const credits = await dbGet<{ balance: number; total_purchased: number }>(
-    "SELECT balance, total_purchased FROM credits WHERE user_id = ?",
-    [userId]
+  const existing = await dbGet<{ balance: number; total_purchased: number }>(
+    "SELECT balance, total_purchased FROM credits WHERE user_id = ?", [userId]
   );
-  const newBalance = (credits?.balance ?? 0) + tierConfig.credits;
-  const newPurchased = (credits?.total_purchased ?? 0) + tierConfig.credits;
-  await dbRun(
-    "UPDATE credits SET balance = ?, total_purchased = ?, updated_at = ? WHERE user_id = ?",
-    [newBalance, newPurchased, now, userId]
-  );
+  const newBalance = (existing?.balance ?? 0) + tierConfig.credits;
+  const newPurchased = (existing?.total_purchased ?? 0) + tierConfig.credits;
+  if (existing) {
+    await dbRun(
+      "UPDATE credits SET balance = ?, total_purchased = ?, updated_at = ? WHERE user_id = ?",
+      [newBalance, newPurchased, now, userId]
+    );
+  } else {
+    await dbRun(
+      "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
+      [userId, newBalance, newPurchased, now]
+    );
+  }
 
   // Record subscription
   await dbRun(
     `INSERT OR REPLACE INTO subscriptions
      (id, user_id, stripe_customer_id, stripe_subscription_id, tier, status, created_at)
      VALUES (?, ?, ?, ?, ?, 'active', ?)`,
-    [session.id, userId, session.customer as string, session.subscription as string ?? null, tier, now]
+    [session.id, userId, session.customer as string, (session.subscription as string) ?? null, tier, now]
   );
 
-  console.log(`[webhook] User ${userId} upgraded to ${tier}, +${tierConfig.credits} credits`);
+  console.log(`[webhook] User ${userId} (${user.email}) → ${tier}, +${tierConfig.credits} credits`);
 
-  // Provision API key (with retry for 429/503 — Render spins down idle services)
+  // Provision API key (with retry for 429/503)
   const apiKey = await provisionApiKey(userId, tier);
 
   // Email customer

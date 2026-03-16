@@ -1,5 +1,9 @@
 import { Router, Request, Response } from "express";
 import { dbGet, dbRun } from "../database.js";
+import { sendLowCreditWarning } from "../email.js";
+
+// Track last low-credit warning per user (in-memory, resets on restart)
+const lastWarningAt = new Map<string, number>();
 
 const router = Router();
 
@@ -119,6 +123,39 @@ router.post("/:userId/add", async (req: Request, res: Response) => {
     balance: newBalance,
     updated_at: now,
   });
+});
+
+// POST /credits/:userId/low-credit-warning — send low credit email (max once per day)
+router.post("/:userId/low-credit-warning", async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const { balance } = req.body as { balance: number };
+
+  const lastSent = lastWarningAt.get(userId) ?? 0;
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  if (Date.now() - lastSent < oneDayMs) {
+    return res.json({ sent: false, reason: "Already sent within 24 hours" });
+  }
+
+  const user = await dbGet<{ email: string }>("SELECT email FROM users WHERE id = ?", [userId]);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  try {
+    await sendLowCreditWarning(user.email, balance ?? 0);
+    lastWarningAt.set(userId, Date.now());
+    return res.json({ sent: true });
+  } catch (err) {
+    console.error("[low-credit-warning] Email error:", (err as Error).message);
+    return res.status(500).json({ error: "Failed to send warning email" });
+  }
+});
+
+// GET /credits/buy — redirect to top-up page (convenience link for email CTAs)
+router.get("/buy", (req: Request, res: Response) => {
+  const pack = req.query.pack ?? "250";
+  const email = req.query.email ?? "";
+  res.redirect(`/signup?tier=paid#topup&pack=${pack}&email=${encodeURIComponent(String(email))}`);
 });
 
 export default router;

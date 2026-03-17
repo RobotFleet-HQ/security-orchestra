@@ -11,10 +11,29 @@ const AUDIT_DB_PATH =
   process.env.AUDIT_DB_PATH ??
   path.join(__dirname, "..", "..", "..", "audit.db");
 
-const auditDb = new sqlite3.Database(AUDIT_DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error("[dashboard] Cannot open audit DB (will show N/A):", err.message);
+const auditDb = new sqlite3.Database(
+  AUDIT_DB_PATH,
+  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+  (err) => {
+    if (err) {
+      console.error("[dashboard] Cannot open audit DB (will show N/A):", err.message);
+    }
   }
+);
+
+auditDb.serialize(() => {
+  auditDb.run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp   TEXT NOT NULL,
+      user_id     TEXT NOT NULL,
+      action      TEXT NOT NULL,
+      resource    TEXT,
+      result      TEXT NOT NULL,
+      details     TEXT,
+      duration_ms INTEGER
+    )
+  `);
 });
 
 function auditAll<T>(sql: string, params: unknown[]): Promise<T[]> {

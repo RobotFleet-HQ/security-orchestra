@@ -9,12 +9,30 @@ const AUDIT_DB_PATH =
   process.env.AUDIT_DB_PATH ??
   path.join(__dirname, "..", "..", "..", "audit.db");
 
-// Read-only connection — billing-api only queries, orchestrator writes
-const auditDb = new sqlite3.Database(AUDIT_DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error("[audit-route] Cannot open audit DB:", err.message,
-      `\n  Path: ${AUDIT_DB_PATH}\n  Start the orchestrator first to create it.`);
+const auditDb = new sqlite3.Database(
+  AUDIT_DB_PATH,
+  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+  (err) => {
+    if (err) {
+      console.error("[audit-route] Cannot open audit DB:", err.message,
+        `\n  Path: ${AUDIT_DB_PATH}`);
+    }
   }
+);
+
+auditDb.serialize(() => {
+  auditDb.run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp   TEXT NOT NULL,
+      user_id     TEXT NOT NULL,
+      action      TEXT NOT NULL,
+      resource    TEXT,
+      result      TEXT NOT NULL,
+      details     TEXT,
+      duration_ms INTEGER
+    )
+  `);
 });
 
 interface AuditRow {

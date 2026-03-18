@@ -12,10 +12,10 @@ export const db = new sqlite3.Database(DB_PATH, (err) => {
 });
 
 export const TIERS: Record<string, { price_cents: number; credits: number; label: string }> = {
-  free:       { price_cents: 0,     credits: 100,    label: "Free" },
-  starter:    { price_cents: 2900,  credits: 500,    label: "Starter ($29)" },
-  pro:        { price_cents: 9900,  credits: 2000,   label: "Pro ($99)" },
-  enterprise: { price_cents: 49900, credits: 10000,  label: "Enterprise ($499)" },
+  free:       { price_cents: 0,     credits: 5,     label: "Free" },
+  starter:    { price_cents: 2900,  credits: 50,    label: "Starter ($29)" },
+  pro:        { price_cents: 9900,  credits: 200,   label: "Pro ($99)" },
+  enterprise: { price_cents: 49900, credits: 1000,  label: "Enterprise ($499)" },
 };
 
 export function initDb(): Promise<void> {

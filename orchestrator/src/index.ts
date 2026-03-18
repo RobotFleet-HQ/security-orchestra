@@ -1289,6 +1289,185 @@ async function main() {
       await transport.handlePostMessage(req, res);
     });
 
+    // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
+    const AGENT_CARD = {
+      name: "Security Orchestra",
+      description: "54 specialized AI agents for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
+      url: "https://security-orchestra-orchestrator.onrender.com",
+      version: "1.0.0",
+      provider: {
+        organization: "RobotFleet-HQ",
+        url: "https://robotfleet-hq.github.io/security-orchestra-landing/",
+      },
+      capabilities: {
+        streaming: true,
+        pushNotifications: false,
+      },
+      authentication: {
+        schemes: ["bearer"],
+      },
+      skills: [
+        { id: "generator_sizing",   name: "Generator Sizing",    description: "Size generators for data centers with NFPA 110 compliance, altitude/temp derating, and fuel calculations" },
+        { id: "nfpa_110_checker",   name: "NFPA 110 Checker",    description: "Validate emergency power compliance with detailed violation reports" },
+        { id: "utility_interconnect", name: "Utility Interconnect", description: "Model utility interconnect timelines and costs for 9 major US utilities" },
+        { id: "pue_calculator",     name: "PUE Calculator",      description: "Calculate Power Usage Effectiveness with optimization recommendations" },
+        { id: "roi_calculator",     name: "ROI Calculator",      description: "CapEx vs OpEx analysis with NPV and IRR for data center investments" },
+        { id: "site_scoring",       name: "Site Scoring",        description: "Comprehensive data center site evaluation and ranking" },
+        { id: "ups_sizing",         name: "UPS Sizing",          description: "Battery runtime calculations with N/N+1/2N configurations" },
+        { id: "cooling_load",       name: "Cooling Load",        description: "BTU calculations and cooling equipment selection" },
+        { id: "tco_analyzer",       name: "TCO Analyzer",        description: "Total Cost of Ownership over 5/10/15 year horizons" },
+        { id: "compliance_checker", name: "Compliance Checker",  description: "Multi-standard compliance validation including NFPA, NEC, and EPA" },
+      ],
+    };
+
+    app.get("/.well-known/agent.json", (_req, res) => {
+      res.json(AGENT_CARD);
+    });
+
+    app.get("/.well-known/mcp/server-card.json", (_req, res) => {
+      res.json(AGENT_CARD);
+    });
+
+    // ── A2A: JSON-RPC 2.0 task endpoint ──────────────────────────────────────
+    app.post("/a2a", express.json(), async (req, res) => {
+      // Auth: same API key as SSE
+      const apiKey = process.env.ORCHESTRATOR_API_KEY;
+      const supplied = req.headers["x-api-key"] ?? req.headers["authorization"]?.replace(/^Bearer\s+/i, "");
+      if (!apiKey || supplied !== apiKey) {
+        res.status(401).json({
+          jsonrpc: "2.0",
+          id: req.body?.id ?? null,
+          error: { code: -32001, message: "Unauthorized: missing or invalid API key" },
+        });
+        return;
+      }
+
+      const { jsonrpc, id, method, params } = req.body ?? {};
+      if (jsonrpc !== "2.0" || !method) {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id: id ?? null,
+          error: { code: -32600, message: "Invalid JSON-RPC 2.0 request" },
+        });
+        return;
+      }
+
+      if (method !== "tasks/send") {
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32601, message: `Method not found: ${method}` },
+        });
+        return;
+      }
+
+      // Extract message text from A2A task
+      const text: string | undefined = params?.message?.parts?.[0]?.text;
+      if (!text) {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32602, message: "Missing params.message.parts[0].text" },
+        });
+        return;
+      }
+
+      // Parse text as JSON: { workflow: "...", ...args }
+      let parsed: Record<string, string>;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32602, message: "message text must be valid JSON: { workflow: \"...\", ...args }" },
+        });
+        return;
+      }
+
+      const workflowName = parsed.workflow;
+      if (!workflowName) {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32602, message: "Missing required field: workflow" },
+        });
+        return;
+      }
+
+      const wf = WORKFLOWS[workflowName];
+      if (!wf) {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32602, message: `Unknown workflow: "${workflowName}"` },
+        });
+        return;
+      }
+
+      const a2aUserId = "a2a-client";
+      const a2aTier   = "enterprise";
+
+      try {
+        // Rate limit
+        enforceRateLimit(a2aUserId, a2aTier);
+
+        // Validate params
+        const cleanParams = validateWorkflowParams(workflowName, parsed);
+
+        // Credit gate
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(a2aUserId);
+          if (balance < wf.credits) {
+            res.status(402).json({
+              jsonrpc: "2.0",
+              id,
+              error: { code: -32002, message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` },
+            });
+            return;
+          }
+        }
+
+        // Execute
+        logAudit({ user_id: a2aUserId, action: "a2a_workflow_start", resource: workflowName,
+          result: "success", details: { params: cleanParams, tier: a2aTier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        // Deduct credits
+        if (billingEnabled) {
+          const remaining = await deductCredits(a2aUserId, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: a2aUserId, action: "a2a_workflow_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: a2aTier } });
+
+        res.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            status: "completed",
+            output: {
+              message: {
+                parts: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+              },
+            },
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[a2a] workflow error — ${workflowName}: ${msg}`);
+        res.status(500).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32603, message: msg },
+        });
+      }
+    });
+
     app.listen(httpPort, () =>
       log("info", `HTTP/SSE MCP server listening on :${httpPort}`)
     );

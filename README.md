@@ -1,6 +1,23 @@
 # Security Orchestra
 
+![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)
+![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green)
+![Registry](https://img.shields.io/badge/MCP_Registry-Listed-purple)
+
 A monetized, production-ready security automation platform built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Claude (or any MCP client) connects to the orchestrator and runs real security workflows against authorized targets — with credit-based billing, per-tier rate limiting, input validation, and a full audit trail on every request.
+
+---
+
+## Protocol Support
+
+- ✅ **MCP (Model Context Protocol)** — Claude Desktop and all MCP clients
+- ✅ **A2A (Agent2Agent Protocol)** — Agent-to-agent discovery and task delegation
+
+| | URL |
+|---|---|
+| Agent Card | `https://security-orchestra-orchestrator.onrender.com/.well-known/agent.json` |
+| A2A Endpoint | `https://security-orchestra-orchestrator.onrender.com/a2a` |
+| MCP Registry | `io.github.RobotFleet-HQ/security-orchestra` |
 
 ---
 

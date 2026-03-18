@@ -392,57 +392,6 @@ export function validateWorkflowParams(
       break;
     }
 
-    case "nc_utility_interconnect": {
-      // load_mw — required, numeric, 1–500
-      const rawMw  = params.load_mw ?? "";
-      const loadMw = parseFloat(sanitizeInput(rawMw));
-      if (isNaN(loadMw) || loadMw < 1 || loadMw > 500) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `400: Invalid load_mw: "${rawMw}". Must be a number between 1 and 500`
-        );
-      }
-      clean.load_mw = String(loadMw);
-
-      // voltage_kv — optional, numeric, 4–765 kV
-      if (params.voltage_kv !== undefined) {
-        const kv = parseFloat(sanitizeInput(params.voltage_kv));
-        if (isNaN(kv) || kv < 4 || kv > 765) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `400: Invalid voltage_kv: "${params.voltage_kv}". Must be 4–765 kV`
-          );
-        }
-        clean.voltage_kv = String(kv);
-      }
-
-      // load_type — optional, enum
-      const VALID_LOAD_TYPES_NC = ["data_center", "industrial", "commercial"];
-      if (params.load_type !== undefined) {
-        const lt = sanitizeInput(params.load_type);
-        if (!VALID_LOAD_TYPES_NC.includes(lt)) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `400: Invalid load_type: "${lt}". Must be one of: ${VALID_LOAD_TYPES_NC.join(", ")}`
-          );
-        }
-        clean.load_type = lt;
-      }
-
-      // state — optional, 2-letter US state code
-      if (params.state !== undefined) {
-        const st = sanitizeInput(params.state).toUpperCase();
-        if (!/^[A-Z]{2}$/.test(st)) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `400: Invalid state: "${params.state}". Must be a 2-letter US state code (e.g. NC, SC)`
-          );
-        }
-        clean.state = st;
-      }
-      break;
-    }
-
     case "nfpa_110_checker": {
       // generator_kw — required, numeric, 1–10000
       const genKw = parseFloat(sanitizeInput(params.generator_kw ?? ""));
@@ -1645,6 +1594,94 @@ export function validateWorkflowParams(
           throw new McpError(ErrorCode.InvalidParams, `400: Invalid renewable_target_pct: "${params.renewable_target_pct}". Must be 0–100`);
         clean.renewable_target_pct = String(epRenew);
       }
+      break;
+    }
+
+    case "tier_certification_checker": {
+      // generator_config — required, free-text string
+      const gc = sanitizeInput(params.generator_config ?? "");
+      if (!gc || gc.length > 200) throw new McpError(ErrorCode.InvalidParams, `400: generator_config is required (max 200 chars)`);
+      clean.generator_config = gc;
+
+      // ups_topology — required, free-text string
+      const ut = sanitizeInput(params.ups_topology ?? "");
+      if (!ut || ut.length > 200) throw new McpError(ErrorCode.InvalidParams, `400: ups_topology is required (max 200 chars)`);
+      clean.ups_topology = ut;
+
+      // cooling_redundancy — required, free-text string
+      const cr = sanitizeInput(params.cooling_redundancy ?? "");
+      if (!cr || cr.length > 200) throw new McpError(ErrorCode.InvalidParams, `400: cooling_redundancy is required (max 200 chars)`);
+      clean.cooling_redundancy = cr;
+
+      // power_paths — required, 1 or 2
+      const pp = parseInt(sanitizeInput(params.power_paths ?? ""));
+      if (isNaN(pp) || pp < 1 || pp > 2) throw new McpError(ErrorCode.InvalidParams, `400: power_paths must be 1 or 2`);
+      clean.power_paths = String(pp);
+
+      // fuel_runtime_hours — required, numeric, 1–8760
+      const frh = parseFloat(sanitizeInput(params.fuel_runtime_hours ?? ""));
+      if (isNaN(frh) || frh < 1 || frh > 8760) throw new McpError(ErrorCode.InvalidParams, `400: fuel_runtime_hours must be 1–8760`);
+      clean.fuel_runtime_hours = String(frh);
+
+      // transfer_switch_type — required, free-text
+      const ts = sanitizeInput(params.transfer_switch_type ?? "");
+      if (!ts || ts.length > 100) throw new McpError(ErrorCode.InvalidParams, `400: transfer_switch_type is required (max 100 chars)`);
+      clean.transfer_switch_type = ts;
+
+      // has_concurrent_maintainability — required, boolean
+      const cm = sanitizeInput(params.has_concurrent_maintainability ?? "");
+      if (!["true", "false"].includes(cm.toLowerCase())) throw new McpError(ErrorCode.InvalidParams, `400: has_concurrent_maintainability must be "true" or "false"`);
+      clean.has_concurrent_maintainability = cm.toLowerCase();
+
+      // has_fault_tolerance — required, boolean
+      const ft = sanitizeInput(params.has_fault_tolerance ?? "");
+      if (!["true", "false"].includes(ft.toLowerCase())) throw new McpError(ErrorCode.InvalidParams, `400: has_fault_tolerance must be "true" or "false"`);
+      clean.has_fault_tolerance = ft.toLowerCase();
+
+      // target_tier — required, enum
+      const VALID_TIERS_UPTIME = ["Tier I", "Tier II", "Tier III", "Tier IV"];
+      const tt = sanitizeInput(params.target_tier ?? "");
+      if (!VALID_TIERS_UPTIME.includes(tt)) throw new McpError(ErrorCode.InvalidParams, `400: target_tier must be one of: ${VALID_TIERS_UPTIME.join(", ")}`);
+      clean.target_tier = tt;
+      break;
+    }
+
+    case "nc_utility_interconnect": {
+      // utility — required, enum
+      const VALID_NC_UTILITIES = ["Duke Energy Progress", "Duke Energy Carolinas", "Dominion Energy NC"];
+      const ncUtil = sanitizeInput(params.utility ?? "");
+      if (!VALID_NC_UTILITIES.some(v => v.toLowerCase() === ncUtil.toLowerCase())) {
+        throw new McpError(ErrorCode.InvalidParams, `400: utility must be one of: ${VALID_NC_UTILITIES.join(", ")}`);
+      }
+      clean.utility = ncUtil;
+
+      // capacity_kw — required, numeric, 1–50000
+      const capKw = parseFloat(sanitizeInput(params.capacity_kw ?? ""));
+      if (isNaN(capKw) || capKw < 1 || capKw > 50_000) throw new McpError(ErrorCode.InvalidParams, `400: capacity_kw must be 1–50000`);
+      clean.capacity_kw = String(capKw);
+
+      // county — required, free-text
+      const county = sanitizeInput(params.county ?? "");
+      if (!county || county.length > 100) throw new McpError(ErrorCode.InvalidParams, `400: county is required (max 100 chars)`);
+      clean.county = county;
+
+      // interconnect_type — required, enum
+      const VALID_INTERCON = ["emergency standby", "parallel operation", "export", "net metering"];
+      const it = sanitizeInput(params.interconnect_type ?? "").toLowerCase();
+      if (!VALID_INTERCON.includes(it)) throw new McpError(ErrorCode.InvalidParams, `400: interconnect_type must be one of: ${VALID_INTERCON.join(", ")}`);
+      clean.interconnect_type = it;
+
+      // voltage_level — required, enum
+      const VALID_VOLTAGES = ["120/240V", "208Y/120V", "480V", "4160V", "12.47kV", "115kV"];
+      const vl = sanitizeInput(params.voltage_level ?? "");
+      if (!VALID_VOLTAGES.includes(vl)) throw new McpError(ErrorCode.InvalidParams, `400: voltage_level must be one of: ${VALID_VOLTAGES.join(", ")}`);
+      clean.voltage_level = vl;
+
+      // project_type — required, enum
+      const VALID_PROJ = ["new construction", "replacement", "upgrade"];
+      const pt = sanitizeInput(params.project_type ?? "").toLowerCase();
+      if (!VALID_PROJ.includes(pt)) throw new McpError(ErrorCode.InvalidParams, `400: project_type must be one of: ${VALID_PROJ.join(", ")}`);
+      clean.project_type = pt;
       break;
     }
 

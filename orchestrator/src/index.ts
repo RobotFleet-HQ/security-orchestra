@@ -69,6 +69,7 @@ import { runCarbonFootprint } from "./workflows/carbonFootprint.js";
 import { runSolarFeasibility } from "./workflows/solarFeasibility.js";
 import { runBatteryStorage } from "./workflows/batteryStorage.js";
 import { runEnergyProcurement } from "./workflows/energyProcurement.js";
+import { runTierCertification } from "./workflows/tierCertification.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -184,11 +185,6 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     description: "Analyze utility interconnect requirements for major US power providers. Returns per-load-size timelines, deposit $/kW ranges, first-year cost, competitive intel, and constraint warnings.",
     params: ["utility", "load_mw"],
     credits: WORKFLOW_COSTS.utility_interconnect,
-  },
-  nc_utility_interconnect: {
-    description: "Analyze utility interconnect requirements for North Carolina power provider with detailed timeline, cost estimates, and regional regulatory requirements.",
-    params: ["load_mw"],
-    credits: WORKFLOW_COSTS.nc_utility_interconnect,
   },
   pue_calculator: {
     description: "Calculate Power Usage Effectiveness (PUE) and efficiency metrics for data center facilities. Analyzes IT load, cooling systems, power distribution, and provides optimization recommendations.",
@@ -432,6 +428,17 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
     params: ["annual_consumption_mwh", "state", "contract_term_years"],
     credits: WORKFLOW_COSTS.energy_procurement,
   },
+  // Phase 3 — premium agents
+  tier_certification_checker: {
+    description: "Evaluate data center readiness for Uptime Institute Tier I–IV certification. Produces a gap analysis with remediation costs, readiness score, and priority steps. This is a readiness assessment, not official certification.",
+    params: ["generator_config", "ups_topology", "cooling_redundancy", "power_paths", "fuel_runtime_hours", "transfer_switch_type", "has_concurrent_maintainability", "has_fault_tolerance", "target_tier"],
+    credits: WORKFLOW_COSTS.tier_certification_checker,
+  },
+  nc_utility_interconnect: {
+    description: "Model the interconnect application process for Duke Energy Progress, Duke Energy Carolinas, or Dominion Energy NC. Returns utility-specific steps, timeline, fees, NCUC filing requirements, and data center considerations.",
+    params: ["utility", "capacity_kw", "county", "interconnect_type", "voltage_level", "project_type"],
+    credits: WORKFLOW_COSTS.nc_utility_interconnect,
+  },
 };
 
 async function dispatchWorkflow(
@@ -505,10 +512,12 @@ async function dispatchWorkflow(
 
     case "nc_utility_interconnect": {
       const ncResult = await runNcUtilityInterconnect({
-        load_mw:    parseFloat(args.load_mw),
-        voltage_kv: args.voltage_kv ? parseFloat(args.voltage_kv) : undefined,
-        load_type:  (args.load_type as "data_center" | "industrial" | "commercial") ?? "data_center",
-        state:      args.state ?? undefined,
+        utility:          args.utility,
+        capacity_kw:      parseFloat(args.capacity_kw),
+        county:           args.county,
+        interconnect_type: args.interconnect_type,
+        voltage_level:    args.voltage_level,
+        project_type:     args.project_type,
       });
       log("info", `nc_utility_interconnect complete — ${ncResult.target} in ${ncResult.results.duration_ms}ms`);
       return ncResult as unknown as WorkflowResult;
@@ -1018,6 +1027,22 @@ async function dispatchWorkflow(
       return epResult as unknown as WorkflowResult;
     }
 
+    case "tier_certification_checker": {
+      const tcResult = await runTierCertification({
+        generator_config:               args.generator_config,
+        ups_topology:                   args.ups_topology,
+        cooling_redundancy:             args.cooling_redundancy,
+        power_paths:                    parseInt(args.power_paths),
+        fuel_runtime_hours:             parseFloat(args.fuel_runtime_hours),
+        transfer_switch_type:           args.transfer_switch_type,
+        has_concurrent_maintainability: args.has_concurrent_maintainability === "true",
+        has_fault_tolerance:            args.has_fault_tolerance === "true",
+        target_tier:                    args.target_tier as "Tier I" | "Tier II" | "Tier III" | "Tier IV",
+      });
+      log("info", `tier_certification_checker complete — ${tcResult.target} in ${tcResult.results.duration_ms}ms`);
+      return tcResult as unknown as WorkflowResult;
+    }
+
     default:
       throw new McpError(ErrorCode.InvalidParams,
         `Unknown workflow: "${name}". Call get_capabilities to list available workflows.`);
@@ -1319,7 +1344,9 @@ async function main() {
         { id: "ups_sizing",           name: "UPS Sizing",           description: "Battery runtime calculations with N/N+1/2N configurations",                                                    tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
         { id: "cooling_load",         name: "Cooling Load",         description: "BTU calculations and cooling equipment selection",                                                              tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
         { id: "tco_analyzer",         name: "TCO Analyzer",         description: "Total Cost of Ownership over 5/10/15 year horizons",                                                           tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "compliance_checker",   name: "Compliance Checker",   description: "Multi-standard compliance validation including NFPA, NEC, and EPA",                                            tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "compliance_checker",       name: "Compliance Checker",       description: "Multi-standard compliance validation including NFPA, NEC, and EPA",                                                                   tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "tier_certification_checker", name: "Tier Certification Checker", description: "Evaluate Uptime Institute Tier I–IV readiness with gap analysis, remediation costs, and readiness score",                                    tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "nc_utility_interconnect",    name: "NC Utility Interconnect",    description: "Model Duke Energy Progress, Duke Energy Carolinas, or Dominion Energy NC interconnect process with county-level detail and NCUC requirements", tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
       ],
     };
 

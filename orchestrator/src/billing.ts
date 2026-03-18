@@ -60,6 +60,8 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   solar_feasibility:        20,
   battery_storage:          15,
   energy_procurement:       20,
+  // Phase 3 — premium agents
+  tier_certification_checker: 50,
 };
 
 interface CreditsResponse {

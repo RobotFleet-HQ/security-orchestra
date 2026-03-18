@@ -4,10 +4,12 @@ import path from "path";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface NcUtilityInterconnectParams {
-  load_mw:    number;
-  voltage_kv?: number;
-  load_type?:  "data_center" | "industrial" | "commercial";
-  state?:      string;
+  utility:          string;
+  capacity_kw:      number;
+  county:           string;
+  interconnect_type: string;
+  voltage_level:    string;
+  project_type:     string;
 }
 
 export interface NcUtilityInterconnectResult {
@@ -18,55 +20,54 @@ export interface NcUtilityInterconnectResult {
 }
 
 interface AgentOutput {
-  utility:           string;
-  utility_key:       string;
-  abbreviation:      string;
-  states:            string[];
-  territory:         string;
-  rto_iso:           string;
-  input:             Record<string, unknown>;
-  interconnect_process: {
-    process_name:            string;
-    queue_approach:          string;
-    timeline_months_min:     number;
-    timeline_months_typical: number;
-    timeline_months_max:     number;
-    timeline_note:           string;
-    steps:                   Array<Record<string, string>>;
-    constraint_notes:        string[];
+  utility:              string;
+  utility_abbreviation: string;
+  ncuc_docket_prefix:   string;
+  county:               string;
+  territory_confirmed:  boolean;
+  territory_note:       string;
+  input:                Record<string, unknown>;
+  interconnect_type_details: {
+    type:                      string;
+    description:               string;
+    export_allowed:            boolean;
+    ncuc_filing_required:      boolean;
+    engineering_study_required: boolean;
   };
-  costs: {
-    study_deposits: {
-      total_study_deposits_usd:  number;
-      refundable_usd:            number;
-      non_refundable_usd:        number;
-      deposit_per_kw_range_low:  number;
-      deposit_per_kw_range_high: number;
-      deposit_range_low_usd:     number;
-      deposit_range_high_usd:    number;
-      deposit_note:              string;
-    };
-    network_upgrades_estimate:    Record<string, unknown>;
-    customer_facilities_estimate: Record<string, unknown>;
-    total_upfront_low_usd:        number;
-    total_upfront_high_usd:       number;
-    first_year_total_low_usd:     number;
-    first_year_total_high_usd:    number;
+  voltage_requirements: {
+    voltage_level:    string;
+    required_studies: string[];
+    protection_type:  string;
   };
-  annual_operating_cost: {
-    total_annual_cost_usd:  number;
-    demand_charges_usd:     number;
-    energy_charges_usd:     number;
-    effective_rate_per_kwh: number;
-    per_mw_per_year_usd:    number;
-    notes:                  string;
+  application_process: {
+    portal:          string;
+    contact_email:   string;
+    tariff_schedule: string;
+    steps:           Array<Record<string, unknown>>;
+    total_steps:     number;
   };
-  "10yr_electricity_npv_usd": number;
-  rate_structure:             Record<string, unknown>;
-  special_programs:           Array<Record<string, string>>;
-  competitive_intel:          string[];
-  regulatory:                 Record<string, unknown>;
-  warnings:                   string[];
+  timeline_estimate: {
+    total_weeks_low:   number;
+    total_weeks_high:  number;
+    total_months_low:  number;
+    total_months_high: number;
+    note:              string;
+  };
+  fees: {
+    application_fee_usd:             number;
+    feasibility_study_deposit_usd:   number;
+    protection_relay_engineering_usd: number;
+    total_estimated_fees_usd:        number;
+    note:                            string;
+  };
+  ncuc_requirements: {
+    filing_required:    boolean;
+    docket:             string;
+    public_notice_days: number;
+    portal:             string;
+  };
+  data_center_considerations: string[];
+  disclaimer:                 string;
 }
 
 // ─── Python agent path ────────────────────────────────────────────────────────
@@ -114,17 +115,17 @@ function runPython(args: string[]): Promise<string> {
 export async function runNcUtilityInterconnect(
   params: NcUtilityInterconnectParams
 ): Promise<NcUtilityInterconnectResult> {
-  const { load_mw, voltage_kv, load_type = "data_center", state } = params;
+  const { utility, capacity_kw, county, interconnect_type, voltage_level, project_type } = params;
   const t0 = Date.now();
 
-  const args = [
-    String(load_mw),
-    voltage_kv ? String(voltage_kv) : "auto",
-    load_type,
-    state ?? "",
-  ];
-
-  const raw = await runPython(args);
+  const raw = await runPython([
+    utility,
+    String(capacity_kw),
+    county,
+    interconnect_type,
+    voltage_level,
+    project_type,
+  ]);
 
   let agentOutput: AgentOutput;
   try {
@@ -133,11 +134,9 @@ export async function runNcUtilityInterconnect(
     throw new Error(`NC utility agent returned non-JSON: ${raw.substring(0, 200)}`);
   }
 
-  const label = `${load_mw} MW — NC Utility (${agentOutput.rto_iso})`;
-
   return {
     workflow:  "nc_utility_interconnect",
-    target:    label,
+    target:    `${capacity_kw} kW — ${utility} (${county} County, NC)`,
     timestamp: new Date().toISOString(),
     results: {
       ...agentOutput,

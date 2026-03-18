@@ -62,9 +62,13 @@ export function initDb(): Promise<void> {
           total_purchased INTEGER NOT NULL DEFAULT 0,
           total_used INTEGER NOT NULL DEFAULT 0,
           updated_at TEXT NOT NULL,
+          last_low_credit_warning_at TEXT,
           FOREIGN KEY (user_id) REFERENCES users(id)
         )
       `);
+
+      // Migration: add column to existing credits tables
+      db.run("ALTER TABLE credits ADD COLUMN last_low_credit_warning_at TEXT", () => { /* ignore if already exists */ });
 
       db.run(`
         CREATE TABLE IF NOT EXISTS support_tickets (

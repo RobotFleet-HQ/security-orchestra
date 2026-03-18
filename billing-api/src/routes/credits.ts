@@ -2,9 +2,6 @@ import { Router, Request, Response } from "express";
 import { dbGet, dbRun } from "../database.js";
 import { sendLowCreditWarning } from "../email.js";
 
-// Track last low-credit warning per user (in-memory, resets on restart)
-const lastWarningAt = new Map<string, number>();
-
 const router = Router();
 
 interface Credits {
@@ -125,13 +122,21 @@ router.post("/:userId/add", async (req: Request, res: Response) => {
   });
 });
 
-// POST /credits/:userId/low-credit-warning — send low credit email (max once per day)
+// POST /credits/:userId/low-credit-warning — send low credit email (max once per day, persisted in DB)
 router.post("/:userId/low-credit-warning", async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { balance } = req.body as { balance: number };
 
-  const lastSent = lastWarningAt.get(userId) ?? 0;
+  const row = await dbGet<{ last_low_credit_warning_at: string | null }>(
+    "SELECT last_low_credit_warning_at FROM credits WHERE user_id = ?",
+    [userId]
+  );
+  if (row === undefined) {
+    return res.status(404).json({ error: "Credits record not found" });
+  }
+
   const oneDayMs = 24 * 60 * 60 * 1000;
+  const lastSent = row.last_low_credit_warning_at ? new Date(row.last_low_credit_warning_at).getTime() : 0;
   if (Date.now() - lastSent < oneDayMs) {
     return res.json({ sent: false, reason: "Already sent within 24 hours" });
   }
@@ -143,7 +148,10 @@ router.post("/:userId/low-credit-warning", async (req: Request, res: Response) =
 
   try {
     await sendLowCreditWarning(user.email, balance ?? 0);
-    lastWarningAt.set(userId, Date.now());
+    await dbRun(
+      "UPDATE credits SET last_low_credit_warning_at = ? WHERE user_id = ?",
+      [new Date().toISOString(), userId]
+    );
     return res.json({ sent: true });
   } catch (err) {
     console.error("[low-credit-warning] Email error:", (err as Error).message);

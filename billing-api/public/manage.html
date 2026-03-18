@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Account — Security Orchestra</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e27;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    header h1 { font-size: 1.8rem; color: #00ff96; }
+    header p  { color: #888; margin-top: 0.4rem; font-size: 0.95rem; }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(0,150,255,0.25);
+      border-radius: 14px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 0.4rem;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07);
+      color: #e0e0e0;
+      font-size: 1rem;
+      outline: none;
+      margin-bottom: 1rem;
+    }
+    input[type="email"]:focus { border-color: #0096ff; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.8rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary  { background: linear-gradient(135deg,#0096ff,#00ff96); color:#0a0e27; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color:#e0e0e0; border:1px solid rgba(255,255,255,0.2); margin-top:0.75rem; }
+    .btn-warning  { background: linear-gradient(135deg,#ff6400,#ffaa00); color:#0a0e27; margin-top:0.75rem; }
+
+    .account-info { display: none; }
+    .account-info h2 { font-size: 1.1rem; color: #00ff96; margin-bottom: 1.25rem; }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 0.95rem;
+    }
+    .info-row:last-of-type { border-bottom: none; }
+    .info-label { color: #888; }
+    .info-value { font-weight: 600; color: #e0e0e0; }
+    .tier-badge {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tier-free       { background:#333; color:#aaa; }
+    .tier-starter    { background:rgba(0,150,255,0.2); color:#0096ff; border:1px solid #0096ff; }
+    .tier-pro        { background:rgba(0,255,150,0.15); color:#00ff96; border:1px solid #00ff96; }
+    .tier-enterprise { background:rgba(255,100,0,0.2); color:#ff6400; border:1px solid #ff6400; }
+
+    .actions { margin-top: 1.5rem; }
+
+    .message {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      display: none;
+    }
+    .message.success { background:rgba(0,255,150,0.1); border:1px solid #00ff96; color:#00ff96; }
+    .message.error   { background:rgba(255,80,80,0.1);  border:1px solid #ff5050; color:#ff7070; }
+
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .divider { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:1.25rem 0; }
+
+    footer { margin-top:2rem; color:#555; font-size:0.8rem; text-align:center; }
+    footer a { color:#555; text-decoration:none; }
+    footer a:hover { color:#888; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Security Orchestra</h1>
+  <p>Manage your account</p>
+</header>
+
+<!-- Lookup form -->
+<div class="card" id="lookup-card">
+  <label for="email-input">Your account email</label>
+  <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email">
+  <button class="btn btn-primary" id="lookup-btn" onclick="lookupAccount()">Look Up Account</button>
+  <div class="message" id="lookup-msg"></div>
+</div>
+
+<!-- Account info (shown after lookup) -->
+<div class="card account-info" id="account-card">
+  <h2>Account Details</h2>
+
+  <div class="info-row">
+    <span class="info-label">Email</span>
+    <span class="info-value" id="disp-email">—</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Plan</span>
+    <span class="info-value"><span class="tier-badge" id="disp-tier">—</span></span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Credit Balance</span>
+    <span class="info-value" id="disp-balance">—</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Credits Used</span>
+    <span class="info-value" id="disp-used">—</span>
+  </div>
+
+  <hr class="divider">
+
+  <div class="actions">
+    <!-- Stripe portal: only shown for paid users -->
+    <button class="btn btn-primary" id="portal-btn" onclick="openPortal()" style="display:none">
+      Manage Billing &amp; Subscription
+    </button>
+
+    <!-- Resend API key: available to everyone -->
+    <button class="btn btn-secondary" id="resend-btn" onclick="resendKey()">
+      Email Me a New API Key
+    </button>
+
+    <div class="message" id="action-msg"></div>
+
+    <hr class="divider">
+
+    <button class="btn btn-secondary" onclick="resetLookup()" style="margin-top:0">
+      ← Look Up a Different Email
+    </button>
+  </div>
+</div>
+
+<footer>
+  <a href="/">← Back to Security Orchestra</a>
+</footer>
+
+<script>
+  let currentEmail = "";
+  let hasStripeCustomer = false;
+
+  function setLoading(btn, loading, defaultText) {
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? '<span class="spinner"></span>Loading…'
+      : defaultText;
+  }
+
+  function showMsg(el, type, text) {
+    el.className = "message " + type;
+    el.textContent = text;
+    el.style.display = "block";
+  }
+
+  function hideMsg(el) {
+    el.style.display = "none";
+  }
+
+  async function lookupAccount() {
+    const emailInput = document.getElementById("email-input");
+    const btn        = document.getElementById("lookup-btn");
+    const msg        = document.getElementById("lookup-msg");
+    const email      = emailInput.value.trim();
+
+    if (!email) { showMsg(msg, "error", "Please enter your email address."); return; }
+
+    hideMsg(msg);
+    setLoading(btn, true, "Look Up Account");
+
+    try {
+      const res  = await fetch("/manage/account?email=" + encodeURIComponent(email));
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg(msg, "error", data.error || "Account not found.");
+        setLoading(btn, false, "Look Up Account");
+        return;
+      }
+
+      // Populate account card
+      currentEmail     = email;
+      hasStripeCustomer = data.has_stripe_customer;
+
+      document.getElementById("disp-email").textContent   = email;
+      document.getElementById("disp-balance").textContent = data.balance + " credits";
+      document.getElementById("disp-used").textContent    = data.total_used + " credits";
+
+      const tierEl = document.getElementById("disp-tier");
+      tierEl.textContent = data.tier.charAt(0).toUpperCase() + data.tier.slice(1);
+      tierEl.className   = "tier-badge tier-" + data.tier;
+
+      document.getElementById("portal-btn").style.display = data.has_stripe_customer ? "block" : "none";
+
+      document.getElementById("lookup-card").style.display  = "none";
+      document.getElementById("account-card").style.display = "block";
+
+    } catch (err) {
+      showMsg(msg, "error", "Network error — please try again.");
+      setLoading(btn, false, "Look Up Account");
+    }
+  }
+
+  async function openPortal() {
+    const btn = document.getElementById("portal-btn");
+    const msg = document.getElementById("action-msg");
+
+    hideMsg(msg);
+    setLoading(btn, true, "Manage Billing &amp; Subscription");
+
+    try {
+      const res  = await fetch("/manage/portal", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: currentEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg(msg, "error", data.error || "Could not open billing portal.");
+        setLoading(btn, false, "Manage Billing &amp; Subscription");
+        return;
+      }
+
+      window.location.href = data.url;
+
+    } catch (err) {
+      showMsg(msg, "error", "Network error — please try again.");
+      setLoading(btn, false, "Manage Billing &amp; Subscription");
+    }
+  }
+
+  async function resendKey() {
+    const btn = document.getElementById("resend-btn");
+    const msg = document.getElementById("action-msg");
+
+    hideMsg(msg);
+    setLoading(btn, true, "Email Me a New API Key");
+
+    try {
+      const res  = await fetch("/manage/resend-key", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: currentEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg(msg, "error", data.error || "Could not send key.");
+      } else {
+        showMsg(msg, "success", "New API key sent! Check your inbox.");
+      }
+    } catch (err) {
+      showMsg(msg, "error", "Network error — please try again.");
+    }
+
+    setLoading(btn, false, "Email Me a New API Key");
+  }
+
+  function resetLookup() {
+    currentEmail      = "";
+    hasStripeCustomer = false;
+    document.getElementById("account-card").style.display = "none";
+    document.getElementById("lookup-card").style.display  = "block";
+    document.getElementById("email-input").value = "";
+    hideMsg(document.getElementById("lookup-msg"));
+    hideMsg(document.getElementById("action-msg"));
+  }
+
+  // Allow Enter key to trigger lookup
+  document.getElementById("email-input").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") lookupAccount();
+  });
+</script>
+
+</body>
+</html>

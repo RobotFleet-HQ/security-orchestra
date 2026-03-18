@@ -16,6 +16,7 @@ Complete reference for how the platform works end-to-end.
 8. [Credit System](#credit-system)
 9. [Troubleshooting Guide](#troubleshooting-guide)
 10. [Common Issues & Solutions](#common-issues--solutions)
+11. [Marketing & Distribution](#marketing--distribution)
 
 ---
 
@@ -614,3 +615,59 @@ if they're missing from the DB.
 | Tool returns "unauthorized" | Wrong API key in config | Re-check claude_desktop_config.json |
 | Tool returns "insufficient credits" | Balance depleted | Top-up at /credits.html |
 | Orchestrator SSE disconnects | Render free-tier sleep | Upgrade to paid tier or ping service |
+
+---
+
+## Marketing & Distribution
+
+### Registry publishing commands
+
+#### MCP Registry (registry.mcp.so)
+
+```bash
+# Republish after any change to server.json or agent card
+npx mcp-publisher publish .mcp/server.json
+```
+
+Current listing: `io.github.RobotFleet-HQ/security-orchestra` v1.0.0
+
+#### A2A Registry (a2aregistry.org)
+
+```powershell
+# Republish / update registration
+Invoke-RestMethod -Uri "https://api.a2aregistry.org/agents" `
+  -Method POST `
+  -Headers @{ "Content-Type" = "application/json" } `
+  -Body (Get-Content .mcp/a2a-registration.json -Raw)
+```
+
+Current listing ID: `b424dc02-bfc2-44b1-98d5-6219e1be4237`
+
+#### Smithery
+
+```bash
+# Republish after adding configSchema to publish payload
+npx smithery mcp publish
+```
+
+Current status: `@robotfleet-hq/security-orchestra` — scan fix pending.
+Issue: Smithery scanner requires `configSchema` in the publish payload to know
+the server needs auth before connecting. Without it, the scan attempt fails at
+the MCP handshake stage.
+
+### Submitted directories — status
+
+| Directory | Submitted | Status |
+|-----------|-----------|--------|
+| registry.mcp.so (Official MCP Registry) | 2026-03-17 | Live — `io.github.RobotFleet-HQ/security-orchestra` |
+| a2aregistry.org | 2026-03-18 | Live — ID `b424dc02-bfc2-44b1-98d5-6219e1be4237` |
+| PulseMCP | 2026-03-17 | Auto-pickup in progress |
+| Smithery | 2026-03-17 | Listed — tools scan pending (configSchema fix needed) |
+
+### LinkedIn post template
+
+Template location: `.mcp/linkedin-post-template.md`
+
+Use after any major capability launch (new agents, new protocol support, new registry listings).
+Key points to include: number of agents (54), supported protocols (MCP + A2A), registry links,
+and a concrete use-case example (e.g. generator sizing for a specific MW load).

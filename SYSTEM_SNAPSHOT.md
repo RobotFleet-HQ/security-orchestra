@@ -1,6 +1,6 @@
 # Security Orchestra — System Snapshot
 
-Complete configuration backup as of 2026-03-16.
+Complete configuration backup as of 2026-03-18.
 
 ---
 
@@ -9,15 +9,17 @@ Complete configuration backup as of 2026-03-16.
 1. [Live URLs](#live-urls)
 2. [GitHub Repository](#github-repository)
 3. [Render Services](#render-services)
-4. [Environment Variables — billing-api](#environment-variables--billing-api)
-5. [Environment Variables — orchestrator](#environment-variables--orchestrator)
-6. [Stripe Configuration](#stripe-configuration)
-7. [SendGrid Configuration](#sendgrid-configuration)
-8. [Database Schema](#database-schema)
-9. [All 54 Agents](#all-54-agents)
-10. [Key Commits & Deployment History](#key-commits--deployment-history)
-11. [Known Limitations](#known-limitations)
-12. [Emergency Recovery Procedures](#emergency-recovery-procedures)
+4. [Protocol Support](#protocol-support)
+5. [Registry Listings](#registry-listings)
+6. [Environment Variables — billing-api](#environment-variables--billing-api)
+7. [Environment Variables — orchestrator](#environment-variables--orchestrator)
+8. [Stripe Configuration](#stripe-configuration)
+9. [SendGrid Configuration](#sendgrid-configuration)
+10. [Database Schema](#database-schema)
+11. [All 54 Agents](#all-54-agents)
+12. [Key Commits & Deployment History](#key-commits--deployment-history)
+13. [Known Limitations](#known-limitations)
+14. [Emergency Recovery Procedures](#emergency-recovery-procedures)
 
 ---
 
@@ -32,6 +34,9 @@ Complete configuration backup as of 2026-03-16.
 | Health check   | `https://security-orchestra-billing.onrender.com/health`   |
 | Orchestrator   | `https://security-orchestra-orchestrator.onrender.com/`    |
 | Orchestrator SSE | `https://security-orchestra-orchestrator.onrender.com/sse` |
+| A2A Agent Card | `https://security-orchestra-orchestrator.onrender.com/.well-known/agent.json` |
+| A2A Endpoint   | `https://security-orchestra-orchestrator.onrender.com/a2a` |
+| Server Card (Smithery) | `https://security-orchestra-orchestrator.onrender.com/.well-known/mcp/server-card.json` |
 | Stripe webhook | `https://security-orchestra-billing.onrender.com/webhooks/stripe` |
 
 ---
@@ -74,7 +79,7 @@ security-orchestra/
 | Port           | 3001                                       |
 | Branch         | main                                       |
 | Auto-deploy    | Yes                                        |
-| Plan           | Free (ephemeral disk — see limitations)    |
+| Plan           | Starter (persistent disk at `/data`)       |
 
 ### Service 2: orchestrator
 
@@ -88,7 +93,36 @@ security-orchestra/
 | Port           | 3000                                       |
 | Branch         | main                                       |
 | Auto-deploy    | Yes                                        |
-| Plan           | Free (spins down after 15 min inactivity)  |
+| Plan           | Starter (always-on, persistent disk at `/data`) |
+
+---
+
+## Protocol Support
+
+| Protocol | Transport | Endpoint | Auth |
+|----------|-----------|----------|------|
+| MCP (Model Context Protocol) | SSE | `https://security-orchestra-orchestrator.onrender.com/sse` | `x-api-key` header |
+| A2A (Agent2Agent Protocol) | JSON-RPC 2.0 | `https://security-orchestra-orchestrator.onrender.com/a2a` | `x-api-key` header |
+
+- **Agent Card:** `/.well-known/agent.json` — machine-readable capability manifest for A2A discovery
+- **Server Card:** `/.well-known/mcp/server-card.json` — same content, required by Smithery
+- Both protocols share the same `x-api-key` authentication (value: `ORCHESTRATOR_API_KEY` env var)
+- A2A requests use JSON-RPC 2.0: method `tasks/send`, message text must be JSON `{ "workflow": "...", ...args }`
+
+---
+
+## Registry Listings
+
+| Registry | Identifier / Status |
+|----------|---------------------|
+| Official MCP Registry (registry.mcp.so) | `io.github.RobotFleet-HQ/security-orchestra` v1.0.0 |
+| A2A Registry (a2aregistry.org) | ID `b424dc02-bfc2-44b1-98d5-6219e1be4237` |
+| PulseMCP | Auto-pickup in progress |
+| Smithery | `@robotfleet-hq/security-orchestra` — scan fix pending (requires `configSchema` in publish payload) |
+
+### Smithery known issue
+Smithery's scanner attempts an MCP handshake before sending an API key, so it cannot reach the tool list.
+Fix: add `configSchema` to the Smithery publish payload so the scanner knows auth is required before connecting.
 
 ---
 
@@ -98,8 +132,9 @@ Set these in Render Dashboard → security-orchestra-billing → Environment.
 
 ```bash
 # ── Database ──────────────────────────────────────────────────────────────────
-# Optional: set to persist DB across deploys (requires Render Persistent Disk)
+# Persistent disk is mounted at /data (Render Starter plan)
 BILLING_DB_PATH=/data/billing.db
+AUDIT_DB_PATH=/data/audit.db          # billing-api audit log; created automatically if missing
 
 # ── Application ───────────────────────────────────────────────────────────────
 PORT=3001
@@ -151,6 +186,10 @@ NODE_ENV=production
 # ── MCP Transport ─────────────────────────────────────────────────────────────
 # Set to "http" for SSE (Render), "stdio" for local Claude Desktop
 MCP_TRANSPORT=http
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# Persistent disk is mounted at /data (Render Starter plan)
+KEYS_DB_PATH=/data/keys.db
 
 # ── Billing API ───────────────────────────────────────────────────────────────
 BILLING_API_URL=https://security-orchestra-billing.onrender.com
@@ -443,47 +482,33 @@ e78d2f8  Add pue_calculator agent
 
 ## Known Limitations
 
-### 1. Free-tier cold starts (5+ min email delay)
-- **Problem:** Both Render free-tier services spin down after 15 minutes of inactivity.
-  When a user signs up and the orchestrator is cold, `provisionApiKey()` hits 429/503.
-  The retry logic waits up to ~15 seconds (4 attempts × backoff), but sometimes the
-  orchestrator needs 30–60 seconds to fully wake up, causing key provisioning to fail.
-- **Symptom:** User verifies email but never receives API key.
-- **Workaround:** Email sends `sendUpgradeConfirmation` as fallback (no key).
-  Manual recovery: see Emergency Recovery below.
-- **Permanent fix:** Upgrade both services to Render Starter ($7/mo each) for always-on.
-
-### 2. Ephemeral SQLite database
-- **Problem:** Render free-tier has no persistent disk. Every deploy wipes `billing.db`
-  and `keys.db`, losing all users, credits, and API keys.
-- **Symptom:** Users who signed up before a deploy have to re-register. API keys stop working.
-- **Workaround:** Webhook recreates users from Stripe session data if missing.
-  But API keys in keys.db are permanently lost on orchestrator redeploy.
-- **Permanent fix:**
-  - Add Render Persistent Disk ($0.25/GB/mo) at `/data`
-  - Set `BILLING_DB_PATH=/data/billing.db`
-  - Set similar env var for orchestrator's keys.db path
-
-### 3. No API key recovery
+### 1. No API key recovery
 - **Problem:** API keys are stored as bcrypt hashes. Plaintext is never stored.
-  If a user loses their key (or the DB is wiped), there's no way to retrieve it.
+  If a user loses their key, there's no way to retrieve it.
 - **Workaround:** Provision a new key manually (see Emergency Recovery).
 
-### 4. In-memory rate limiting
+### 2. In-memory rate limiting
 - **Problem:** Low-credit warning deduplication uses an in-memory Map.
   Resets on every service restart/deploy.
 - **Impact:** User could receive multiple low-credit warnings after a deploy.
 - **Fix:** Store last-warning timestamp in billing.db.
 
-### 5. No subscription management UI
+### 3. No subscription management UI
 - **Problem:** Users can't cancel, pause, or change their subscription from the platform.
 - **Workaround:** Cancellation is handled entirely through Stripe's customer portal or manually.
 
-### 6. Stripe webhook retry risk
+### 4. Stripe webhook retry risk
 - **Problem:** If the webhook handler throws an error, Stripe retries for up to 3 days.
   The handler catches errors and returns 200 to prevent infinite retries, but this means
   some failures are silently dropped.
 - **Impact:** Possible missed credit top-ups or tier upgrades.
+
+### 5. Smithery scan fails
+- **Problem:** Smithery's scanner attempts an MCP handshake before sending an API key,
+  so it cannot enumerate tools and marks the server as non-functional.
+- **Symptom:** `@robotfleet-hq/security-orchestra` listed on Smithery but tools not shown.
+- **Fix:** Add `configSchema` to the Smithery publish payload so the scanner knows
+  authentication is required before connecting.
 
 ---
 
@@ -565,5 +590,5 @@ curl https://security-orchestra-orchestrator.onrender.com/health
 
 ---
 
-*Last updated: 2026-03-16*
-*Platform version: commit c0d3ede*
+*Last updated: 2026-03-18*
+*Platform version: commit b773dd1*

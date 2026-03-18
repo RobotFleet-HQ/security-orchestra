@@ -1302,6 +1302,7 @@ async function main() {
       capabilities: {
         streaming: true,
         pushNotifications: false,
+        stateTransitionHistory: false,
       },
       authentication: {
         schemes: ["bearer"],
@@ -1309,16 +1310,16 @@ async function main() {
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
       skills: [
-        { id: "generator_sizing",     name: "Generator Sizing",     description: "Size generators for data centers with NFPA 110 compliance, altitude/temp derating, and fuel calculations",   tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "nfpa_110_checker",     name: "NFPA 110 Checker",     description: "Validate emergency power compliance with detailed violation reports",                                          tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "utility_interconnect", name: "Utility Interconnect", description: "Model utility interconnect timelines and costs for 9 major US utilities",                                      tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "pue_calculator",       name: "PUE Calculator",       description: "Calculate Power Usage Effectiveness with optimization recommendations",                                         tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "roi_calculator",       name: "ROI Calculator",       description: "CapEx vs OpEx analysis with NPV and IRR for data center investments",                                           tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "site_scoring",         name: "Site Scoring",         description: "Comprehensive data center site evaluation and ranking",                                                         tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "ups_sizing",           name: "UPS Sizing",           description: "Battery runtime calculations with N/N+1/2N configurations",                                                    tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "cooling_load",         name: "Cooling Load",         description: "BTU calculations and cooling equipment selection",                                                              tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "tco_analyzer",         name: "TCO Analyzer",         description: "Total Cost of Ownership over 5/10/15 year horizons",                                                           tags: ["data-center", "critical-power", "infrastructure"] },
-        { id: "compliance_checker",   name: "Compliance Checker",   description: "Multi-standard compliance validation including NFPA, NEC, and EPA",                                            tags: ["data-center", "critical-power", "infrastructure"] },
+        { id: "generator_sizing",     name: "Generator Sizing",     description: "Size generators for data centers with NFPA 110 compliance, altitude/temp derating, and fuel calculations",   tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "nfpa_110_checker",     name: "NFPA 110 Checker",     description: "Validate emergency power compliance with detailed violation reports",                                          tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "utility_interconnect", name: "Utility Interconnect", description: "Model utility interconnect timelines and costs for 9 major US utilities",                                      tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "pue_calculator",       name: "PUE Calculator",       description: "Calculate Power Usage Effectiveness with optimization recommendations",                                         tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "roi_calculator",       name: "ROI Calculator",       description: "CapEx vs OpEx analysis with NPV and IRR for data center investments",                                           tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "site_scoring",         name: "Site Scoring",         description: "Comprehensive data center site evaluation and ranking",                                                         tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "ups_sizing",           name: "UPS Sizing",           description: "Battery runtime calculations with N/N+1/2N configurations",                                                    tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "cooling_load",         name: "Cooling Load",         description: "BTU calculations and cooling equipment selection",                                                              tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "tco_analyzer",         name: "TCO Analyzer",         description: "Total Cost of Ownership over 5/10/15 year horizons",                                                           tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
+        { id: "compliance_checker",   name: "Compliance Checker",   description: "Multi-standard compliance validation including NFPA, NEC, and EPA",                                            tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
       ],
     };
 

@@ -10,6 +10,24 @@ function initSg(): void {
   console.log(`[email] SendGrid initialised — key prefix: ${key.slice(0, 8)}... from: ${process.env.SENDGRID_FROM_EMAIL ?? "(default)"}`);
 }
 
+function canSpamFooter(to: string, baseUrl: string): string {
+  const unsubscribeUrl = `mailto:contact.securityorchestra@gmail.com?subject=Unsubscribe&body=Please unsubscribe ${encodeURIComponent(to)} from Security Orchestra emails.`;
+  return `
+    <div style="border-top:1px solid #e0e0e0;margin-top:32px;padding-top:16px;font-size:11px;color:#999;line-height:1.6">
+      <p>
+        Security Orchestra &nbsp;&bull;&nbsp; P.O. Box [Placeholder]<br>
+        <a href="mailto:contact.securityorchestra@gmail.com" style="color:#999">contact.securityorchestra@gmail.com</a>
+      </p>
+      <p style="margin-top:8px">
+        You received this email because you signed up for Security Orchestra.<br>
+        <a href="${unsubscribeUrl}" style="color:#999">Unsubscribe</a> &nbsp;&bull;&nbsp;
+        <a href="${baseUrl}/privacy.html" style="color:#999">Privacy Policy</a> &nbsp;&bull;&nbsp;
+        <a href="${baseUrl}/terms.html" style="color:#999">Terms of Service</a>
+      </p>
+    </div>
+  `;
+}
+
 export async function sendApiKeyEmail(
   to: string,
   apiKey: string,
@@ -50,7 +68,8 @@ export async function sendApiKeyEmail(
           <strong>Credit policy:</strong> Credits reset on the 1st of each month. Unused credits do not roll over. No refunds on unused credits.
           See our <a href="${baseUrl}/terms.html">Terms of Service</a> for full details.
         </p>
-        <p>Questions? Reply to this email or visit <a href="${baseUrl}">${baseUrl}</a></p>
+        <p>Questions? Email <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a></p>
+        ${canSpamFooter(to, baseUrl)}
       </div>
     `,
   });
@@ -79,6 +98,7 @@ export async function sendVerificationEmail(
         </p>
         <p style="color:#666;font-size:13px">Or copy this link:<br><a href="${verifyUrl}">${verifyUrl}</a></p>
         <p style="color:#666;font-size:13px">This link expires in 24 hours.</p>
+        ${canSpamFooter(to, baseUrl)}
       </div>
     `,
   });
@@ -105,6 +125,7 @@ export async function sendLowCreditWarning(
           <li><a href="${baseUrl}/credits/buy?pack=500">500 credits — $35</a></li>
         </ul>
         <p>Or <a href="${baseUrl}/upgrade">upgrade your plan</a> for a monthly credit refill.</p>
+        ${canSpamFooter(to, baseUrl)}
       </div>
     `,
   });
@@ -116,6 +137,7 @@ export async function sendCreditPurchaseConfirmation(
   newBalance: number
 ): Promise<void> {
   initSg();
+  const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
   await sgMail.send({
     to,
     from: FROM_EMAIL,
@@ -125,6 +147,7 @@ export async function sendCreditPurchaseConfirmation(
         <h2 style="color:#238636">${credits} Credits Added!</h2>
         <p>Your new credit balance is <strong>${newBalance} credits</strong>.</p>
         <p>Start running data center analysis tools right away.</p>
+        ${canSpamFooter(to, baseUrl)}
       </div>
     `,
   });
@@ -136,6 +159,7 @@ export async function sendUpgradeConfirmation(
   credits: number
 ): Promise<void> {
   initSg();
+  const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
   await sgMail.send({
     to,
     from: FROM_EMAIL,
@@ -150,6 +174,7 @@ export async function sendUpgradeConfirmation(
           Your credits will reset on the 1st of each month. Unused credits do not roll over.
           Review our <a href="${baseUrl}/terms.html">Terms of Service</a> for full details.
         </p>
+        ${canSpamFooter(to, baseUrl)}
       </div>
     `,
   });

@@ -451,10 +451,11 @@ const LANDING_HTML = `<!DOCTYPE html>
       <a href="/signup">Sign Up</a>
       <a href="/dashboard">Dashboard</a>
       <a href="/health">API Status</a>
-      <a href="mailto:rsaunders612@gmail.com">Support</a>
+      <a href="mailto:contact.securityorchestra@gmail.com">Support</a>
       <a href="/terms.html">Terms of Service</a>
+      <a href="/privacy.html">Privacy Policy</a>
     </div>
   </div>
-  <footer>Powered by MCP &mdash; Model Context Protocol &mdash; Security Orchestra &mdash; <a href="/terms.html" style="color:#484f58">Terms of Service</a></footer>
+  <footer>Powered by MCP &mdash; Model Context Protocol &mdash; Security Orchestra &mdash; <a href="/terms.html" style="color:#484f58">Terms of Service</a> &mdash; <a href="/privacy.html" style="color:#484f58">Privacy Policy</a></footer>
 </body>
 </html>`;

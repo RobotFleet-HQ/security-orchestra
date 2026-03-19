@@ -1231,9 +1231,10 @@ async function main() {
 
   await initAuth();
 
-  const httpPort = process.env.PORT ? parseInt(process.env.PORT) : null;
+  const PORT = parseInt(process.env.PORT || '3000');
+  const HOST = '0.0.0.0';
 
-  if (httpPort) {
+  if (PORT) {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
 
@@ -1498,8 +1499,8 @@ async function main() {
       }
     });
 
-    app.listen(httpPort, () =>
-      log("info", `HTTP/SSE MCP server listening on :${httpPort}`)
+    app.listen(PORT, HOST, () =>
+      log("info", `HTTP/SSE MCP server listening on ${HOST}:${PORT}`)
     );
   } else {
     // ── Local: stdio transport (Claude Desktop) ──────────────────────────────

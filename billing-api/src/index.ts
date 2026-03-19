@@ -419,6 +419,9 @@ const LANDING_HTML = `<!DOCTYPE html>
         Need more credits?
         <a href="#" style="color:#58a6ff" onclick="document.getElementById('topup').scrollIntoView()">Buy credit top-ups</a> — 100 for $10, 250 for $20, 500 for $35.
       </p>
+      <div style="background:#161b22;border:1px solid #30363d;border-left:3px solid #d29922;border-radius:6px;padding:12px 16px;margin-top:16px;font-size:13px;color:#c9d1d9">
+        &#9888;&#65039; <strong>Credits reset monthly.</strong> Unused credits do not roll over. No refunds on unused credits. <a href="/terms.html" style="color:#58a6ff">Terms of Service</a>
+      </div>
     </div>
 
     <!-- Setup instructions -->
@@ -449,8 +452,9 @@ const LANDING_HTML = `<!DOCTYPE html>
       <a href="/dashboard">Dashboard</a>
       <a href="/health">API Status</a>
       <a href="mailto:rsaunders612@gmail.com">Support</a>
+      <a href="/terms.html">Terms of Service</a>
     </div>
   </div>
-  <footer>Powered by MCP &mdash; Model Context Protocol &mdash; Security Orchestra</footer>
+  <footer>Powered by MCP &mdash; Model Context Protocol &mdash; Security Orchestra &mdash; <a href="/terms.html" style="color:#484f58">Terms of Service</a></footer>
 </body>
 </html>`;

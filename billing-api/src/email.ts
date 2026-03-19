@@ -46,6 +46,10 @@ export async function sendApiKeyEmail(
         <p>You have access to 50+ data center design tools including generator sizing,
         network topology, HVAC design, site scoring, compliance checking, and more.</p>
 
+        <p style="background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:12px 16px;font-size:13px;color:#555">
+          <strong>Credit policy:</strong> Credits reset on the 1st of each month. Unused credits do not roll over. No refunds on unused credits.
+          See our <a href="${baseUrl}/terms.html">Terms of Service</a> for full details.
+        </p>
         <p>Questions? Reply to this email or visit <a href="${baseUrl}">${baseUrl}</a></p>
       </div>
     `,
@@ -142,6 +146,10 @@ export async function sendUpgradeConfirmation(
         <p>You're now on the <strong>${tier}</strong> plan.</p>
         <p><strong>${credits} credits</strong> have been added to your account.</p>
         <p>Enjoy expanded access to all data center intelligence tools.</p>
+        <p style="background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:12px 16px;font-size:13px;color:#555">
+          Your credits will reset on the 1st of each month. Unused credits do not roll over.
+          Review our <a href="${baseUrl}/terms.html">Terms of Service</a> for full details.
+        </p>
       </div>
     `,
   });

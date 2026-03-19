@@ -71,6 +71,24 @@
     .back a { color: #58a6ff; text-decoration: none; }
     .back a:hover { text-decoration: underline; }
     .tier-note { font-size: 12px; color: #8b949e; margin-top: -16px; margin-bottom: 20px; }
+    .tos-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #c9d1d9;
+      line-height: 1.5;
+    }
+    .tos-check input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: #238636;
+    }
+    .tos-check a { color: #58a6ff; text-decoration: none; }
+    .tos-check a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -98,6 +116,11 @@
         <option value="enterprise">Enterprise — 10,000 credits ($499)</option>
       </select>
       <p class="tier-note">Free plan: verify email to get your API key instantly.</p>
+
+      <label class="tos-check">
+        <input type="checkbox" id="tos-agree" required />
+        <span>I agree to the <a href="/terms.html" target="_blank">Terms of Service</a>, including the no-refund policy and monthly credit reset.</span>
+      </label>
 
       <button type="submit" class="btn" id="submit-btn">Get Started Free</button>
     </form>

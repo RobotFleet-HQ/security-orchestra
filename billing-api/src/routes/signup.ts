@@ -1,9 +1,9 @@
 import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import crypto from "crypto";
 import Stripe from "stripe";
 import { dbGet, dbRun, TIERS } from "../database.js";
-import { sendVerificationEmail } from "../email.js";
+import { sendApiKeyEmail, sendSignupNotification } from "../email.js";
+import { provisionApiKey } from "../provisionKey.js";
 
 const router = Router();
 
@@ -53,16 +53,11 @@ router.post("/", async (req: Request, res: Response) => {
   }
 
   // Check for existing account
-  const existing = await dbGet<{ id: string; verification_status: string }>(
-    "SELECT id, verification_status FROM users WHERE email = ?",
+  const existing = await dbGet<{ id: string }>(
+    "SELECT id FROM users WHERE email = ?",
     [emailLower]
   );
   if (existing) {
-    if (existing.verification_status === "pending") {
-      return res.status(409).json({
-        error: "Account exists but not verified. Check your email for the verification link.",
-      });
-    }
     return res.status(409).json({ error: "An account with this email already exists." });
   }
 
@@ -91,30 +86,42 @@ router.post("/", async (req: Request, res: Response) => {
 
   const userId = uuidv4();
   const now = new Date().toISOString();
-  const verificationToken = crypto.randomBytes(32).toString("hex");
 
   if (tier === "free") {
-    // Create pending user
+    const tierConfig = TIERS[tier];
+
+    // Create verified user immediately — no email verification step
     await dbRun(
-      `INSERT INTO users (id, email, tier, created_at, ip_address, verification_token, verification_status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-      [userId, emailLower, tier, now, clientIp, verificationToken]
+      `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
+       VALUES (?, ?, ?, ?, ?, 'verified')`,
+      [userId, emailLower, tier, now, clientIp]
     );
     await dbRun(
       "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
-      [userId, TIERS[tier].credits, TIERS[tier].credits, now]
+      [userId, tierConfig.credits, tierConfig.credits, now]
     );
 
-    // Send verification email
+    // Provision API key and send it directly
+    const apiKey = await provisionApiKey(userId, tier);
+    if (apiKey) {
+      try {
+        await sendApiKeyEmail(emailLower, apiKey, tierConfig.label);
+      } catch (err) {
+        console.error("[signup] API key email failed:", (err as Error).message);
+      }
+    } else {
+      console.error(`[signup] Could not provision key for new free user ${userId}`);
+    }
+
+    // Notify internal team
     try {
-      await sendVerificationEmail(emailLower, verificationToken);
+      await sendSignupNotification(emailLower, tierConfig.label, tierConfig.credits, now);
     } catch (err) {
-      console.error("[signup] Email send failed:", (err as Error).message);
-      // Don't block signup if email fails — user can request resend
+      console.error("[signup] Signup notification failed:", (err as Error).message);
     }
 
     return res.status(201).json({
-      message: "Check your email to verify your account and get your API key!",
+      message: "Your API key has been sent to your email!",
       email: emailLower,
       tier,
     });
@@ -124,9 +131,9 @@ router.post("/", async (req: Request, res: Response) => {
   const tierConfig = TIERS[tier];
 
   await dbRun(
-    `INSERT INTO users (id, email, tier, created_at, ip_address, verification_token, verification_status)
-     VALUES (?, ?, 'free', ?, ?, ?, 'pending')`,
-    [userId, emailLower, now, clientIp, verificationToken]
+    `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
+     VALUES (?, ?, 'free', ?, ?, 'pending')`,
+    [userId, emailLower, now, clientIp]
   );
   await dbRun(
     "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, 0, 0, 0, ?)",

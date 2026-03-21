@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { initDb } from "./database.js";
+import { initDb, TIERS } from "./database.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
@@ -63,6 +63,24 @@ app.get("/", (_req, res) => {
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "billing-api" });
+});
+
+// ─── Plans ────────────────────────────────────────────────────────────────────
+app.get("/plans", (_req, res) => {
+  const FEATURES: Record<string, string[]> = {
+    free:       ["100 credits/month", "All 54 agents", "API access"],
+    starter:    ["500 credits/month", "All 54 agents", "API access", "Email support"],
+    pro:        ["2,000 credits/month", "All 54 agents", "API access", "Priority support"],
+    enterprise: ["10,000 credits/month", "All 54 agents", "API access", "Dedicated support", "Custom integrations"],
+  };
+  const plans = Object.entries(TIERS).map(([id, t]) => ({
+    id,
+    name: t.label,
+    price_usd: t.price_cents / 100,
+    credits_per_month: t.credits,
+    features: FEATURES[id] ?? [],
+  }));
+  res.json({ plans });
 });
 
 // ─── Success pages ────────────────────────────────────────────────────────────

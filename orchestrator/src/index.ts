@@ -1334,6 +1334,77 @@ async function main() {
       await transport.handlePostMessage(req, res);
     });
 
+    // ── REST: direct workflow execution ──────────────────────────────────────
+    // POST /run — simple REST alternative to MCP/A2A
+    // Body: { "workflow": "<name>", "<param1>": "value", ... }
+    // Auth: Authorization: Bearer <api-key>  OR  x-api-key: <api-key>
+    app.post("/run", express.json(), async (req, res) => {
+      const supplied = (req.headers["authorization"]?.replace(/^Bearer\s+/i, "") ?? req.headers["x-api-key"]) as string | undefined;
+
+      // Look up user by API key
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>((resolve, reject) =>
+            db.get(
+              "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+              [supplied.slice(0, 16)],
+              (err, row) => err ? reject(err) : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+            )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const { workflow: workflowName, ...rawParams } = req.body ?? {};
+      if (!workflowName) {
+        res.status(400).json({ error: "Missing required field: workflow" });
+        return;
+      }
+
+      const wf = WORKFLOWS[workflowName];
+      if (!wf) {
+        res.status(404).json({ error: `Unknown workflow: "${workflowName}". See GET /agents for available workflows.` });
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+
+        const cleanParams = validateWorkflowParams(workflowName, rawParams);
+
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json({ error: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` });
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "run_workflow_start", resource: workflowName,
+          result: "success", details: { params: cleanParams, tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "run_workflow_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.json(result);
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[run] workflow error — ${workflowName}: ${msg}`);
+        res.status(500).json({ error: msg });
+      }
+    });
+
     // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
     const AGENT_CARD = {
       name: "Security Orchestra",

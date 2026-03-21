@@ -1257,6 +1257,25 @@ async function main() {
       res.json({ status: "ok", service: "orchestrator", uptime: process.uptime() });
     });
 
+    app.get("/agents", (_req, res) => {
+      const CREDITS_PER_DOLLAR = 10; // 10 credits = $1.00
+      const tierLabel = (credits: number) => {
+        if (credits <= 5)  return "simple";
+        if (credits <= 20) return "compliance";
+        if (credits <= 50) return "complex";
+        return "premium";
+      };
+      const agents = Object.entries(WORKFLOWS).map(([id, wf]) => ({
+        id,
+        name: id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+        description: wf.description,
+        tier: tierLabel(wf.credits),
+        credits_per_call: wf.credits,
+        price_per_call_usd: `$${(wf.credits / CREDITS_PER_DOLLAR).toFixed(2)}`,
+      }));
+      res.json({ count: agents.length, agents });
+    });
+
     // Admin: provision an API key for a user (called by billing-api after payment/verification)
     // Protected by ORCHESTRATOR_ADMIN_KEY — no rate limiting applied here.
     app.post("/admin/provision-key", express.json(), async (req, res) => {

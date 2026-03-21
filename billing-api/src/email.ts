@@ -153,6 +153,32 @@ export async function sendCreditPurchaseConfirmation(
   });
 }
 
+export async function sendSignupNotification(
+  customerEmail: string,
+  tier: string,
+  credits: number,
+  timestamp: string
+): Promise<void> {
+  initSg();
+  await sgMail.send({
+    to: "contact.securityorchestra@gmail.com",
+    from: FROM_EMAIL,
+    subject: `New Signup - ${tier} - ${customerEmail}`,
+    html: `
+      <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
+        <h2>New Signup</h2>
+        <table style="border-collapse:collapse;width:100%">
+          <tr><td style="padding:8px;font-weight:600">Email</td><td style="padding:8px">${customerEmail}</td></tr>
+          <tr><td style="padding:8px;font-weight:600">Tier</td><td style="padding:8px">${tier}</td></tr>
+          <tr><td style="padding:8px;font-weight:600">Timestamp</td><td style="padding:8px">${timestamp}</td></tr>
+          <tr><td style="padding:8px;font-weight:600">Credits Allocated</td><td style="padding:8px">${credits}</td></tr>
+        </table>
+      </div>
+    `,
+  });
+  console.log(`[email] sendSignupNotification → sent for ${customerEmail} (${tier})`);
+}
+
 export async function sendUpgradeConfirmation(
   to: string,
   tier: string,

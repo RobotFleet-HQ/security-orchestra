@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import { dbGet, dbRun } from "../database.js";
-import { sendApiKeyEmail, sendVerificationEmail } from "../email.js";
+import { dbGet, dbRun, TIERS } from "../database.js";
+import { sendApiKeyEmail, sendSignupNotification, sendVerificationEmail } from "../email.js";
 import { provisionApiKey } from "../provisionKey.js";
 
 const router = Router();
@@ -53,6 +53,18 @@ router.get("/", async (req: Request, res: Response) => {
       await sendApiKeyEmail(user.email, apiKey, user.tier);
     } catch (err) {
       console.error("[verify] Email send failed:", (err as Error).message);
+    }
+    // Notify internal team of new free signup
+    try {
+      const tierConfig = TIERS[user.tier];
+      await sendSignupNotification(
+        user.email,
+        tierConfig?.label ?? user.tier,
+        tierConfig?.credits ?? 0,
+        new Date().toISOString()
+      );
+    } catch (err) {
+      console.error("[verify] Signup notification failed:", (err as Error).message);
     }
   } else {
     console.error(`[verify] Could not provision key for user ${user.id} — they will need manual key delivery`);

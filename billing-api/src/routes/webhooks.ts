@@ -5,6 +5,7 @@ import { dbGet, dbRun, TIERS } from "../database.js";
 import {
   sendApiKeyEmail,
   sendCreditPurchaseConfirmation,
+  sendSignupNotification,
   sendUpgradeConfirmation,
 } from "../email.js";
 import { provisionApiKey } from "../provisionKey.js";
@@ -269,6 +270,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.error("[webhook-email] FAILED — status:", sgErr.response?.status);
     console.error("[webhook-email] FAILED — body:", JSON.stringify(sgErr.response?.body));
     console.error("[webhook-email] FAILED — full error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
+  }
+
+  // Notify internal team of new signup
+  try {
+    await sendSignupNotification(user.email, tierConfig.label, tierConfig.credits, now);
+  } catch (err) {
+    console.error("[webhook-email] Signup notification failed:", (err as Error).message);
   }
 }
 

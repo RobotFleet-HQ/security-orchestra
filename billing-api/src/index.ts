@@ -304,99 +304,99 @@ const LANDING_HTML = `<!DOCTYPE html>
       <div class="category">
         <div class="cat-title">Power Infrastructure (12 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Generator Sizing</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Utility Interconnect</div><div class="agent-cost">30 credits</div></div>
-          <div class="agent"><div class="agent-name">NC Utility Interconnect</div><div class="agent-cost">50 credits</div></div>
-          <div class="agent"><div class="agent-name">ATS Sizing</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">UPS Sizing</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Fuel Storage</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Cooling Load</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Power Density</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">PUE Calculator</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Redundancy Validator</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Harmonic Analysis</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Voltage Drop</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Generator Sizing</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Utility Interconnect</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">NC Utility Interconnect</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">ATS Sizing</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">UPS Sizing</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Fuel Storage</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Cooling Load</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Power Density</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">PUE Calculator</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Redundancy Validator</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Harmonic Analysis</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Voltage Drop</div><div class="agent-cost">20 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Network &amp; Connectivity (6 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Network Topology</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Bandwidth Sizing</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Latency Calculator</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">IP Addressing</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">DNS Architecture</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">BGP Peering</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Network Topology</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Bandwidth Sizing</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Latency Calculator</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">IP Addressing</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">DNS Architecture</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">BGP Peering</div><div class="agent-cost">50 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Security &amp; Access (6 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Physical Security</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Biometric Design</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Surveillance Coverage</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Cybersecurity Controls</div><div class="agent-cost">20 credits</div></div>
-          <div class="agent"><div class="agent-name">Compliance Checker</div><div class="agent-cost">20 credits</div></div>
-          <div class="agent"><div class="agent-name">Fire Suppression</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Physical Security</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Biometric Design</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Surveillance Coverage</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Cybersecurity Controls</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Compliance Checker</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Fire Suppression</div><div class="agent-cost">20 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Mechanical / HVAC (6 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Chiller Sizing</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">CRAC vs CRAH</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Airflow Modeling</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Humidification</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Economizer Analysis</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Construction Cost</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Chiller Sizing</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">CRAC vs CRAH</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Airflow Modeling</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Humidification</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Economizer Analysis</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Construction Cost</div><div class="agent-cost">5 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Site &amp; Finance (8 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Site Scoring</div><div class="agent-cost">25 credits</div></div>
-          <div class="agent"><div class="agent-name">ROI Calculator</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">TCO Analyzer</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Water Availability</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Noise Compliance</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Incentive Finder</div><div class="agent-cost">20 credits</div></div>
-          <div class="agent"><div class="agent-name">Permit Timeline</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Fiber Connectivity</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Site Scoring</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">ROI Calculator</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">TCO Analyzer</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Water Availability</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Noise Compliance</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Incentive Finder</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Permit Timeline</div><div class="agent-cost">20 credits</div></div>
+          <div class="agent"><div class="agent-name">Fiber Connectivity</div><div class="agent-cost">100 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Project &amp; Operations (6 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Construction Timeline</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Commissioning Plan</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Maintenance Schedule</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Capacity Planning</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">SLA Calculator</div><div class="agent-cost">10 credits</div></div>
-          <div class="agent"><div class="agent-name">Change Management</div><div class="agent-cost">10 credits</div></div>
+          <div class="agent"><div class="agent-name">Construction Timeline</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Commissioning Plan</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Maintenance Schedule</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Capacity Planning</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">SLA Calculator</div><div class="agent-cost">5 credits</div></div>
+          <div class="agent"><div class="agent-name">Change Management</div><div class="agent-cost">5 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Energy &amp; Sustainability (6 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">Carbon Footprint</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Solar Feasibility</div><div class="agent-cost">20 credits</div></div>
-          <div class="agent"><div class="agent-name">Battery Storage</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Energy Procurement</div><div class="agent-cost">20 credits</div></div>
-          <div class="agent"><div class="agent-name">Demand Response</div><div class="agent-cost">15 credits</div></div>
-          <div class="agent"><div class="agent-name">Environmental Impact</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">Carbon Footprint</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Solar Feasibility</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Battery Storage</div><div class="agent-cost">50 credits</div></div>
+          <div class="agent"><div class="agent-name">Energy Procurement</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Demand Response</div><div class="agent-cost">100 credits</div></div>
+          <div class="agent"><div class="agent-name">Environmental Impact</div><div class="agent-cost">20 credits</div></div>
         </div>
       </div>
 
       <div class="category">
         <div class="cat-title">Compliance &amp; Standards (4 tools)</div>
         <div class="agents">
-          <div class="agent"><div class="agent-name">NFPA 110 Checker</div><div class="agent-cost">15 credits</div></div>
+          <div class="agent"><div class="agent-name">NFPA 110 Checker</div><div class="agent-cost">20 credits</div></div>
           <div class="agent"><div class="agent-name">Subdomain Discovery</div><div class="agent-cost">5 credits</div></div>
           <div class="agent"><div class="agent-name">Asset Discovery</div><div class="agent-cost">15 credits</div></div>
           <div class="agent"><div class="agent-name">Vulnerability Assessment</div><div class="agent-cost">25 credits</div></div>

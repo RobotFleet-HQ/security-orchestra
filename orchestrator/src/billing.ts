@@ -3,7 +3,8 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 const BILLING_API_URL = process.env.BILLING_API_URL ?? "http://localhost:3001";
 
 // Credits consumed per workflow
-// Simple (5 = $0.50) | Compliance (20 = $2.00) | Complex (50 = $5.00) | Premium (100 = $10.00)
+// Simple: 5 | Compliance: 20 | Complex: 50 | Premium: 100
+// Effective cost to customer ≈ $0.05/credit (Pro/Enterprise rate)
 export const WORKFLOW_COSTS: Record<string, number> = {
   subdomain_discovery:      5,
   asset_discovery:          15,

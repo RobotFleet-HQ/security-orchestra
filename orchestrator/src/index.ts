@@ -1049,6 +1049,37 @@ async function dispatchWorkflow(
   }
 }
 
+// ─── Tier access control ──────────────────────────────────────────────────────
+// Maximum agent credit cost each tier may invoke.
+// free     (100 credits/month) → simple + compliance only (≤ 20 credits/call)
+// starter  (500 credits/month) → + complex              (≤ 50 credits/call)
+// pro/enterprise               → all agents             (≤ 100 credits/call)
+
+const TIER_MAX_AGENT_COST: Record<string, number> = {
+  free:       20,
+  starter:    50,
+  pro:        100,
+  enterprise: 100,
+};
+
+function checkTierAccess(tier: string, agentCost: number): { allowed: boolean; message: string } {
+  const maxCost = TIER_MAX_AGENT_COST[tier] ?? 20; // unknown tiers treated as free
+  if (agentCost <= maxCost) return { allowed: true, message: "" };
+
+  const upgrade =
+    tier === "free"
+      ? "Upgrade to Starter ($29/mo) for complex agents, or Pro ($99/mo) for all premium agents."
+      : tier === "starter"
+      ? "Upgrade to Pro ($99/mo) to access premium agents."
+      : "Contact support to enable this agent.";
+
+  return {
+    allowed: false,
+    message:
+      `This agent costs ${agentCost} credits/call, which exceeds the ${tier} tier limit of ${maxCost} credits/call. ${upgrade}`,
+  };
+}
+
 // ─── Chat: workflow detection from natural language ───────────────────────────
 
 function detectWorkflowFromText(
@@ -1596,6 +1627,15 @@ async function main() {
         return;
       }
 
+      // Tier access check — before credits, before execution
+      const tierAccess = checkTierAccess(keyRow.tier, wf.credits);
+      if (!tierAccess.allowed) {
+        logAudit({ user_id: keyRow.user_id, action: "tier_access_denied", resource: workflowName,
+          result: "blocked", details: { tier: keyRow.tier, agent_cost: wf.credits } });
+        res.status(403).json({ error: tierAccess.message });
+        return;
+      }
+
       try {
         enforceRateLimit(keyRow.user_id, keyRow.tier);
 
@@ -1875,14 +1915,23 @@ async function main() {
 
       const wf = WORKFLOWS[workflowName];
 
+      // 4. Tier access check — before rate limit, before credits
+      const tierAccess = checkTierAccess(keyRow.tier, wf.credits);
+      if (!tierAccess.allowed) {
+        logAudit({ user_id: keyRow.user_id, action: "tier_access_denied", resource: workflowName,
+          result: "blocked", details: { tier: keyRow.tier, agent_cost: wf.credits } });
+        res.status(403).json({ error: tierAccess.message, agent: workflowName });
+        return;
+      }
+
       try {
-        // 4. Rate limit
+        // 5. Rate limit
         enforceRateLimit(keyRow.user_id, keyRow.tier);
 
-        // 5. Validate params (fills in any missing fields detected above)
+        // 6. Validate params (fills in any missing fields detected above)
         const cleanParams = validateWorkflowParams(workflowName, detectedParams);
 
-        // 6. Credit gate
+        // 7. Credit gate
         const billingEnabled = !!process.env.BILLING_API_URL;
         if (billingEnabled) {
           const balance = await checkCredits(keyRow.user_id);

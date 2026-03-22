@@ -1049,6 +1049,233 @@ async function dispatchWorkflow(
   }
 }
 
+// ─── Chat: workflow detection from natural language ───────────────────────────
+
+function detectWorkflowFromText(
+  text: string
+): { workflowName: string | null; params: Record<string, string> } {
+  const t = text.toLowerCase();
+
+  // Extract numeric values
+  const kwVal  = text.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
+  const mwVal  = text.match(/(\d+(?:\.\d+)?)\s*(?:mw|megawatt)/i)?.[1];
+  const load_kw =
+    kwVal ?? (mwVal ? String(parseFloat(mwVal) * 1000) : "1000");
+  const load_mw =
+    mwVal ?? (kwVal ? String(parseFloat(kwVal) / 1000) : "10");
+  const tierNum = text.match(/tier\s*([1-4])/i)?.[1] ?? "3";
+
+  // ── Security workflows ──────────────────────────────────────────────────────
+  if (/subdomain/i.test(t)) {
+    const domain = text.match(/(?:for\s+)?([\w-]+\.[\w.-]+\.\w{2,})/i)?.[1] ?? "example.com";
+    return { workflowName: "subdomain_discovery", params: { domain } };
+  }
+  if (/asset.{0,20}discov/i.test(t)) {
+    const domain = text.match(/(?:for\s+)?([\w-]+\.[\w.-]+\.\w{2,})/i)?.[1] ?? "example.com";
+    return { workflowName: "asset_discovery", params: { domain } };
+  }
+  if (/vulnerab/i.test(t)) {
+    const target = text.match(/(?:for\s+)?([\w-]+\.[\w.-]+\.\w{2,})/i)?.[1] ?? "example.com";
+    return { workflowName: "vulnerability_assessment", params: { target } };
+  }
+
+  // ── Power infrastructure ────────────────────────────────────────────────────
+  if (/generator|genset|epss|emergency power supply/i.test(t)) {
+    return { workflowName: "generator_sizing", params: { load_kw, tier: tierNum } };
+  }
+  if (/nfpa.?110/i.test(t)) {
+    const gallons = text.match(/(\d+)\s*gallon/i)?.[1] ?? "2000";
+    const runtime = text.match(/(\d+)\s*hour/i)?.[1] ?? "96";
+    const ats_sec = text.match(/(\d+)\s*second/i)?.[1] ?? "10";
+    return {
+      workflowName: "nfpa_110_checker",
+      params: {
+        generator_kw: load_kw,
+        fuel_capacity_gallons: gallons,
+        runtime_hours: runtime,
+        ats_transfer_time_seconds: ats_sec,
+        level: "1",
+      },
+    };
+  }
+  if (/nc.{0,20}utility|north carolina.{0,20}utility|duke.{0,10}carolina|duke.{0,10}progress|dominion.*nc/i.test(t)) {
+    const utility = text.match(/duke energy (progress|carolinas)|dominion/i)?.[0] ?? "Duke Energy Progress";
+    return { workflowName: "nc_utility_interconnect", params: { utility, load_mw } };
+  }
+  if (/utility.{0,20}interconnect|grid.{0,10}connect/i.test(t)) {
+    const utility = text.match(/dominion|duke|pge|pg&e|con.?ed|pepco|entergy|xcel|aps/i)?.[0] ?? "Duke Energy";
+    return { workflowName: "utility_interconnect", params: { utility, load_mw } };
+  }
+  if (/\bpue\b|power usage effectiveness/i.test(t)) {
+    return { workflowName: "pue_calculator", params: { it_load_kw: load_kw } };
+  }
+  if (/\bups\b|uninterruptible/i.test(t)) {
+    const runtime_minutes = text.match(/(\d+)\s*min/i)?.[1] ?? "15";
+    return { workflowName: "ups_sizing", params: { load_kw, runtime_minutes } };
+  }
+  if (/\bats\b|transfer switch/i.test(t)) {
+    const voltage = text.match(/(\d{3,4})\s*v/i)?.[1] ?? "480";
+    const phases  = text.match(/(\d)\s*phase/i)?.[1] ?? "3";
+    return { workflowName: "ats_sizing", params: { load_kw, voltage, phases } };
+  }
+  if (/fuel.{0,20}tank|diesel.{0,20}tank|fuel storage/i.test(t)) {
+    const target_runtime_hours = text.match(/(\d+)\s*hour/i)?.[1] ?? "96";
+    return { workflowName: "fuel_storage", params: { generator_kw: load_kw, target_runtime_hours } };
+  }
+  if (/cooling.{0,20}load|heat.{0,20}load/i.test(t)) {
+    return { workflowName: "cooling_load", params: { it_load_kw: load_kw } };
+  }
+  if (/power.{0,20}density/i.test(t)) {
+    return { workflowName: "power_density", params: { it_load_kw: load_kw } };
+  }
+  if (/redundan/i.test(t)) {
+    return { workflowName: "redundancy_validator", params: { it_load_kw: load_kw } };
+  }
+  if (/harmonic/i.test(t)) {
+    return { workflowName: "harmonic_analysis", params: { it_load_kw: load_kw } };
+  }
+  if (/voltage.{0,20}drop/i.test(t)) {
+    return { workflowName: "voltage_drop", params: { it_load_kw: load_kw } };
+  }
+  if (/short.{0,10}circuit/i.test(t)) {
+    return { workflowName: "short_circuit", params: { it_load_kw: load_kw } };
+  }
+  if (/grounding/i.test(t)) {
+    return { workflowName: "grounding_design", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Network ─────────────────────────────────────────────────────────────────
+  if (/network.{0,20}topolog/i.test(t)) {
+    return { workflowName: "network_topology", params: { it_load_kw: load_kw } };
+  }
+  if (/bandwidth/i.test(t)) {
+    return { workflowName: "bandwidth_sizing", params: { it_load_kw: load_kw } };
+  }
+  if (/latency/i.test(t)) {
+    return { workflowName: "latency_calculator", params: { it_load_kw: load_kw } };
+  }
+  if (/ip.{0,15}address|subnetting|cidr/i.test(t)) {
+    return { workflowName: "ip_addressing", params: { it_load_kw: load_kw } };
+  }
+  if (/\bdns\b/i.test(t)) {
+    return { workflowName: "dns_architecture", params: { it_load_kw: load_kw } };
+  }
+  if (/\bbgp\b|border gateway/i.test(t)) {
+    return { workflowName: "bgp_peering", params: { it_load_kw: load_kw } };
+  }
+  if (/fiber.{0,20}connect|dark fiber/i.test(t)) {
+    return { workflowName: "fiber_connectivity", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Physical security ───────────────────────────────────────────────────────
+  if (/physical.{0,20}security|access control|badge/i.test(t)) {
+    return { workflowName: "physical_security", params: { it_load_kw: load_kw } };
+  }
+  if (/biometric/i.test(t)) {
+    return { workflowName: "biometric_design", params: { it_load_kw: load_kw } };
+  }
+  if (/cctv|camera|surveillance/i.test(t)) {
+    return { workflowName: "surveillance_coverage", params: { it_load_kw: load_kw } };
+  }
+  if (/cybersecurity|infosec/i.test(t)) {
+    return { workflowName: "cybersecurity_controls", params: { it_load_kw: load_kw } };
+  }
+  if (/compliance.{0,20}check/i.test(t)) {
+    return { workflowName: "compliance_checker", params: { it_load_kw: load_kw } };
+  }
+  if (/fire.{0,20}suppress/i.test(t)) {
+    return { workflowName: "fire_suppression", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Mechanical / HVAC ───────────────────────────────────────────────────────
+  if (/chiller/i.test(t)) {
+    return { workflowName: "chiller_sizing", params: { it_load_kw: load_kw } };
+  }
+  if (/\bcrac\b|\bcrah\b|precision.{0,20}cool/i.test(t)) {
+    return { workflowName: "crac_vs_crah", params: { it_load_kw: load_kw } };
+  }
+  if (/airflow|hot.{0,10}aisle|cold.{0,10}aisle/i.test(t)) {
+    return { workflowName: "airflow_modeling", params: { it_load_kw: load_kw } };
+  }
+  if (/humid/i.test(t)) {
+    return { workflowName: "humidification", params: { it_load_kw: load_kw } };
+  }
+  if (/economizer/i.test(t)) {
+    return { workflowName: "economizer_analysis", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Site, finance & project ─────────────────────────────────────────────────
+  if (/construction.{0,20}cost|build.{0,20}cost/i.test(t)) {
+    return { workflowName: "construction_cost", params: { capacity_mw: load_mw } };
+  }
+  if (/construction.{0,20}timeline|build.{0,20}schedule/i.test(t)) {
+    return { workflowName: "construction_timeline", params: { capacity_mw: load_mw } };
+  }
+  if (/\broi\b|return.{0,10}invest/i.test(t)) {
+    return { workflowName: "roi_calculator", params: { it_load_kw: load_kw } };
+  }
+  if (/\btco\b|total.{0,10}cost.{0,10}owner/i.test(t)) {
+    return { workflowName: "tco_analyzer", params: { it_load_kw: load_kw } };
+  }
+  if (/site.{0,20}scor|site.{0,20}rank|site.{0,20}eval/i.test(t)) {
+    return { workflowName: "site_scoring", params: { it_load_kw: load_kw } };
+  }
+  if (/water.{0,20}avail/i.test(t)) {
+    return { workflowName: "water_availability", params: { it_load_kw: load_kw } };
+  }
+  if (/noise|acoustic|\bdb\b|decibel/i.test(t)) {
+    return { workflowName: "noise_compliance", params: { it_load_kw: load_kw } };
+  }
+  if (/incentive|rebate|tax.{0,10}credit/i.test(t)) {
+    return { workflowName: "incentive_finder", params: { it_load_kw: load_kw } };
+  }
+  if (/permit|entitlement/i.test(t)) {
+    return { workflowName: "permit_timeline", params: { it_load_kw: load_kw } };
+  }
+  if (/commission/i.test(t)) {
+    return { workflowName: "commissioning_plan", params: { it_load_kw: load_kw } };
+  }
+  if (/maintenance.{0,20}schedule|preventive.{0,10}maint/i.test(t)) {
+    return { workflowName: "maintenance_schedule", params: { it_load_kw: load_kw } };
+  }
+  if (/capacity.{0,20}plan/i.test(t)) {
+    return { workflowName: "capacity_planning", params: { it_load_kw: load_kw } };
+  }
+  if (/\bsla\b|service.{0,10}level/i.test(t)) {
+    return { workflowName: "sla_calculator", params: { it_load_kw: load_kw } };
+  }
+  if (/change.{0,20}manage/i.test(t)) {
+    return { workflowName: "change_management", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Energy & sustainability ─────────────────────────────────────────────────
+  if (/carbon.{0,20}foot|emission|co2/i.test(t)) {
+    return { workflowName: "carbon_footprint", params: { it_load_kw: load_kw } };
+  }
+  if (/solar|photovoltaic|\bpv\b/i.test(t)) {
+    return { workflowName: "solar_feasibility", params: { it_load_kw: load_kw } };
+  }
+  if (/battery.{0,20}storage|\bbess\b/i.test(t)) {
+    return { workflowName: "battery_storage", params: { it_load_kw: load_kw } };
+  }
+  if (/energy.{0,20}procure|power.{0,10}purchase|\bppa\b/i.test(t)) {
+    return { workflowName: "energy_procurement", params: { it_load_kw: load_kw } };
+  }
+  if (/demand.{0,20}response/i.test(t)) {
+    return { workflowName: "demand_response", params: { it_load_kw: load_kw } };
+  }
+  if (/environ.{0,20}impact/i.test(t)) {
+    return { workflowName: "environmental_impact", params: { it_load_kw: load_kw } };
+  }
+
+  // ── Compliance ──────────────────────────────────────────────────────────────
+  if (/tier.{0,20}cert|uptime.{0,10}inst/i.test(t)) {
+    return { workflowName: "tier_certification_checker", params: { it_load_kw: load_kw, tier: tierNum } };
+  }
+
+  return { workflowName: null, params: {} };
+}
+
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
 const server = new Server(
@@ -1586,6 +1813,127 @@ async function main() {
           id,
           error: { code: -32603, message: msg },
         });
+      }
+    });
+
+    // ── POST /chat — conversational workflow interface ────────────────────────
+    // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
+    // Body:   { messages: [{ role: "user"|"assistant", content: string }] }
+    // Reply:  { reply: string, agent: string | null }
+    app.post("/chat", express.json(), async (req, res) => {
+      // 1. Auth — same key lookup as /run
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      // 2. Validate body
+      const messages: { role: string; content: string }[] | undefined = req.body?.messages;
+      if (!Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json({ error: "messages array is required and must not be empty" });
+        return;
+      }
+
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      if (!lastUser) {
+        res.status(400).json({ error: "No user message found in messages array" });
+        return;
+      }
+
+      // 3. Detect workflow from message text
+      const { workflowName, params: detectedParams } = detectWorkflowFromText(lastUser.content);
+
+      if (!workflowName) {
+        res.json({
+          reply:
+            "I couldn't determine which agent to use. Try being more specific, e.g. " +
+            "\"size a generator for 500kW\" or \"calculate PUE for a 2MW IT load\". " +
+            "See GET /agents for all 54 available workflows.",
+          agent: null,
+        });
+        return;
+      }
+
+      const wf = WORKFLOWS[workflowName];
+
+      try {
+        // 4. Rate limit
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+
+        // 5. Validate params (fills in any missing fields detected above)
+        const cleanParams = validateWorkflowParams(workflowName, detectedParams);
+
+        // 6. Credit gate
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json({
+              error: `Insufficient credits — balance: ${balance}, required: ${wf.credits} for ${workflowName}`,
+            });
+            return;
+          }
+        }
+
+        // 7. Execute
+        logAudit({
+          user_id: keyRow.user_id,
+          action:   "chat_workflow_start",
+          resource: workflowName,
+          result:   "success",
+          details:  { params: cleanParams, tier: keyRow.tier },
+        });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        // 8. Deduct credits
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+
+        logAudit({
+          user_id:     keyRow.user_id,
+          action:      "chat_workflow_complete",
+          resource:    workflowName,
+          result:      "success",
+          duration_ms: Date.now() - startTime,
+          details:     { tier: keyRow.tier },
+        });
+
+        res.json({
+          reply: JSON.stringify(result, null, 2),
+          agent: workflowName,
+        });
+      } catch (err) {
+        const msg =
+          err instanceof McpError
+            ? err.message
+            : err instanceof Error
+            ? err.message
+            : String(err);
+        log("error", `[chat] workflow error — ${workflowName}: ${msg}`);
+        res.status(500).json({ error: msg });
       }
     });
 

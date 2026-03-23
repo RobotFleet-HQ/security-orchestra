@@ -27,19 +27,6 @@ interface User {
 
 // POST /webhooks/stripe — handle Stripe events
 router.post("/stripe", async (req: Request, res: Response) => {
-  // ── DEBUG: dump everything we received ──────────────────────────────────────
-  const secret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
-  console.log("[webhook-debug] ============================================");
-  console.log("[webhook-debug] content-type   :", req.headers["content-type"]);
-  console.log("[webhook-debug] stripe-sig      :", req.headers["stripe-signature"]?.slice(0, 60) + "...");
-  console.log("[webhook-debug] typeof req.body :", typeof req.body);
-  console.log("[webhook-debug] isBuffer        :", Buffer.isBuffer(req.body));
-  console.log("[webhook-debug] body length     :", Buffer.isBuffer(req.body) ? req.body.length : (req.body ? JSON.stringify(req.body).length : 0));
-  console.log("[webhook-debug] body preview    :", Buffer.isBuffer(req.body) ? req.body.slice(0, 100).toString("utf8") : JSON.stringify(req.body)?.slice(0, 100));
-  console.log("[webhook-debug] WEBHOOK_SECRET  :", secret ? secret.slice(0, 10) + "..." + secret.slice(-4) : "NOT SET");
-  console.log("[webhook-debug] ============================================");
-  // ────────────────────────────────────────────────────────────────────────────
-
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
     console.error("[webhook] STRIPE_WEBHOOK_SECRET not set");
@@ -51,47 +38,19 @@ router.post("/stripe", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing stripe-signature header" });
   }
 
-  // req.body must be a Buffer — if it's already a parsed object, raw body was lost
   if (!Buffer.isBuffer(req.body)) {
-    console.error(
-      "[webhook] req.body is NOT a Buffer — raw body was consumed before reaching this handler.\n" +
-      `  typeof req.body = ${typeof req.body}\n` +
-      `  value = ${JSON.stringify(req.body)?.slice(0, 200)}\n` +
-      "  Fix: ensure /webhooks uses express.raw() BEFORE express.json() in index.ts"
-    );
+    console.error("[webhook] req.body is not a Buffer — raw body was consumed by middleware");
     return res.status(500).json({ error: "Server misconfiguration: raw body not available" });
   }
 
   let event: Stripe.Event;
-  const skipVerification = process.env.STRIPE_SKIP_VERIFICATION === "true";
-
-  if (skipVerification) {
-    // ⚠️  TESTING ONLY — parse payload without signature check
-    console.warn("[webhook] *** STRIPE_SKIP_VERIFICATION=true — skipping signature check ***");
-    try {
-      const payload = Buffer.isBuffer(req.body)
-        ? req.body.toString("utf8")
-        : JSON.stringify(req.body);
-      event = JSON.parse(payload) as Stripe.Event;
-      console.log("[webhook] Parsed event without verification:", event.type, event.id);
-    } catch (parseErr) {
-      console.error("[webhook] Failed to parse payload:", (parseErr as Error).message);
-      return res.status(400).json({ error: "Invalid JSON payload" });
-    }
-  } else {
-    try {
-      const stripe = getStripe();
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[webhook] constructEvent failed:", msg);
-      console.error("[webhook] Hint — common causes:");
-      console.error("  1. Wrong STRIPE_WEBHOOK_SECRET (test vs live key, or re-rolled in Stripe dashboard)");
-      console.error("  2. Stripe CLI secret (whsec_ from `stripe listen`) ≠ dashboard endpoint secret");
-      console.error("  3. Body modified in transit — check for compression or double-parse middleware");
-      console.error("  Set STRIPE_SKIP_VERIFICATION=true to bypass and test event handling");
-      return res.status(400).json({ error: `Webhook verification failed: ${msg}` });
-    }
+  try {
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[webhook] constructEvent failed:", msg);
+    return res.status(400).json({ error: `Webhook verification failed: ${msg}` });
   }
 
   console.log(`[webhook] ${event.type}`);

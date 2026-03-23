@@ -17,6 +17,18 @@ import manageRouter from "./routes/manage.js";
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+// ─── Security headers ─────────────────────────────────────────────────────────
+app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; img-src 'self' data: https://www.google-analytics.com; connect-src 'self' https://www.google-analytics.com; frame-ancestors 'none'"
+  );
+  next();
+});
+
 // ─── Global request logger ────────────────────────────────────────────────────
 app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
   console.log(`[req] ${req.method} ${req.path}`);
@@ -27,21 +39,7 @@ app.use((req: express.Request, _res: express.Response, next: express.NextFunctio
 // express.raw() captures the body as a Buffer BEFORE express.json() can touch it.
 // The probe middleware below runs between raw() and the router to confirm the
 // buffer is intact — look for "[webhook-probe]" lines in logs.
-app.use(
-  "/webhooks",
-  express.raw({ type: "*/*" }),
-  // Probe: runs after express.raw(), before the router
-  (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    console.log("[webhook-probe] path         :", req.path);
-    console.log("[webhook-probe] method       :", req.method);
-    console.log("[webhook-probe] isBuffer     :", Buffer.isBuffer(req.body));
-    console.log("[webhook-probe] typeof body  :", typeof req.body);
-    console.log("[webhook-probe] body.length  :", Buffer.isBuffer(req.body) ? req.body.length : "N/A");
-    console.log("[webhook-probe] content-type :", req.headers["content-type"]);
-    next();
-  },
-  webhooksRouter
-);
+app.use("/webhooks", express.raw({ type: "*/*" }), webhooksRouter);
 
 app.use(express.json());
 

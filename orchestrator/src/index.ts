@@ -1496,6 +1496,15 @@ async function main() {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
 
+    // ─── Security headers ──────────────────────────────────────────────────
+    app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("X-Frame-Options", "DENY");
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+      res.setHeader("Content-Security-Policy", "default-src 'none'");
+      next();
+    });
+
     app.get("/", (_req, res) => {
       res.json({
         name: "security-orchestra",

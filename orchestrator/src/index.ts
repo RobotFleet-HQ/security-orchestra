@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -1555,8 +1556,12 @@ async function main() {
         return;
       }
       const suppliedKey = req.headers["x-admin-key"];
-      if (!suppliedKey || suppliedKey !== adminKey) {
-        log("warn", `[provision-key] Unauthorized — x-admin-key mismatch (supplied prefix: ${String(suppliedKey).slice(0, 6)})`);
+      const supplied = Buffer.from(typeof suppliedKey === "string" ? suppliedKey : "");
+      const expected = Buffer.from(adminKey);
+      const valid = supplied.length === expected.length &&
+        crypto.timingSafeEqual(supplied, expected);
+      if (!valid) {
+        log("warn", "[provision-key] Unauthorized — x-admin-key mismatch");
         res.status(401).json({ error: "Unauthorized" });
         return;
       }

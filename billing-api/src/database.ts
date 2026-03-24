@@ -115,3 +115,12 @@ export function dbRun(sql: string, params: unknown[]): Promise<void> {
     });
   });
 }
+
+export function dbRunChanges(sql: string, params: unknown[]): Promise<number> {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (this: { changes: number }, err: Error | null) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}

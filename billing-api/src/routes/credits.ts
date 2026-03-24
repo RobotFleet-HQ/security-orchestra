@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { dbGet, dbRun } from "../database.js";
+import { dbGet, dbRun, dbRunChanges } from "../database.js";
 import { sendLowCreditWarning } from "../email.js";
 
 const router = Router();
@@ -55,12 +55,24 @@ router.post("/:userId/deduct", async (req: Request, res: Response) => {
     return res.status(404).json({ error: "User not found" });
   }
 
-  const credits = await dbGet<Credits>("SELECT * FROM credits WHERE user_id = ?", [userId]);
-  if (!credits) {
-    return res.status(404).json({ error: "Credits record not found" });
-  }
+  const now = new Date().toISOString();
+  const changed = await dbRunChanges(
+    `UPDATE credits
+        SET balance    = balance - ?,
+            total_used = total_used + ?,
+            updated_at = ?
+      WHERE user_id = ?
+        AND balance >= ?`,
+    [amount, amount, now, userId, amount]
+  );
 
-  if (credits.balance < amount) {
+  if (changed === 0) {
+    // Either user has no credits row or balance was insufficient —
+    // distinguish the two so the caller gets the right status code.
+    const credits = await dbGet<Credits>("SELECT balance FROM credits WHERE user_id = ?", [userId]);
+    if (!credits) {
+      return res.status(404).json({ error: "Credits record not found" });
+    }
     return res.status(402).json({
       error: "Insufficient credits",
       balance: credits.balance,
@@ -68,20 +80,12 @@ router.post("/:userId/deduct", async (req: Request, res: Response) => {
     });
   }
 
-  const now = new Date().toISOString();
-  const newBalance = credits.balance - amount;
-  const newTotalUsed = credits.total_used + amount;
-
-  await dbRun(
-    "UPDATE credits SET balance = ?, total_used = ?, updated_at = ? WHERE user_id = ?",
-    [newBalance, newTotalUsed, now, userId]
-  );
-
+  const updated = await dbGet<Credits>("SELECT balance, total_used FROM credits WHERE user_id = ?", [userId]);
   return res.json({
     user_id: userId,
     deducted: amount,
     reason: reason ?? null,
-    balance: newBalance,
+    balance: updated?.balance ?? 0,
     updated_at: now,
   });
 });

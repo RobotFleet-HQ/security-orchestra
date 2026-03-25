@@ -3,6 +3,7 @@ import path from "path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import { generateApiKey } from "./auth.js";
 import { storeApiKey } from "./database.js";
@@ -1616,6 +1617,25 @@ async function main() {
         return;
       }
       await transport.handlePostMessage(req, res);
+    });
+
+    // ── Streamable HTTP transport (MCP 2025-03, used by Smithery and modern clients)
+    // Stateless: each POST is independent — initialize and tools/list need no auth.
+    // tools/call auth is enforced inside CallToolRequestSchema via requireAuth().
+    app.post("/mcp", express.json(), async (req, res) => {
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      const srv = createServer();
+      res.on("close", () => { transport.close().catch(() => {}); });
+      await srv.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    });
+
+    app.get("/mcp", async (req, res) => {
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      const srv = createServer();
+      res.on("close", () => { transport.close().catch(() => {}); });
+      await srv.connect(transport);
+      await transport.handleRequest(req, res);
     });
 
     // ── REST: direct workflow execution ──────────────────────────────────────

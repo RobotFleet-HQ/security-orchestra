@@ -1920,6 +1920,26 @@ async function main() {
         return;
       }
 
+      // 3a. Agent-list shortcut — return full registry if user is asking what's available
+      const msgLower = lastUser.content.toLowerCase();
+      const isAgentListQuery =
+        /what agents|list agents|show agents|available agents|what can you do/.test(msgLower);
+      if (isAgentListQuery) {
+        const agentList = Object.entries(WORKFLOWS).map(([name, wf]) => ({
+          name,
+          description: wf.description,
+          credits: wf.credits,
+        }));
+        res.json({
+          reply:
+            `Here are all ${agentList.length} available agents:\n\n` +
+            agentList.map((a) => `• **${a.name}** — ${a.description} (${a.credits} credits)`).join("\n"),
+          agent: null,
+          agents: agentList,
+        });
+        return;
+      }
+
       // 3. Detect workflow from message text
       const { workflowName, params: detectedParams } = detectWorkflowFromText(lastUser.content);
 

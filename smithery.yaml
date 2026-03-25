@@ -1,0 +1,10 @@
+startCommand:
+  type: http
+  url: https://security-orchestra-orchestrator.onrender.com
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: Your Security Orchestra API key (sk_live_...)
+    required: []

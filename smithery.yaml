@@ -6,6 +6,7 @@ startCommand:
     properties:
       apiKey:
         type: string
-        description: "Your Security Orchestra API key (sk_live_...)"
+        title: "Security Orchestra API Key"
+        description: "Your API key from https://security-orchestra-billing.onrender.com/signup.html — get a free key instantly"
     required:
       - apiKey

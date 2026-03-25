@@ -294,6 +294,7 @@ const LANDING_HTML = `<!DOCTYPE html>
       <p class="tagline">Data Center Intelligence Platform — 54 AI-powered tools via MCP</p>
       <a href="/signup" class="btn">Get Started Free</a>
       <a href="#pricing" class="btn btn-secondary">View Plans</a>
+      <a href="https://security-orchestra-orchestrator.onrender.com/webchat.html" target="_blank" rel="noopener" class="btn btn-secondary">💬 Web Chat</a>
     </div>
 
     <div class="section">

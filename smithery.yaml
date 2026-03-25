@@ -6,5 +6,6 @@ startCommand:
     properties:
       apiKey:
         type: string
-        description: Your Security Orchestra API key (sk_live_...)
-    required: []
+        description: "Your Security Orchestra API key (sk_live_...)"
+    required:
+      - apiKey

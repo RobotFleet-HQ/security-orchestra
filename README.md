@@ -1,153 +1,225 @@
 # Security Orchestra
 
-![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)
-![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green)
-![Registry](https://img.shields.io/badge/MCP_Registry-Listed-purple)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green)](https://modelcontextprotocol.io)
+[![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)](https://google.github.io/A2A/)
+[![Transport](https://img.shields.io/badge/Transport-SSE-orange)](https://security-orchestra-orchestrator.onrender.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![Agents](https://img.shields.io/badge/Agents-52-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
 
-A monetized, production-ready security automation platform built on the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). Claude (or any MCP client) connects to the orchestrator and runs real security workflows against authorized targets — with credit-based billing, per-tier rate limiting, input validation, and a full audit trail on every request.
+**52 AI-powered data center intelligence agents via MCP.** Generator sizing, PUE calculations, network topology, cooling load analysis, redundancy validation, site scoring, and more — all accessible to Claude or any MCP client over SSE.
+
+---
+
+## Quick Connect (Claude Desktop)
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "security-orchestra": {
+      "url": "https://security-orchestra-orchestrator.onrender.com",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. All 52 agents are immediately available.
+
+---
+
+## Live Endpoint
+
+| | URL |
+|---|---|
+| **MCP SSE** | `https://security-orchestra-orchestrator.onrender.com` |
+| **Agent Card (A2A)** | `https://security-orchestra-orchestrator.onrender.com/.well-known/agent.json` |
+| **A2A Endpoint** | `https://security-orchestra-orchestrator.onrender.com/a2a` |
+| **MCP Registry ID** | `io.github.RobotFleet-HQ/security-orchestra` |
 
 ---
 
 ## Protocol Support
 
-- ✅ **MCP (Model Context Protocol)** — Claude Desktop and all MCP clients
-- ✅ **A2A (Agent2Agent Protocol)** — Agent-to-agent discovery and task delegation
-
-| | URL |
-|---|---|
-| Agent Card | `https://security-orchestra-orchestrator.onrender.com/.well-known/agent.json` |
-| A2A Endpoint | `https://security-orchestra-orchestrator.onrender.com/a2a` |
-| MCP Registry | `io.github.RobotFleet-HQ/security-orchestra` |
+| Protocol | Status | Use Case |
+|---|---|---|
+| **MCP** (Model Context Protocol) | ✅ Live | Claude Desktop, Claude Code, any MCP client |
+| **A2A** (Agent2Agent Protocol) | ✅ Live | Agent-to-agent discovery and task delegation |
 
 ---
 
-## What It Does
+## All 52 Agents
 
-Security Orchestra exposes a set of security workflows (subdomain discovery, asset mapping, vulnerability assessment) as MCP tools. When a workflow is invoked:
+### Power & Electrical
 
-1. **Auth** — the client's API key is verified against bcrypt hashes in SQLite
-2. **Rate limit** — the request is checked against per-tier sliding-window limits
-3. **Validation** — all inputs are sanitized and checked against injection blocklists
-4. **Credit gate** — the billing API confirms the user has enough credits
-5. **Execution** — the workflow runs against the target
-6. **Deduction** — credits are deducted from the user's balance
-7. **Audit** — every event at every step is written to a shared audit log
+| Agent | What it does |
+|---|---|
+| `generator_sizing` | Size generators for data center loads with industry-standard NEC/NFPA compliance |
+| `ups_sizing` | Size UPS systems per IEEE 485 and 1184 — VRLA or Li-ion, N/N+1/2N configs |
+| `ats_sizing` | Size automatic transfer switches per NEC Articles 700, 701, 702 |
+| `fuel_storage` | Design diesel fuel storage per NFPA 30 — tank size, containment, SPCC thresholds |
+| `nfpa_110_checker` | Validate emergency generator compliance per NFPA 110 Level 1 and Level 2 |
+| `harmonic_analysis` | Analyze harmonic distortion and THD in power distribution systems |
+| `voltage_drop` | Calculate voltage drop across electrical distribution circuits |
+| `power_density` | Analyze rack power density, PDU sizing, NEC 645 branch circuit requirements |
+| `battery_storage` | Design battery energy storage systems for backup and demand management |
+| `demand_response` | Analyze utility demand response programs and curtailment opportunities |
+
+### Cooling & Mechanical
+
+| Agent | What it does |
+|---|---|
+| `cooling_load` | Calculate data center cooling load per ASHRAE TC 9.9 — tons, CRAC/CRAH sizing |
+| `pue_calculator` | Calculate PUE and efficiency metrics with optimization recommendations |
+| `chiller_sizing` | Size chiller systems for cooling plant infrastructure |
+| `crac_vs_crah` | Compare CRAC vs CRAH cooling — cost, efficiency, failure modes |
+| `airflow_modeling` | Model airflow patterns — hot/cold aisle containment, CFD estimates |
+| `economizer_analysis` | Analyze free cooling / economizer feasibility by climate and location |
+| `humidification` | Design humidification systems per ASHRAE environmental classes |
+
+### Network & Connectivity
+
+| Agent | What it does |
+|---|---|
+| `network_topology` | Design data center network topology — leaf-spine, core-distribution-access |
+| `bandwidth_sizing` | Calculate network bandwidth requirements for projected workloads |
+| `dns_architecture` | Design DNS architecture — authoritative, recursive, anycast |
+| `ip_addressing` | Plan IP addressing and subnetting for large-scale infrastructure |
+| `bgp_peering` | Analyze BGP peering configurations, AS relationships, route policies |
+| `fiber_connectivity` | Design fiber connectivity — dark fiber routes, carrier diversity |
+| `latency_calculator` | Calculate network latency, propagation delay, RTT between sites |
+
+### Site & Construction
+
+| Agent | What it does |
+|---|---|
+| `site_scoring` | Score potential data center sites — power, water, risk, fiber, incentives |
+| `construction_cost` | Estimate $/MW construction costs with regional factors and tier breakdown |
+| `construction_timeline` | Plan construction timelines — civil, electrical, mechanical, commissioning |
+| `permit_timeline` | Model permitting timelines across federal, state, and local jurisdictions |
+| `environmental_impact` | Assess environmental impact — NEPA, wetlands, stormwater permitting |
+| `water_availability` | Analyze water availability and rights for cooling water supply |
+| `noise_compliance` | Analyze generator and cooling noise levels against local ordinances |
+| `incentive_finder` | Find utility incentives, tax credits, and government grants by location |
+
+### Utility & Interconnect
+
+| Agent | What it does |
+|---|---|
+| `utility_interconnect` | Analyze utility interconnect for 9 major US utilities — timeline and cost |
+| `nc_utility_interconnect` | North Carolina utility interconnect — detailed timeline, cost, regulatory |
+| `energy_procurement` | Evaluate PPA, direct access, and retail energy procurement strategies |
+| `solar_feasibility` | Analyze on-site solar feasibility — capacity, payback, interconnect |
+| `carbon_footprint` | Calculate Scope 1/2/3 emissions and carbon intensity per kWh |
+
+### Compliance & Certification
+
+| Agent | What it does |
+|---|---|
+| `redundancy_validator` | Validate redundancy design against Uptime Institute Tier I–IV standards |
+| `tier_certification` | Assess Uptime Institute tier certification readiness and gap analysis |
+| `compliance_checker` | Check regulatory and standards compliance — NERC CIP, SOC 2, ISO 27001 |
+
+### Physical Security
+
+| Agent | What it does |
+|---|---|
+| `physical_security` | Design layered physical security — mantrap, barriers, access zones |
+| `biometric_design` | Design biometric access control systems — fingerprint, iris, multi-factor |
+| `surveillance_coverage` | Calculate camera coverage — FOV, overlap, blind spot analysis |
+| `cybersecurity_controls` | Assess cybersecurity controls — NIST CSF, CIS Controls mapping |
+
+### Financial & Operations
+
+| Agent | What it does |
+|---|---|
+| `roi_calculator` | Calculate ROI for data center investments — CapEx, OpEx, payback period |
+| `tco_analyzer` | Analyze total cost of ownership over 10–20 year facility life |
+| `sla_calculator` | Model SLA uptime tiers — nines, MTTR, annual downtime budgets |
+| `capacity_planning` | Plan capacity growth — power, space, cooling, network expansion |
+| `maintenance_schedule` | Create preventive maintenance schedules per NFPA and manufacturer specs |
+| `change_management` | Plan and track infrastructure change management workflows |
+| `commissioning_plan` | Create commissioning plans — integrated system testing, acceptance criteria |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  MCP Client (Claude Desktop / Claude Code)                       │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ stdio (MCP protocol)
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  orchestrator/          (Node.js MCP server)                     │
-│                                                                  │
-│  Auth ──► Rate Limit ──► Validation ──► Credit Gate ──► Execute │
-│                                                                  │
-│  keys.db  (API key hashes — bcrypt)                              │
-└──────────────┬────────────────────────────────────────┬─────────┘
-               │ HTTP (credit check / deduct)           │ write
-               ▼                                        ▼
-┌──────────────────────────────┐            ┌───────────────────┐
-│  billing-api/                │            │  audit.db         │
-│  (Express HTTP server)       │◄───────────│  (shared SQLite)  │
-│                              │  read      └───────────────────┘
-│  billing.db                  │
-│  ├─ users                    │
-│  ├─ subscriptions            │
-│  └─ credits                  │
-│                              │
-│  Stripe webhooks             │
-└──────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  MCP Client (Claude Desktop / Claude Code / any MCP) │
+└───────────────────────┬──────────────────────────────┘
+                        │ SSE (MCP protocol)
+                        ▼
+┌──────────────────────────────────────────────────────┐
+│  orchestrator/  (Node.js MCP server on Render)        │
+│                                                       │
+│  Auth → Rate Limit → Validation → Credit Gate → Run  │
+│                                                       │
+│  52 agent modules registered as MCP tools            │
+└──────────┬────────────────────────────────┬──────────┘
+           │ HTTP (credit check / deduct)   │ write
+           ▼                                ▼
+┌────────────────────┐           ┌────────────────────┐
+│  billing-api/      │           │  audit.db           │
+│  (Express HTTP)    │           │  (shared SQLite)    │
+│  billing.db        │           └────────────────────┘
+│  ├─ users          │
+│  ├─ subscriptions  │
+│  └─ credits        │
+│  Stripe webhooks   │
+└────────────────────┘
 ```
 
-| Service | Transport | Port | Database |
-|---|---|---|---|
-| `orchestrator` | stdio (MCP) | — | `keys.db`, `audit.db` |
-| `billing-api` | HTTP | 3001 | `billing.db`, `audit.db` (read) |
+| Service | Transport | URL |
+|---|---|---|
+| `orchestrator` | SSE (MCP) | `https://security-orchestra-orchestrator.onrender.com` |
+| `billing-api` | HTTP | Separate Render service |
 
 ---
 
 ## Pricing Tiers
 
-| Tier | Monthly Price | Credits | Rate Limit |
+| Tier | Monthly | Credits | Rate Limit |
 |---|---|---|---|
 | Free | $0 | 100 | 10/min · 100/hr · 500/day |
 | Starter | $29 | 500 | 60/min · 1,000/hr · 5,000/day |
 | Pro | $99 | 2,000 | 300/min · 5,000/hr · 50,000/day |
 | Enterprise | $499 | 10,000 | 1,000/min · 20,000/hr · 200,000/day |
 
-## Workflow Credit Costs
-
-| Workflow | Credits |
-|---|---|
-| `subdomain_discovery` | 5 |
-| `asset_discovery` | 15 |
-| `vulnerability_assessment` | 25 |
-
 ---
 
-## Quick Start
+## Self-Hosting
 
 ### Prerequisites
 
 - Node.js 18+
 - npm 9+
-- A [Stripe](https://stripe.com) account (for paid tiers — optional for local dev)
-- The [Stripe CLI](https://stripe.com/docs/stripe-cli) (for webhook testing)
+- Stripe account (optional — for paid tiers only)
 
-### 1. Clone and install
+### Install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/RobotFleet-HQ/security-orchestra
 cd security-orchestra
-
 cd orchestrator && npm install && npm run build && cd ..
 cd billing-api  && npm install && npm run build && cd ..
 ```
 
-### 2. Configure the orchestrator
+### Configure
 
 ```bash
-cd orchestrator
-cp .env.example .env
+# Orchestrator
+cd orchestrator && cp .env.example .env
+npm run generate-key myuser free   # generates sk_live_... key
+
+# Billing API
+cd billing-api && cp .env.example .env
+# Add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 ```
 
-Generate an API key for yourself:
-
-```bash
-npm run generate-key myuser free
-# ========================================
-#   API Key Generated (shown only once!)
-# ========================================
-#   User  : myuser
-#   Tier  : free
-#   Key   : sk_live_abc123...
-# ========================================
-```
-
-Copy the key into `orchestrator/.env`:
-
-```
-ORCHESTRATOR_API_KEY=sk_live_abc123...
-BILLING_API_URL=http://localhost:3001
-```
-
-### 3. Configure the billing API
-
-```bash
-cd billing-api
-cp .env.example .env
-# Fill in STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET (or leave blank for local dev without Stripe)
-```
-
-### 4. Start both services
-
-In two separate terminals:
+### Run
 
 ```bash
 # Terminal 1
@@ -157,18 +229,16 @@ cd orchestrator && npm start
 cd billing-api && npm start
 ```
 
-### 5. Connect Claude Desktop
-
-Add the following to your Claude Desktop config (`claude_desktop_config.json`):
+### Connect Claude Desktop (self-hosted)
 
 ```json
 {
   "mcpServers": {
     "security-orchestra": {
       "command": "node",
-      "args": ["/absolute/path/to/security-orchestra/orchestrator/dist/index.js"],
+      "args": ["/path/to/security-orchestra/orchestrator/dist/index.js"],
       "env": {
-        "ORCHESTRATOR_API_KEY": "sk_live_your_key_here",
+        "ORCHESTRATOR_API_KEY": "sk_live_your_key",
         "BILLING_API_URL": "http://localhost:3001"
       }
     }
@@ -176,109 +246,27 @@ Add the following to your Claude Desktop config (`claude_desktop_config.json`):
 }
 ```
 
-Restart Claude Desktop. You should see the `get_capabilities` and `execute_workflow` tools available.
-
----
-
-## Deployment
-
-### Environment variables to harden for production
-
-| Variable | Production value |
-|---|---|
-| `ORCHESTRATOR_API_KEY` | A freshly generated key — never reuse dev keys |
-| `BILLING_API_URL` | Your billing-api's public HTTPS URL |
-| `STRIPE_SECRET_KEY` | `sk_live_...` (not `sk_test_...`) |
-| `STRIPE_WEBHOOK_SECRET` | From your Stripe dashboard webhook endpoint |
-| `BASE_URL` | Your billing-api's public URL (e.g. `https://api.yourapp.com`) |
-
-### Running with pm2
-
-```bash
-npm install -g pm2
-
-# Billing API
-cd billing-api
-pm2 start dist/index.js --name billing-api
-
-# Orchestrator (started per-client by Claude Desktop — no pm2 needed)
-```
-
-### Stripe webhook endpoint
-
-Register `https://your-billing-api/webhooks/stripe` in the Stripe dashboard and select:
-
-- `checkout.session.completed`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
-- `invoice.payment_succeeded`
-
 ---
 
 ## Repository Structure
 
 ```
 security-orchestra/
-├── audit.db                  # Shared audit log (gitignored — created at runtime)
-├── .gitignore
-├── README.md
-│
-├── orchestrator/             # MCP server — handles tool calls from Claude
-│   ├── src/
-│   │   ├── index.ts          # Server entry point, request pipeline
-│   │   ├── auth.ts           # API key generation and validation
-│   │   ├── database.ts       # SQLite helpers, schema
-│   │   ├── billing.ts        # Billing API client (credit check / deduct)
-│   │   ├── validation.ts     # Input sanitization and injection blocking
-│   │   ├── rateLimit.ts      # Sliding-window rate limiter
-│   │   ├── audit.ts          # Audit log writer
-│   │   └── scripts/
-│   │       ├── generateKey.ts
-│   │       ├── testValidation.ts
-│   │       ├── testRateLimit.ts
-│   │       └── testAudit.ts
-│   ├── .env.example
-│   └── package.json
-│
-└── billing-api/              # HTTP API — users, credits, Stripe, audit queries
-    ├── src/
-    │   ├── index.ts          # Express server entry point
-    │   ├── database.ts       # SQLite helpers, schema, TIERS config
-    │   └── routes/
-    │       ├── users.ts      # POST /users, GET /users/:id
-    │       ├── credits.ts    # GET/POST /credits/:id
-    │       ├── checkout.ts   # POST /checkout, GET /checkout/tiers
-    │       ├── webhooks.ts   # POST /webhooks/stripe
-    │       └── audit.ts      # GET /audit/:userId, GET /audit/search
-    ├── .env.example
-    └── package.json
+├── orchestrator/              # MCP server — all 52 agent tools
+│   └── src/
+│       ├── index.ts           # Entry point, tool registry
+│       ├── auth.ts            # API key auth (bcrypt)
+│       ├── rateLimit.ts       # Sliding-window rate limiter
+│       ├── validation.ts      # Input sanitization
+│       ├── billing.ts         # Credit check/deduct
+│       └── audit.ts           # Audit log writer
+├── billing-api/               # HTTP API — users, credits, Stripe
+├── [agent]-agent/             # 52 individual agent modules
+└── mcp.json                   # MCP registry manifest
 ```
-
----
-
-## Contributing
-
-1. Fork the repository and create a feature branch
-2. Make your changes with tests where applicable
-3. Run the test suite before opening a PR:
-   ```bash
-   cd orchestrator
-   node dist/scripts/testValidation.js
-   node dist/scripts/testRateLimit.js
-   node dist/scripts/testAudit.js
-   ```
-4. Open a pull request with a clear description of the change and why
-
-### Adding a new workflow
-
-1. Add the workflow function in `orchestrator/src/index.ts`
-2. Register it in the `WORKFLOWS` map with a `credits` cost
-3. Add a validation case in `orchestrator/src/validation.ts`
-4. Add the cost to `WORKFLOW_COSTS` in `orchestrator/src/billing.ts`
-5. Update this README's workflow table
 
 ---
 
 ## License
 
-MIT
+MIT — [RobotFleet HQ](https://github.com/RobotFleet-HQ)

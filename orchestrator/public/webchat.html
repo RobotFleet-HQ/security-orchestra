@@ -249,14 +249,7 @@ function addMsg(text, role) {
     const btn = document.createElement('button');
     btn.className = 'export-btn';
     btn.textContent = '📄 Export Report';
-    btn.onclick = () => {
-      const ts = new Date().toISOString().replace('T',' ').slice(0,19);
-      const content = `Security Orchestra Report\nGenerated: ${ts}\n\n${d.textContent}`;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
-      a.download = `security-orchestra-${Date.now()}.txt`;
-      a.click();
-    };
+    btn.onclick = () => generateHTMLReport(d.textContent);
     wrap.appendChild(btn);
     msgs.appendChild(wrap);
     msgs.scrollTop = msgs.scrollHeight;
@@ -268,6 +261,174 @@ function addMsg(text, role) {
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
   return d;
+}
+
+function generateHTMLReport(rawText) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const ts = now.getTime();
+
+  // Try to parse as JSON; fall back to plain text
+  let parsed = null;
+  try { parsed = JSON.parse(rawText); } catch (_) {}
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderValue(val, depth) {
+    depth = depth || 0;
+    if (val === null || val === undefined) return '<span class="null">null</span>';
+    if (typeof val === 'boolean') return `<span class="bool">${val}</span>`;
+    if (typeof val === 'number') return `<span class="num">${val.toLocaleString()}</span>`;
+    if (typeof val === 'string') {
+      // bullet list if multi-line
+      if (val.includes('\n')) {
+        const lines = val.split('\n').filter(l => l.trim());
+        return '<ul>' + lines.map(l => `<li>${escHtml(l.replace(/^[•\-\*]\s*/,''))}</li>`).join('') + '</ul>';
+      }
+      return escHtml(val);
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) return '<em>—</em>';
+      // Array of objects → table
+      if (typeof val[0] === 'object' && val[0] !== null && !Array.isArray(val[0])) {
+        const keys = Object.keys(val[0]);
+        return '<table><thead><tr>' + keys.map(k=>`<th>${escHtml(k)}</th>`).join('') + '</tr></thead><tbody>' +
+          val.map(row => '<tr>' + keys.map(k=>`<td>${renderValue(row[k], depth+1)}</td>`).join('') + '</tr>').join('') +
+          '</tbody></table>';
+      }
+      return '<ul>' + val.map(v=>`<li>${renderValue(v, depth+1)}</li>`).join('') + '</ul>';
+    }
+    if (typeof val === 'object') {
+      if (depth >= 2) return '<pre>' + escHtml(JSON.stringify(val, null, 2)) + '</pre>';
+      return '<table>' + Object.entries(val).map(([k,v]) =>
+        `<tr><td class="key">${escHtml(k)}</td><td>${renderValue(v, depth+1)}</td></tr>`
+      ).join('') + '</table>';
+    }
+    return escHtml(String(val));
+  }
+
+  function buildSections(obj) {
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+      return `<section><div class="section-body">${renderValue(obj, 0)}</div></section>`;
+    }
+    return Object.entries(obj).map(([key, val]) => {
+      const title = key.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      const isTable = Array.isArray(val) && val.length > 0 && typeof val[0] === 'object';
+      const isNested = typeof val === 'object' && !Array.isArray(val) && val !== null;
+      return `<section>
+        <h2>${escHtml(title)}</h2>
+        <div class="section-body ${isTable||isNested?'':'kv'}">${renderValue(val, 0)}</div>
+      </section>`;
+    }).join('');
+  }
+
+  const bodyContent = parsed !== null ? buildSections(parsed) :
+    `<section><div class="section-body"><pre>${escHtml(rawText)}</pre></div></section>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Orchestra Report — ${dateStr}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; }
+  a { color: #007a4d; }
+
+  /* ── Header ── */
+  .report-header { background: #0d1117; color: #fff; padding: 40px 60px 36px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-dot { width: 14px; height: 14px; border-radius: 50%; background: #00ff88; flex-shrink: 0; }
+  .brand-name { font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+  .brand-tagline { font-size: 12px; color: #8b949e; margin-top: 2px; }
+  .report-meta { text-align: right; font-size: 12px; color: #8b949e; line-height: 1.8; }
+  .report-meta strong { color: #e6edf3; font-size: 14px; display: block; margin-bottom: 2px; }
+
+  /* ── Title band ── */
+  .title-band { background: #00ff88; color: #000; padding: 18px 60px; display: flex; align-items: center; gap: 12px; }
+  .title-band h1 { font-size: 18px; font-weight: 800; }
+  .title-band .badge { background: rgba(0,0,0,.15); border-radius: 20px; font-size: 11px; font-weight: 700; padding: 3px 10px; letter-spacing: .4px; }
+
+  /* ── Content ── */
+  .report-body { max-width: 960px; margin: 0 auto; padding: 40px 40px 60px; display: flex; flex-direction: column; gap: 28px; }
+  section { background: #fff; border: 1px solid #e1e4e8; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  section h2 { background: #f6f8fa; border-bottom: 1px solid #e1e4e8; padding: 12px 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #57606a; }
+  .section-body { padding: 20px; font-size: 14px; line-height: 1.7; color: #24292f; }
+  .section-body pre { background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 16px; font-size: 12.5px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 9px 14px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: #57606a; }
+  td { border: 1px solid #e1e4e8; padding: 9px 14px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  td.key { font-weight: 600; color: #0d1117; width: 220px; background: #f6f8fa; white-space: nowrap; }
+
+  /* ── Lists ── */
+  ul { padding-left: 20px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Value types ── */
+  .num { font-weight: 600; color: #0550ae; }
+  .bool { font-weight: 700; color: #1a7f37; }
+  .null { color: #999; font-style: italic; }
+
+  /* ── Footer ── */
+  .report-footer { background: #0d1117; color: #8b949e; text-align: center; padding: 28px 40px; font-size: 12px; line-height: 1.9; margin-top: 40px; }
+  .report-footer strong { color: #00ff88; }
+  .divider { height: 3px; background: linear-gradient(90deg, #00ff88, #00cc6a, #009950); }
+
+  @media print {
+    body { background: #fff; }
+    .report-header, .title-band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <div>
+      <div class="brand-name">Security Orchestra</div>
+      <div class="brand-tagline">Data Center Intelligence Platform</div>
+    </div>
+  </div>
+  <div class="report-meta">
+    <strong>Analysis Report</strong>
+    ${escHtml(dateStr)}<br>
+    ${escHtml(timeStr)}<br>
+    Generated via Web Chat
+  </div>
+</div>
+<div class="divider"></div>
+<div class="title-band">
+  <h1>📋 Analysis Report</h1>
+  <span class="badge">SECURITY ORCHESTRA · AI-POWERED</span>
+</div>
+
+<div class="report-body">
+  ${bodyContent}
+</div>
+
+<div class="divider"></div>
+<div class="report-footer">
+  <strong>Security Orchestra</strong> — Data Center Intelligence Platform<br>
+  56 AI-powered agents · MCP · REST · A2A<br>
+  <a href="https://security-orchestra-orchestrator.onrender.com" style="color:#00ff88">security-orchestra-orchestrator.onrender.com</a><br>
+  <span style="color:#484f58;font-size:11px">This report was generated automatically. Results should be verified by a qualified engineer before use in production.</span>
+</div>
+
+</body>
+</html>`;
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = `security-orchestra-report-${ts}.html`;
+  a.click();
 }
 
 async function sendMessage() {

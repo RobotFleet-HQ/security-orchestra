@@ -180,6 +180,43 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid email address" });
   }
 
+  // ── Internal test bypass ────────────────────────────────────────────────────
+  // test@security-orchestra.io skips IP/disposable checks and returns the key
+  // in the response body so the full flow can be verified without an email inbox.
+  if (emailLower === "test@security-orchestra.io") {
+    const testTierConfig = TIERS["free"];
+    const existing = await dbGet<{ id: string }>(
+      "SELECT id FROM users WHERE email = ?",
+      [emailLower]
+    );
+    let testUserId: string;
+    if (existing) {
+      testUserId = existing.id;
+    } else {
+      testUserId = uuidv4();
+      const now = new Date().toISOString();
+      await dbRun(
+        `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
+         VALUES (?, ?, 'free', ?, 'test-bypass', 'verified')`,
+        [testUserId, emailLower, now]
+      );
+      await dbRun(
+        "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
+        [testUserId, testTierConfig.credits, testTierConfig.credits, new Date().toISOString()]
+      );
+    }
+    const apiKey = await provisionApiKey(testUserId, "free");
+    if (!apiKey) {
+      return res.status(500).json({ error: "Test bypass: failed to provision API key" });
+    }
+    return res.status(201).json({
+      message: "Test bypass: API key provisioned",
+      email: emailLower,
+      tier: "free",
+      apiKey,
+    });
+  }
+
   // Block disposable email domains
   const domain = emailLower.split("@")[1];
   if (DISPOSABLE_DOMAINS.has(domain)) {

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import path from "path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -1496,6 +1497,9 @@ async function main() {
   if (PORT) {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
+
+    // ─── Static assets — served before security headers so webchat.html gets its own CSP ──
+    app.use(express.static(path.join(__dirname, "..", "public")));
 
     // ─── Security headers ──────────────────────────────────────────────────
     app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {

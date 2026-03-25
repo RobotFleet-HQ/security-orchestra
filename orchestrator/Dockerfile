@@ -24,6 +24,9 @@ COPY orchestrator/tsconfig.json ./orchestrator/
 COPY orchestrator/src/           ./orchestrator/src/
 RUN cd orchestrator && npx tsc
 
+# ── Static assets ─────────────────────────────────────────────────────────────
+COPY orchestrator/public/        ./orchestrator/public/
+
 # ── Python agents ─────────────────────────────────────────────────────────────
 # Power infrastructure
 COPY generator-sizing-agent/          ./generator-sizing-agent/

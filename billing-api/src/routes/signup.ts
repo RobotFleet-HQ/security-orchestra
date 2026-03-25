@@ -232,14 +232,6 @@ router.post("/", async (req: Request, res: Response) => {
     });
   }
 
-  // Block disposable email domains
-  const domain = emailLower.split("@")[1];
-  if (!isWhitelisted && DISPOSABLE_DOMAINS.has(domain)) {
-    return res.status(400).json({
-      error: "Disposable email addresses are not allowed. Please use a real email.",
-    });
-  }
-
   if (!TIERS[tier]) {
     return res.status(400).json({
       error: `Invalid tier. Options: ${Object.keys(TIERS).join(", ")}`,

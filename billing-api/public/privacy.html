@@ -14,166 +14,249 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-Y9BKQBD7WS');
 </script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — Security Orchestra</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0d1117;
-      color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      line-height: 1.7;
-      padding: 48px 24px;
-    }
-    .container { max-width: 720px; margin: 0 auto; }
-    .icon { font-size: 32px; margin-bottom: 16px; text-align: center; }
-    h1 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 6px; }
-    .updated { color: #8b949e; font-size: 13px; text-align: center; margin-bottom: 40px; }
-    h2 { font-size: 16px; font-weight: 700; color: #f0f6fc; margin: 32px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
-    p { color: #c9d1d9; font-size: 14px; margin-bottom: 12px; }
-    ul { color: #c9d1d9; font-size: 14px; margin: 0 0 12px 20px; }
-    ul li { margin-bottom: 6px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; color: #c9d1d9; margin-bottom: 16px; }
-    th { text-align: left; padding: 8px 12px; background: #161b22; color: #f0f6fc; font-weight: 600; border: 1px solid #30363d; }
-    td { padding: 8px 12px; border: 1px solid #21262d; vertical-align: top; }
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .callout {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-left: 3px solid #238636;
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin: 16px 0;
-      font-size: 14px;
-      color: #c9d1d9;
-    }
-    .back { text-align: center; margin-top: 48px; font-size: 13px; color: #8b949e; }
-    .back a { color: #58a6ff; }
-    footer { text-align: center; color: #484f58; font-size: 12px; padding: 40px 0 20px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Security Orchestra</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+nav {
+  background: #111;
+  border-bottom: 1px solid #222;
+  padding: 0 24px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #e0e0e0;
+  text-decoration: none;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00ff88;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  width: 100%;
+}
+
+.icon { font-size: 32px; color: #00ff88; margin-bottom: 16px; text-align: center; }
+h1 { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+.updated { color: #666; font-size: 13px; text-align: center; margin-bottom: 40px; }
+
+h2 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #e0e0e0;
+  margin: 32px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1e1e1e;
+}
+
+p { color: #aaa; font-size: 14px; margin-bottom: 12px; line-height: 1.7; }
+ul { color: #aaa; font-size: 14px; margin: 0 0 12px 20px; line-height: 1.7; }
+ul li { margin-bottom: 6px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 16px;
+}
+th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #141414;
+  color: #e0e0e0;
+  font-weight: 700;
+  border: 1px solid #222;
+}
+td {
+  padding: 10px 14px;
+  border: 1px solid #1e1e1e;
+  vertical-align: top;
+}
+
+a { color: #00ff88; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.callout {
+  background: #141414;
+  border: 1px solid #222;
+  border-left: 3px solid #00ff88;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 14px;
+  color: #aaa;
+  line-height: 1.6;
+}
+
+.back { text-align: center; margin-top: 48px; font-size: 13px; color: #666; }
+.back a { color: #00ff88; }
+
+footer {
+  text-align: center;
+  color: #444;
+  font-size: 12px;
+  padding: 40px 0 20px;
+}
+footer a { color: #444; text-decoration: none; }
+footer a:hover { color: #00ff88; }
+</style>
 </head>
 <body>
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PDJFD9TP"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
-  <div class="container">
-    <div class="icon">&#9670;</div>
-    <h1>Privacy Policy</h1>
-    <p class="updated">Security Orchestra &mdash; Last updated March 2026</p>
 
-    <p>Security Orchestra ("we", "us", "our") is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.</p>
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="dot"></div>
+    Security Orchestra
+  </a>
+</nav>
 
-    <h2>1. Information We Collect</h2>
-    <table>
-      <tr>
-        <th>Category</th>
-        <th>What We Collect</th>
-        <th>Why</th>
-      </tr>
-      <tr>
-        <td><strong>Account</strong></td>
-        <td>Email address</td>
-        <td>Account creation, API key delivery, billing communication</td>
-      </tr>
-      <tr>
-        <td><strong>Payment</strong></td>
-        <td>Payment method details (processed and stored by Stripe — we never see raw card numbers)</td>
-        <td>Subscription billing and credit purchases</td>
-      </tr>
-      <tr>
-        <td><strong>Usage</strong></td>
-        <td>Tool invocations, credit deductions, timestamps</td>
-        <td>Credit tracking, fraud prevention, service improvement</td>
-      </tr>
-      <tr>
-        <td><strong>Technical</strong></td>
-        <td>IP addresses, HTTP request logs, user agent strings</td>
-        <td>Security, abuse prevention, access logging</td>
-      </tr>
-    </table>
-    <p>We do not collect names, phone numbers, or physical addresses beyond what Stripe may require for payment processing.</p>
+<div class="content">
+  <div class="icon">&#9670;</div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Security Orchestra &mdash; Last updated March 2026</p>
 
-    <h2>2. How We Use Your Information</h2>
-    <ul>
-      <li><strong>Service delivery:</strong> Issuing API keys, tracking credit balances, processing tool requests.</li>
-      <li><strong>Billing:</strong> Charging subscriptions, processing top-up purchases, sending receipts.</li>
-      <li><strong>Communication:</strong> Sending your API key, verification emails, low-credit warnings, and account notices.</li>
-      <li><strong>Fraud and abuse prevention:</strong> Monitoring for unusual usage patterns and unauthorized access.</li>
-      <li><strong>Legal compliance:</strong> Retaining payment records as required by applicable law.</li>
-    </ul>
-    <p>We do not sell, rent, or trade your personal information to third parties for marketing purposes.</p>
+  <p>Security Orchestra ("we", "us", "our") is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.</p>
 
-    <h2>3. Third-Party Services</h2>
-    <table>
-      <tr>
-        <th>Provider</th>
-        <th>Purpose</th>
-        <th>Data Shared</th>
-      </tr>
-      <tr>
-        <td><strong>Stripe</strong></td>
-        <td>Payment processing</td>
-        <td>Email, payment method details. Stripe is PCI-DSS compliant. See <a href="https://stripe.com/privacy" target="_blank">Stripe Privacy Policy</a>.</td>
-      </tr>
-      <tr>
-        <td><strong>SendGrid</strong></td>
-        <td>Transactional email delivery</td>
-        <td>Your email address and email content. See <a href="https://www.twilio.com/en-us/legal/privacy" target="_blank">Twilio/SendGrid Privacy Policy</a>.</td>
-      </tr>
-      <tr>
-        <td><strong>Render</strong></td>
-        <td>Cloud hosting and infrastructure</td>
-        <td>Application logs (including IP addresses) stored on Render's servers. See <a href="https://render.com/privacy" target="_blank">Render Privacy Policy</a>.</td>
-      </tr>
-    </table>
+  <h2>1. Information We Collect</h2>
+  <table>
+    <tr>
+      <th>Category</th>
+      <th>What We Collect</th>
+      <th>Why</th>
+    </tr>
+    <tr>
+      <td><strong>Account</strong></td>
+      <td>Email address</td>
+      <td>Account creation, API key delivery, billing communication</td>
+    </tr>
+    <tr>
+      <td><strong>Payment</strong></td>
+      <td>Payment method details (processed and stored by Stripe — we never see raw card numbers)</td>
+      <td>Subscription billing and credit purchases</td>
+    </tr>
+    <tr>
+      <td><strong>Usage</strong></td>
+      <td>Tool invocations, credit deductions, timestamps</td>
+      <td>Credit tracking, fraud prevention, service improvement</td>
+    </tr>
+    <tr>
+      <td><strong>Technical</strong></td>
+      <td>IP addresses, HTTP request logs, user agent strings</td>
+      <td>Security, abuse prevention, access logging</td>
+    </tr>
+  </table>
+  <p>We do not collect names, phone numbers, or physical addresses beyond what Stripe may require for payment processing.</p>
 
-    <h2>4. Data Retention</h2>
-    <ul>
-      <li><strong>Account data</strong> (email, API key, credit balance): retained until you request account deletion.</li>
-      <li><strong>Access and request logs</strong> (IP addresses, tool usage): retained for 90 days, then purged.</li>
-      <li><strong>Payment records</strong>: retained for 7 years as required by financial regulations.</li>
-    </ul>
+  <h2>2. How We Use Your Information</h2>
+  <ul>
+    <li><strong>Service delivery:</strong> Issuing API keys, tracking credit balances, processing tool requests.</li>
+    <li><strong>Billing:</strong> Charging subscriptions, processing top-up purchases, sending receipts.</li>
+    <li><strong>Communication:</strong> Sending your API key, verification emails, low-credit warnings, and account notices.</li>
+    <li><strong>Fraud and abuse prevention:</strong> Monitoring for unusual usage patterns and unauthorized access.</li>
+    <li><strong>Legal compliance:</strong> Retaining payment records as required by applicable law.</li>
+  </ul>
+  <p>We do not sell, rent, or trade your personal information to third parties for marketing purposes.</p>
 
-    <h2>5. Your Rights</h2>
-    <div class="callout">
-      To exercise any of the rights below, email us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>. We will respond within 30 days.
-    </div>
-    <ul>
-      <li><strong>Delete your account:</strong> Request deletion of your account and all associated data (except payment records retained for legal compliance).</li>
-      <li><strong>Export your data:</strong> Request a copy of the personal data we hold about you.</li>
-      <li><strong>Opt out of marketing:</strong> We send only transactional emails. To stop receiving low-credit warnings or promotional messages, email us or use the unsubscribe link in any email.</li>
-      <li><strong>Correction:</strong> Request correction of inaccurate personal data.</li>
-    </ul>
+  <h2>3. Third-Party Services</h2>
+  <table>
+    <tr>
+      <th>Provider</th>
+      <th>Purpose</th>
+      <th>Data Shared</th>
+    </tr>
+    <tr>
+      <td><strong>Stripe</strong></td>
+      <td>Payment processing</td>
+      <td>Email, payment method details. Stripe is PCI-DSS compliant. See <a href="https://stripe.com/privacy" target="_blank">Stripe Privacy Policy</a>.</td>
+    </tr>
+    <tr>
+      <td><strong>SendGrid</strong></td>
+      <td>Transactional email delivery</td>
+      <td>Your email address and email content. See <a href="https://www.twilio.com/en-us/legal/privacy" target="_blank">Twilio/SendGrid Privacy Policy</a>.</td>
+    </tr>
+    <tr>
+      <td><strong>Render</strong></td>
+      <td>Cloud hosting and infrastructure</td>
+      <td>Application logs (including IP addresses) stored on Render's servers. See <a href="https://render.com/privacy" target="_blank">Render Privacy Policy</a>.</td>
+    </tr>
+  </table>
 
-    <h2>6. Cookies</h2>
-    <p>We use session cookies only — small files stored in your browser to keep you logged in during a session. We do not use tracking cookies, advertising cookies, or any third-party analytics cookies. No cross-site tracking occurs.</p>
+  <h2>4. Data Retention</h2>
+  <ul>
+    <li><strong>Account data</strong> (email, API key, credit balance): retained until you request account deletion.</li>
+    <li><strong>Access and request logs</strong> (IP addresses, tool usage): retained for 90 days, then purged.</li>
+    <li><strong>Payment records</strong>: retained for 7 years as required by financial regulations.</li>
+  </ul>
 
-    <h2>7. Children's Privacy</h2>
-    <p>The Service is not directed at children under 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal data, contact us and we will delete it promptly.</p>
-
-    <h2>8. Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email. Continued use of the Service after changes are posted constitutes acceptance.</p>
-
-    <h2>9. Contact</h2>
-    <p>Questions or concerns about your privacy? Contact us at:</p>
-    <p>
-      Security Orchestra<br>
-      P.O. Box [Placeholder]<br>
-      <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>
-    </p>
-
-    <div class="back"><a href="/">&#8592; Back to home</a></div>
+  <h2>5. Your Rights</h2>
+  <div class="callout">
+    To exercise any of the rights below, email us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>. We will respond within 30 days.
   </div>
-  <footer>
-    Security Orchestra &mdash;
-    <a href="/terms.html" style="color:#484f58">Terms of Service</a> &mdash;
-    <a href="/privacy.html" style="color:#484f58">Privacy Policy</a>
-  </footer>
+  <ul>
+    <li><strong>Delete your account:</strong> Request deletion of your account and all associated data (except payment records retained for legal compliance).</li>
+    <li><strong>Export your data:</strong> Request a copy of the personal data we hold about you.</li>
+    <li><strong>Opt out of marketing:</strong> We send only transactional emails. To stop receiving low-credit warnings or promotional messages, email us or use the unsubscribe link in any email.</li>
+    <li><strong>Correction:</strong> Request correction of inaccurate personal data.</li>
+  </ul>
+
+  <h2>6. Cookies</h2>
+  <p>We use session cookies only — small files stored in your browser to keep you logged in during a session. We do not use tracking cookies, advertising cookies, or any third-party analytics cookies. No cross-site tracking occurs.</p>
+
+  <h2>7. Children's Privacy</h2>
+  <p>The Service is not directed at children under 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal data, contact us and we will delete it promptly.</p>
+
+  <h2>8. Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email. Continued use of the Service after changes are posted constitutes acceptance.</p>
+
+  <h2>9. Contact</h2>
+  <p>Questions or concerns about your privacy? Contact us at:</p>
+  <p>
+    Security Orchestra<br>
+    P.O. Box [Placeholder]<br>
+    <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>
+  </p>
+
+  <div class="back"><a href="/">&#8592; Back to home</a></div>
+</div>
+
+<footer>
+  Security Orchestra &mdash;
+  <a href="/terms.html">Terms of Service</a> &mdash;
+  <a href="/privacy.html">Privacy Policy</a>
+</footer>
 </body>
 </html>

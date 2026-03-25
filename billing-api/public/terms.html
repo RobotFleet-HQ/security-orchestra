@@ -1,174 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-PDJFD9TP');</script>
-    <!-- End Google Tag Manager -->
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PDJFD9TP');</script>
+<!-- End Google Tag Manager -->
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y9BKQBD7WS"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-Y9BKQBD7WS');
 </script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terms of Service — Security Orchestra</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0d1117;
-      color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      line-height: 1.7;
-      padding: 48px 24px;
-    }
-    .container { max-width: 720px; margin: 0 auto; }
-    .icon { font-size: 32px; margin-bottom: 16px; text-align: center; }
-    h1 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 6px; }
-    .updated { color: #8b949e; font-size: 13px; text-align: center; margin-bottom: 40px; }
-    h2 { font-size: 16px; font-weight: 700; color: #f0f6fc; margin: 32px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
-    p { color: #c9d1d9; font-size: 14px; margin-bottom: 12px; }
-    ul { color: #c9d1d9; font-size: 14px; margin: 0 0 12px 20px; }
-    ul li { margin-bottom: 6px; }
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .callout {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-left: 3px solid #d29922;
-      border-radius: 6px;
-      padding: 16px 20px;
-      margin: 16px 0;
-    }
-    .callout p { margin: 0; color: #e6edf3; }
-    .callout-red {
-      background: #2d1117;
-      border: 1px solid #30363d;
-      border-left: 3px solid #da3633;
-      border-radius: 6px;
-      padding: 16px 20px;
-      margin: 16px 0;
-    }
-    .callout-red p { margin: 0; color: #e6edf3; }
-    .back { text-align: center; margin-top: 48px; font-size: 13px; color: #8b949e; }
-    .back a { color: #58a6ff; }
-    footer { text-align: center; color: #484f58; font-size: 12px; padding: 40px 0 20px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Security Orchestra</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+nav {
+  background: #111;
+  border-bottom: 1px solid #222;
+  padding: 0 24px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #e0e0e0;
+  text-decoration: none;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00ff88;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  width: 100%;
+}
+
+.icon { font-size: 32px; color: #00ff88; margin-bottom: 16px; text-align: center; }
+h1 { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+.updated { color: #666; font-size: 13px; text-align: center; margin-bottom: 40px; }
+
+h2 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #e0e0e0;
+  margin: 32px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1e1e1e;
+}
+
+p { color: #aaa; font-size: 14px; margin-bottom: 12px; line-height: 1.7; }
+ul { color: #aaa; font-size: 14px; margin: 0 0 12px 20px; line-height: 1.7; }
+ul li { margin-bottom: 6px; }
+
+a { color: #00ff88; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.callout {
+  background: #141414;
+  border: 1px solid #222;
+  border-left: 3px solid #ffaa40;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+}
+.callout p { margin: 0; color: #e0e0e0; }
+
+.callout-red {
+  background: #1f0a0a;
+  border: 1px solid #332020;
+  border-left: 3px solid #ff4444;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+}
+.callout-red p { margin: 0; color: #e0e0e0; }
+
+.back { text-align: center; margin-top: 48px; font-size: 13px; color: #666; }
+.back a { color: #00ff88; }
+
+footer {
+  text-align: center;
+  color: #444;
+  font-size: 12px;
+  padding: 40px 0 20px;
+}
+footer a { color: #444; text-decoration: none; }
+footer a:hover { color: #00ff88; }
+</style>
 </head>
 <body>
- <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PDJFD9TP"
-    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-    <!-- End Google Tag Manager (noscript) -->
-  <div class="container">
-    <div class="icon">&#9670;</div>
-    <h1>Terms of Service</h1>
-    <p class="updated">Security Orchestra &mdash; Last updated March 2026</p>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PDJFD9TP"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 
-    <p>These Terms govern your use of Security Orchestra ("the Service"). By signing up or using the Service you agree to these Terms in full. If you do not agree, do not use the Service.</p>
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="dot"></div>
+    Security Orchestra
+  </a>
+</nav>
 
-    <h2>1. Credits and Billing</h2>
-    <div class="callout">
-      <p><strong>Credits reset on the 1st of each month. Unused credits do not roll over to the next billing period.</strong></p>
-    </div>
-    <ul>
-      <li>Paid plan credits are allocated at the start of each monthly billing cycle and expire at cycle end.</li>
-      <li>Free plan credits are a one-time signup allocation and do not reset monthly.</li>
-      <li>One-time credit top-up purchases do not expire and are not subject to the monthly reset.</li>
-      <li>Credits are consumed per tool invocation at the rates listed on the pricing page. Rates are subject to change with reasonable notice.</li>
-    </ul>
+<div class="content">
+  <div class="icon">&#9670;</div>
+  <h1>Terms of Service</h1>
+  <p class="updated">Security Orchestra &mdash; Last updated March 2026</p>
 
-    <h2>2. No Refunds</h2>
-    <div class="callout">
-      <p><strong>All payments are final. We do not issue refunds for any reason.</strong></p>
-    </div>
-    <p>This applies to:</p>
-    <ul>
-      <li>Monthly subscription charges, whether or not credits are fully used.</li>
-      <li>One-time credit top-up purchases.</li>
-      <li>Partial months — if you cancel mid-cycle, no prorated refund is issued.</li>
-    </ul>
-    <p>If you believe a charge is a billing error, contact us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a> within 14 days and we will review it.</p>
+  <p>These Terms govern your use of Security Orchestra ("the Service"). By signing up or using the Service you agree to these Terms in full. If you do not agree, do not use the Service.</p>
 
-    <h2>3. Chargebacks and Disputes</h2>
-    <div class="callout-red">
-      <p><strong>Filing a chargeback instead of contacting us to resolve a billing issue will result in immediate account termination and referral to collections for the full disputed amount plus a $25 fraudulent dispute processing fee.</strong></p>
-    </div>
-    <p>We take chargeback abuse seriously. If you have a billing concern, contact us first — we are responsive and will work to resolve legitimate issues. Initiating a payment dispute without first contacting us is a violation of these Terms and will be treated as fraud.</p>
-
-    <h2>4. Subscription Cancellation</h2>
-    <p>You may cancel your subscription at any time from your account dashboard. Upon cancellation:</p>
-    <ul>
-      <li>You retain full access and your remaining credits until the end of the current billing period.</li>
-      <li>Your subscription will not auto-renew and no further charges will be made.</li>
-      <li>Credits allocated for the current period expire at period end with no refund.</li>
-    </ul>
-
-    <h2>5. Account Suspension and Termination</h2>
-    <p>We reserve the right to suspend or terminate your account at any time, with or without notice, for:</p>
-    <ul>
-      <li>Violation of any provision of these Terms.</li>
-      <li>Fraudulent activity, including chargeback abuse.</li>
-      <li>Abuse of the platform or actions that degrade service for other users.</li>
-      <li>Any activity we determine to be harmful to the Service or its users.</li>
-    </ul>
-    <p>Suspended accounts are not entitled to refunds for unused credits or remaining subscription periods.</p>
-
-    <h2>6. Service Availability</h2>
-    <p>The Service is provided on a best-effort basis with no uptime guarantees or service-level agreements (SLA). We may perform maintenance, updates, or modifications at any time. Downtime does not entitle you to refunds, credit compensation, or any other remedy.</p>
-
-    <h2>7. Professional Disclaimer — No Warranties</h2>
-    <div class="callout">
-      <p><strong>All analysis, calculations, and recommendations produced by Security Orchestra agents are for reference and informational purposes only. They do not constitute professional engineering, legal, financial, or regulatory advice.</strong></p>
-    </div>
-    <p>Always verify results independently and consult a licensed professional engineer before making infrastructure design, construction, or operational decisions based on any output from this Service.</p>
-    <p>The Service and all agent outputs are provided <strong>"as is"</strong> and <strong>"as available"</strong> without warranties of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement.</p>
-
-    <h2>8. Limitation of Liability</h2>
-    <p>To the maximum extent permitted by applicable law, Security Orchestra shall not be liable for any indirect, incidental, special, consequential, or punitive damages — including loss of profits, data, business opportunities, or goodwill — arising out of or related to your use of the Service, even if we have been advised of the possibility of such damages.</p>
-    <p>Our total cumulative liability to you for any and all claims under these Terms shall not exceed the total amount you paid to us in the <strong>12 months immediately preceding</strong> the event giving rise to the claim.</p>
-
-    <h2>9. Acceptable Use</h2>
-    <p>You agree not to:</p>
-    <ul>
-      <li>Resell, sublicense, or redistribute API access, API keys, or agent outputs without prior written consent.</li>
-      <li>Scrape, crawl, or systematically harvest data from the Service.</li>
-      <li>Attempt to reverse-engineer, decompile, or circumvent any part of the Service.</li>
-      <li>Use the Service in ways that impose unreasonable load or degrade performance for other users.</li>
-      <li>Use the Service for any unlawful purpose or in violation of applicable regulations.</li>
-    </ul>
-
-    <h2>10. Intellectual Property and DMCA</h2>
-    <p>All Security Orchestra agents, workflows, prompts, and platform code are proprietary and protected by copyright. Unauthorized copying, reproduction, or distribution is strictly prohibited.</p>
-    <p>If you believe any content on our platform infringes your copyright, contact us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a> with a description of the allegedly infringing material and your ownership claim. We will investigate and respond promptly.</p>
-
-    <h2>11. Privacy</h2>
-    <p>Your use of the Service is also governed by our <a href="/privacy.html">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
-
-    <h2>12. Changes to These Terms</h2>
-    <p>We may update these Terms at any time. Material changes will be communicated via email where possible. Continued use of the Service after changes are posted constitutes acceptance of the updated Terms.</p>
-
-    <h2>13. Contact</h2>
-    <p>Questions about these Terms?</p>
-    <p>
-      Security Orchestra<br>
-      P.O. Box [Placeholder]<br>
-      <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>
-    </p>
-
-    <div class="back"><a href="/">&#8592; Back to home</a></div>
+  <h2>1. Credits and Billing</h2>
+  <div class="callout">
+    <p><strong>Credits reset on the 1st of each month. Unused credits do not roll over to the next billing period.</strong></p>
   </div>
-  <footer>
-    Security Orchestra &mdash;
-    <a href="/terms.html" style="color:#484f58">Terms of Service</a> &mdash;
-    <a href="/privacy.html" style="color:#484f58">Privacy Policy</a>
-  </footer>
+  <ul>
+    <li>Paid plan credits are allocated at the start of each monthly billing cycle and expire at cycle end.</li>
+    <li>Free plan credits are a one-time signup allocation and do not reset monthly.</li>
+    <li>One-time credit top-up purchases do not expire and are not subject to the monthly reset.</li>
+    <li>Credits are consumed per tool invocation at the rates listed on the pricing page. Rates are subject to change with reasonable notice.</li>
+  </ul>
+
+  <h2>2. No Refunds</h2>
+  <div class="callout">
+    <p><strong>All payments are final. We do not issue refunds for any reason.</strong></p>
+  </div>
+  <p>This applies to:</p>
+  <ul>
+    <li>Monthly subscription charges, whether or not credits are fully used.</li>
+    <li>One-time credit top-up purchases.</li>
+    <li>Partial months — if you cancel mid-cycle, no prorated refund is issued.</li>
+  </ul>
+  <p>If you believe a charge is a billing error, contact us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a> within 14 days and we will review it.</p>
+
+  <h2>3. Chargebacks and Disputes</h2>
+  <div class="callout-red">
+    <p><strong>Filing a chargeback instead of contacting us to resolve a billing issue will result in immediate account termination and referral to collections for the full disputed amount plus a $25 fraudulent dispute processing fee.</strong></p>
+  </div>
+  <p>We take chargeback abuse seriously. If you have a billing concern, contact us first — we are responsive and will work to resolve legitimate issues. Initiating a payment dispute without first contacting us is a violation of these Terms and will be treated as fraud.</p>
+
+  <h2>4. Subscription Cancellation</h2>
+  <p>You may cancel your subscription at any time from your account dashboard. Upon cancellation:</p>
+  <ul>
+    <li>You retain full access and your remaining credits until the end of the current billing period.</li>
+    <li>Your subscription will not auto-renew and no further charges will be made.</li>
+    <li>Credits allocated for the current period expire at period end with no refund.</li>
+  </ul>
+
+  <h2>5. Account Suspension and Termination</h2>
+  <p>We reserve the right to suspend or terminate your account at any time, with or without notice, for:</p>
+  <ul>
+    <li>Violation of any provision of these Terms.</li>
+    <li>Fraudulent activity, including chargeback abuse.</li>
+    <li>Abuse of the platform or actions that degrade service for other users.</li>
+    <li>Any activity we determine to be harmful to the Service or its users.</li>
+  </ul>
+  <p>Suspended accounts are not entitled to refunds for unused credits or remaining subscription periods.</p>
+
+  <h2>6. Service Availability</h2>
+  <p>The Service is provided on a best-effort basis with no uptime guarantees or service-level agreements (SLA). We may perform maintenance, updates, or modifications at any time. Downtime does not entitle you to refunds, credit compensation, or any other remedy.</p>
+
+  <h2>7. Professional Disclaimer — No Warranties</h2>
+  <div class="callout">
+    <p><strong>All analysis, calculations, and recommendations produced by Security Orchestra agents are for reference and informational purposes only. They do not constitute professional engineering, legal, financial, or regulatory advice.</strong></p>
+  </div>
+  <p>Always verify results independently and consult a licensed professional engineer before making infrastructure design, construction, or operational decisions based on any output from this Service.</p>
+  <p>The Service and all agent outputs are provided <strong>"as is"</strong> and <strong>"as available"</strong> without warranties of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, accuracy, or non-infringement.</p>
+
+  <h2>8. Limitation of Liability</h2>
+  <p>To the maximum extent permitted by applicable law, Security Orchestra shall not be liable for any indirect, incidental, special, consequential, or punitive damages — including loss of profits, data, business opportunities, or goodwill — arising out of or related to your use of the Service, even if we have been advised of the possibility of such damages.</p>
+  <p>Our total cumulative liability to you for any and all claims under these Terms shall not exceed the total amount you paid to us in the <strong>12 months immediately preceding</strong> the event giving rise to the claim.</p>
+
+  <h2>9. Acceptable Use</h2>
+  <p>You agree not to:</p>
+  <ul>
+    <li>Resell, sublicense, or redistribute API access, API keys, or agent outputs without prior written consent.</li>
+    <li>Scrape, crawl, or systematically harvest data from the Service.</li>
+    <li>Attempt to reverse-engineer, decompile, or circumvent any part of the Service.</li>
+    <li>Use the Service in ways that impose unreasonable load or degrade performance for other users.</li>
+    <li>Use the Service for any unlawful purpose or in violation of applicable regulations.</li>
+  </ul>
+
+  <h2>10. Intellectual Property and DMCA</h2>
+  <p>All Security Orchestra agents, workflows, prompts, and platform code are proprietary and protected by copyright. Unauthorized copying, reproduction, or distribution is strictly prohibited.</p>
+  <p>If you believe any content on our platform infringes your copyright, contact us at <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a> with a description of the allegedly infringing material and your ownership claim. We will investigate and respond promptly.</p>
+
+  <h2>11. Privacy</h2>
+  <p>Your use of the Service is also governed by our <a href="/privacy.html">Privacy Policy</a>, which is incorporated into these Terms by reference.</p>
+
+  <h2>12. Changes to These Terms</h2>
+  <p>We may update these Terms at any time. Material changes will be communicated via email where possible. Continued use of the Service after changes are posted constitutes acceptance of the updated Terms.</p>
+
+  <h2>13. Contact</h2>
+  <p>Questions about these Terms?</p>
+  <p>
+    Security Orchestra<br>
+    P.O. Box [Placeholder]<br>
+    <a href="mailto:contact.securityorchestra@gmail.com">contact.securityorchestra@gmail.com</a>
+  </p>
+
+  <div class="back"><a href="/">&#8592; Back to home</a></div>
+</div>
+
+<footer>
+  Security Orchestra &mdash;
+  <a href="/terms.html">Terms of Service</a> &mdash;
+  <a href="/privacy.html">Privacy Policy</a>
+</footer>
 </body>
 </html>

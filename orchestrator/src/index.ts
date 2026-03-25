@@ -1498,17 +1498,20 @@ async function main() {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
 
-    // ─── Static assets — served before security headers so webchat.html gets its own CSP ──
-    app.use(express.static(path.join(__dirname, "..", "public")));
-
     // ─── Security headers ──────────────────────────────────────────────────
     app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("X-Frame-Options", "DENY");
       res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-      res.setHeader("Content-Security-Policy", "default-src 'none'");
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://security-orchestra-orchestrator.onrender.com; frame-ancestors 'none'"
+      );
       next();
     });
+
+    // ─── Static assets ─────────────────────────────────────────────────────
+    app.use(express.static(path.join(__dirname, "..", "public")));
 
     app.get("/", (_req, res) => {
       res.json({

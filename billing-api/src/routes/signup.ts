@@ -255,21 +255,6 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(409).json({ error: "An account with this email already exists." });
   }
 
-  // Free tier: check IP abuse (1 free account per IP per 30 days)
-  if (!isWhitelisted && tier === "free") {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const ipCheck = await dbGet<{ id: string }>(
-      "SELECT id FROM users WHERE ip_address = ? AND created_at > ?",
-      [clientIp, cutoff]
-    );
-    if (ipCheck) {
-      return res.status(429).json({
-        error:
-          "Free tier limit reached from this location. Please upgrade to a paid plan or wait 30 days.",
-      });
-    }
-  }
-
   const userId = uuidv4();
   const now = new Date().toISOString();
 

@@ -33,8 +33,6 @@ code, .code-block { font-family: monospace; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #aaa; font-size: 11px; padding: 3px 8px; cursor: pointer; }
 .copy-btn:hover { background: #333; color: #fff; }
 .warn { background: #1f1800; border: 1px solid #3d2e00; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: #f0c040; margin-top: 10px; }
-.providers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.provider-chip { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #ccc; }
 #chat-page { height: calc(100vh - 54px); display: none; flex-direction: column; }
 #chat-page.active { display: flex; }
 #gate { position: absolute; inset: 54px 0 0 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; z-index: 50; }
@@ -42,8 +40,8 @@ code, .code-block { font-family: monospace; }
 #gate-box h2 { font-size: 18px; font-weight: 700; }
 #gate-box p { font-size: 13px; color: #888; line-height: 1.5; }
 label { font-size: 11px; color: #aaa; font-weight: 700; letter-spacing: .6px; display: block; margin-bottom: 5px; }
-select, .key-field { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 13px; color: #e0e0e0; font-size: 13px; outline: none; width: 100%; }
-select:focus, .key-field:focus { border-color: #00ff88; }
+.key-field { background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 13px; color: #e0e0e0; font-size: 13px; outline: none; width: 100%; }
+.key-field:focus { border-color: #00ff88; }
 #key-error { font-size: 12px; color: #ff5555; display: none; }
 #unlock-btn { background: #00ff88; color: #000; border: none; border-radius: 8px; padding: 12px; font-weight: 800; font-size: 14px; cursor: pointer; width: 100%; }
 #unlock-btn:disabled { opacity: .4; cursor: default; }
@@ -121,14 +119,7 @@ select:focus, .key-field:focus { border-color: #00ff88; }
     <div class="step">
       <div class="step-num">ALTERNATIVE</div>
       <h3>Use the Web Chat (No Install Needed)</h3>
-      <p>Click <strong>💬 Web Chat</strong> above. Enter your API key and start chatting instantly — no config files, no restart. Works with every major AI:</p>
-      <div class="providers">
-        <span class="provider-chip">🤖 Claude (Anthropic)</span>
-        <span class="provider-chip">🟢 ChatGPT (OpenAI)</span>
-        <span class="provider-chip">💎 Gemini (Google)</span>
-        <span class="provider-chip">🔍 Perplexity</span>
-        <span class="provider-chip">🦙 Any OpenAI-compatible API</span>
-      </div>
+      <p>Click <strong>💬 Web Chat</strong> above. Enter your Security Orchestra API key and start chatting instantly — no config files, no restart required.</p>
     </div>
   </div>
 </div>
@@ -137,21 +128,7 @@ select:focus, .key-field:focus { border-color: #00ff88; }
   <div id="gate">
     <div id="gate-box">
       <h2>🔑 Unlock Agent Chat</h2>
-      <p>Enter the access key from your welcome email. Choose your AI provider below.</p>
-      <div>
-        <label>AI PROVIDER</label>
-        <select id="provider-select">
-          <option value="claude">🤖 Claude (Anthropic)</option>
-          <option value="openai">🟢 ChatGPT (OpenAI)</option>
-          <option value="gemini">💎 Gemini (Google)</option>
-          <option value="perplexity">🔍 Perplexity</option>
-          <option value="custom">🔧 Custom OpenAI-Compatible</option>
-        </select>
-      </div>
-      <div id="custom-url-wrap" style="display:none">
-        <label>API BASE URL</label>
-        <input class="key-field" id="custom-url" placeholder="https://your-api.com/v1" />
-      </div>
+      <p>Enter your Security Orchestra API key from your welcome email.</p>
       <div>
         <label>API KEY</label>
         <input class="key-field" id="key-input" type="password" placeholder="Paste your key here…" autocomplete="off" />
@@ -165,7 +142,7 @@ select:focus, .key-field:focus { border-color: #00ff88; }
     <div id="chat-header">
       <div class="dot"></div>
       <h1>Security Orchestra</h1>
-      <span id="provider-badge">Claude</span>
+      <span id="provider-badge">Orchestra</span>
       <span class="sign-out" id="sign-out-btn">sign out ✕</span>
     </div>
     <div id="messages">
@@ -175,11 +152,13 @@ select:focus, .key-field:focus { border-color: #00ff88; }
       <textarea id="input" rows="1" placeholder="Type a message… (Enter to send)"></textarea>
       <button id="send-btn">Send</button>
     </div>
-    <div id="meta">A2A · MCP · REST · 56 Agents · Compatible with Claude, ChatGPT, Gemini, Perplexity</div>
+    <div id="meta">A2A · MCP · REST · 56 Agents</div>
   </div>
 </div>
 
 <script>
+const ORCHESTRATOR = 'https://security-orchestra-orchestrator.onrender.com';
+
 function showPage(id, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -190,43 +169,31 @@ function copyCode(btn) {
   const text = btn.parentElement.textContent.replace('Copy','').trim();
   navigator.clipboard.writeText(text).then(() => { btn.textContent = '✓ Copied'; setTimeout(()=>btn.textContent='Copy',2000); });
 }
-const PROVIDERS = {
-  claude:     { label: 'Claude',     model: 'claude-sonnet-4-20250514' },
-  openai:     { label: 'ChatGPT',    model: 'gpt-4o' },
-  gemini:     { label: 'Gemini',     model: 'gemini-1.5-pro' },
-  perplexity: { label: 'Perplexity', model: 'llama-3.1-sonar-large-128k-online' },
-  custom:     { label: 'Custom',     model: 'gpt-3.5-turbo' },
-};
-const SYSTEM = 'You are a helpful Security Orchestra AI agent with access to 56 security agents. Be concise and clear. You are fully compatible with A2A, MCP, and REST protocols.';
-let API_KEY = '', PROVIDER = 'claude', CUSTOM_URL = '', history = [];
-const providerSelect = document.getElementById('provider-select');
-const customUrlWrap  = document.getElementById('custom-url-wrap');
-const customUrl      = document.getElementById('custom-url');
-const keyInput       = document.getElementById('key-input');
-const keyError       = document.getElementById('key-error');
-const unlockBtn      = document.getElementById('unlock-btn');
-const gate           = document.getElementById('gate');
-const chatUI         = document.getElementById('chat-ui');
-const providerBadge  = document.getElementById('provider-badge');
-const msgs           = document.getElementById('messages');
-const input          = document.getElementById('input');
-const sendBtn        = document.getElementById('send-btn');
-providerSelect.onchange = () => { customUrlWrap.style.display = providerSelect.value === 'custom' ? 'block' : 'none'; };
+
+let API_KEY = '', history = [];
+const keyInput  = document.getElementById('key-input');
+const keyError  = document.getElementById('key-error');
+const unlockBtn = document.getElementById('unlock-btn');
+const gate      = document.getElementById('gate');
+const chatUI    = document.getElementById('chat-ui');
+const msgs      = document.getElementById('messages');
+const input     = document.getElementById('input');
+const sendBtn   = document.getElementById('send-btn');
+
 const sess = JSON.parse(sessionStorage.getItem('orchestraSession') || 'null');
-if (sess) { API_KEY = sess.key; PROVIDER = sess.provider; CUSTOM_URL = sess.customUrl || ''; showChat(); }
+if (sess) { API_KEY = sess.key; showChat(); }
+
 unlockBtn.onclick = async () => {
   const k = keyInput.value.trim();
   if (!k) return;
-  PROVIDER = providerSelect.value;
-  CUSTOM_URL = customUrl.value.trim();
   unlockBtn.disabled = true;
   unlockBtn.textContent = 'Verifying…';
   keyError.style.display = 'none';
   try {
-    const ok = await verifyKey(k, PROVIDER, CUSTOM_URL);
+    const ok = await verifyKey(k);
     if (ok) {
       API_KEY = k;
-      sessionStorage.setItem('orchestraSession', JSON.stringify({ key: k, provider: PROVIDER, customUrl: CUSTOM_URL }));
+      sessionStorage.setItem('orchestraSession', JSON.stringify({ key: k }));
       showChat();
     } else throw new Error();
   } catch {
@@ -236,41 +203,22 @@ unlockBtn.onclick = async () => {
   }
 };
 keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlockBtn.click(); });
-async function verifyKey(k, provider, cUrl) {
+
+async function verifyKey(k) {
   try {
-    if (provider === 'claude') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': k, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 10, messages: [{ role:'user', content:'hi' }] })
-      });
-      return r.ok;
-    } else if (provider === 'gemini') {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${k}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }], generationConfig: { maxOutputTokens: 10 } })
-      });
-      return r.ok;
-    } else {
-      const base = provider === 'custom' ? cUrl : provider === 'perplexity' ? 'https://api.perplexity.ai' : 'https://api.openai.com/v1';
-      const model = provider === 'perplexity' ? PROVIDERS.perplexity.model : provider === 'custom' ? PROVIDERS.custom.model : PROVIDERS.openai.model;
-      const r = await fetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${k}` },
-        body: JSON.stringify({ model, max_tokens: 10, messages: [{ role:'user', content:'hi' }] })
-      });
-      return r.ok;
-    }
+    const r = await fetch(`${ORCHESTRATOR}/sse`, { headers: { 'x-api-key': k } });
+    return r.status !== 401 && r.status !== 403;
   } catch { return false; }
 }
+
 function showChat() {
   gate.style.display = 'none';
   chatUI.style.display = 'flex';
   chatUI.style.flexDirection = 'column';
   chatUI.style.flex = '1';
-  providerBadge.textContent = PROVIDERS[PROVIDER]?.label || 'AI';
   input.focus();
 }
+
 document.getElementById('sign-out-btn').onclick = () => {
   sessionStorage.removeItem('orchestraSession');
   API_KEY = ''; history = [];
@@ -280,6 +228,7 @@ document.getElementById('sign-out-btn').onclick = () => {
   unlockBtn.textContent = 'Verify & Start Chatting →';
   unlockBtn.disabled = false;
 };
+
 function addMsg(text, role) {
   const d = document.createElement('div');
   d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
@@ -288,6 +237,7 @@ function addMsg(text, role) {
   msgs.scrollTop = msgs.scrollHeight;
   return d;
 }
+
 async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
@@ -296,40 +246,44 @@ async function sendMessage() {
   history.push({ role: 'user', content: text });
   const typing = addMsg('…', 'bot');
   try {
+    const r = await fetch(`${ORCHESTRATOR}/sse`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({ message: text, history })
+    });
     let reply = '';
-    if (PROVIDER === 'claude') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: PROVIDERS.claude.model, max_tokens: 1000, system: SYSTEM, messages: history })
-      });
-      const d = await r.json();
-      reply = d.content?.find(b => b.type === 'text')?.text || 'No response.';
-    } else if (PROVIDER === 'gemini') {
-      const contents = history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${API_KEY}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM }] }, contents, generationConfig: { maxOutputTokens: 1000 } })
-      });
-      const d = await r.json();
-      reply = d.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('text/event-stream')) {
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (data === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(data);
+            reply += parsed.content ?? parsed.text ?? parsed.delta ?? '';
+          } catch { reply += data; }
+        }
+      }
     } else {
-      const base = PROVIDER === 'custom' ? CUSTOM_URL : PROVIDER === 'perplexity' ? 'https://api.perplexity.ai' : 'https://api.openai.com/v1';
-      const model = PROVIDERS[PROVIDER]?.model || 'gpt-4o';
-      const r = await fetch(`${base}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-        body: JSON.stringify({ model, max_tokens: 1000, messages: [{ role:'system', content: SYSTEM }, ...history] })
-      });
       const d = await r.json();
-      reply = d.choices?.[0]?.message?.content || 'No response.';
+      reply = d.content ?? d.text ?? d.message ?? JSON.stringify(d);
     }
     history.push({ role: 'assistant', content: reply });
-    typing.textContent = reply;
+    typing.textContent = reply || 'No response.';
   } catch (e) { typing.textContent = 'Error: ' + e.message; }
   sendBtn.disabled = false;
   input.focus();
 }
+
 sendBtn.onclick = sendMessage;
 input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px'; });

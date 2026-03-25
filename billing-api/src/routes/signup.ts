@@ -180,6 +180,21 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid email address" });
   }
 
+  // ── Owner / tester whitelist — bypasses all rate limits and geo blocks ───────
+  const clientIp =
+    (req.headers["x-forwarded-for"] as string | undefined)
+      ?.split(",")[0]
+      .trim() ??
+    req.ip ??
+    "unknown";
+
+  const WHITELISTED_EMAILS = new Set(["rsaun@gmail.com", "rsaunders612@gmail.com"]);
+  const WHITELISTED_IPS    = new Set(["172.58.253.84"]);
+  const isWhitelisted =
+    WHITELISTED_EMAILS.has(emailLower) ||
+    emailLower.endsWith("@security-orchestra.io") ||
+    WHITELISTED_IPS.has(clientIp);
+
   // ── Internal test bypass ────────────────────────────────────────────────────
   // test@security-orchestra.io skips IP/disposable checks and returns the key
   // in the response body so the full flow can be verified without an email inbox.
@@ -219,7 +234,7 @@ router.post("/", async (req: Request, res: Response) => {
 
   // Block disposable email domains
   const domain = emailLower.split("@")[1];
-  if (DISPOSABLE_DOMAINS.has(domain)) {
+  if (!isWhitelisted && DISPOSABLE_DOMAINS.has(domain)) {
     return res.status(400).json({
       error: "Disposable email addresses are not allowed. Please use a real email.",
     });
@@ -240,16 +255,8 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(409).json({ error: "An account with this email already exists." });
   }
 
-  // Capture client IP
-  const clientIp =
-    (req.headers["x-forwarded-for"] as string | undefined)
-      ?.split(",")[0]
-      .trim() ??
-    req.ip ??
-    "unknown";
-
   // Free tier: check IP abuse (1 free account per IP per 30 days)
-  if (tier === "free") {
+  if (!isWhitelisted && tier === "free") {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const ipCheck = await dbGet<{ id: string }>(
       "SELECT id FROM users WHERE ip_address = ? AND created_at > ?",

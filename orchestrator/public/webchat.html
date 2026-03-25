@@ -206,7 +206,11 @@ keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') unlockBtn.cli
 
 async function verifyKey(k) {
   try {
-    const r = await fetch(`${ORCHESTRATOR}/sse`, { headers: { 'x-api-key': k } });
+    const r = await fetch(`${ORCHESTRATOR}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': k },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hello' }] })
+    });
     return r.status !== 401 && r.status !== 403;
   } catch { return false; }
 }
@@ -246,37 +250,13 @@ async function sendMessage() {
   history.push({ role: 'user', content: text });
   const typing = addMsg('…', 'bot');
   try {
-    const r = await fetch(`${ORCHESTRATOR}/sse`, {
+    const r = await fetch(`${ORCHESTRATOR}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-      body: JSON.stringify({ message: text, history })
+      body: JSON.stringify({ messages: history })
     });
-    let reply = '';
-    const ct = r.headers.get('content-type') || '';
-    if (ct.includes('text/event-stream')) {
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(data);
-            reply += parsed.content ?? parsed.text ?? parsed.delta ?? '';
-          } catch { reply += data; }
-        }
-      }
-    } else {
-      const d = await r.json();
-      reply = d.content ?? d.text ?? d.message ?? JSON.stringify(d);
-    }
+    const d = await r.json();
+    const reply = d.reply ?? d.error ?? JSON.stringify(d);
     history.push({ role: 'assistant', content: reply });
     typing.textContent = reply || 'No response.';
   } catch (e) { typing.textContent = 'Error: ' + e.message; }

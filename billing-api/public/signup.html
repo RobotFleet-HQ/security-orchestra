@@ -14,7 +14,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-
   gtag('config', 'G-Y9BKQBD7WS');
 </script>
   <meta charset="UTF-8">
@@ -37,61 +36,63 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       border: 1px solid #30363d;
       border-radius: 12px;
       padding: 48px 40px;
-      max-width: 460px;
+      max-width: 520px;
       width: 100%;
     }
-    .icon { font-size: 36px; margin-bottom: 20px; text-align: center; }
-    h1 { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 6px; }
-    .sub { color: #8b949e; font-size: 14px; text-align: center; margin-bottom: 32px; }
-    label { display: block; font-size: 13px; font-weight: 600; color: #f0f6fc; margin-bottom: 6px; }
-    input, select {
+    .icon { font-size: 42px; margin-bottom: 16px; text-align: center; color: #3fb950; }
+    h1 { font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .sub { color: #8b949e; font-size: 14px; text-align: center; margin-bottom: 36px; line-height: 1.5; }
+
+    label { display: block; font-size: 12px; font-weight: 600; color: #8b949e; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.6px; }
+    input[type="email"] {
       width: 100%;
       background: #0d1117;
       border: 1px solid #30363d;
-      border-radius: 6px;
+      border-radius: 8px;
       color: #e6edf3;
       font-size: 14px;
-      padding: 10px 12px;
-      margin-bottom: 20px;
+      padding: 12px 14px;
+      margin-bottom: 28px;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    input:focus, select:focus { border-color: #58a6ff; }
-    select option { background: #161b22; }
-    .btn {
-      display: block;
-      width: 100%;
-      background: #238636;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 15px;
-      font-weight: 600;
-      padding: 12px;
+    input[type="email"]:focus {
+      border-color: #58a6ff;
+      box-shadow: 0 0 0 3px rgba(88,166,255,0.1);
+    }
+
+    /* Hidden native select — kept for form submission compat */
+    select#tier { display: none; }
+
+    /* Visual plan cards */
+    .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    .plan-card {
+      background: #0d1117;
+      border: 2px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
     }
-    .btn:hover { background: #2ea043; }
-    .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
-    .message {
-      margin-top: 20px;
-      padding: 12px 16px;
-      border-radius: 6px;
-      font-size: 14px;
-      text-align: center;
-      display: none;
+    .plan-card:hover { border-color: #58a6ff; }
+    .plan-card.selected { border-color: #238636; background: #0f2619; }
+    .plan-card.featured { border-color: #238636; }
+    .plan-card.featured .plan-badge {
+      position: absolute; top: -10px; right: 12px;
+      background: #238636; color: #fff; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; letter-spacing: 0.4px;
     }
-    .message.success { background: #0f2619; border: 1px solid #238636; color: #3fb950; }
-    .message.error { background: #2d1117; border: 1px solid #da3633; color: #f85149; }
-    .back { text-align: center; margin-top: 20px; font-size: 13px; color: #8b949e; }
-    .back a { color: #58a6ff; text-decoration: none; }
-    .back a:hover { text-decoration: underline; }
-    .tier-note { font-size: 12px; color: #8b949e; margin-top: -16px; margin-bottom: 20px; }
+    .plan-name { font-size: 14px; font-weight: 700; color: #f0f6fc; margin-bottom: 4px; }
+    .plan-price { font-size: 20px; font-weight: 700; color: #3fb950; margin-bottom: 2px; }
+    .plan-credits { font-size: 12px; color: #8b949e; }
+    .tier-note { font-size: 12px; color: #8b949e; margin-bottom: 28px; line-height: 1.5; }
+
     .tos-check {
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       font-size: 13px;
       color: #c9d1d9;
       line-height: 1.5;
@@ -105,6 +106,67 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     }
     .tos-check a { color: #58a6ff; text-decoration: none; }
     .tos-check a:hover { text-decoration: underline; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+      letter-spacing: 0.2px;
+    }
+    .btn:hover { background: #2ea043; }
+    .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+
+    .message {
+      margin-top: 20px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: center;
+      display: none;
+      line-height: 1.5;
+    }
+    .message.success { background: #0f2619; border: 1px solid #238636; color: #3fb950; }
+    .message.error   { background: #2d1117; border: 1px solid #da3633; color: #f85149; }
+
+    .divider { border: none; border-top: 1px solid #21262d; margin: 24px 0; }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .footer-links a {
+      color: #8b949e;
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .footer-links a:hover { color: #58a6ff; }
+
+    .webchat-btn {
+      display: block;
+      text-align: center;
+      background: #1c2a3a;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #58a6ff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 11px;
+      text-decoration: none;
+      margin-top: 12px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .webchat-btn:hover { background: #1f3448; border-color: #58a6ff; }
   </style>
 </head>
 <body>
@@ -112,6 +174,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PDJFD9TP"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
+
   <div class="card">
     <div class="icon">&#9670;</div>
     <h1>Security Orchestra</h1>
@@ -128,16 +191,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         autocomplete="email"
       />
 
-      <label for="tier">Plan</label>
+      <!-- Hidden native select — kept for JS form submission compat -->
       <select id="tier" name="tier">
         <option value="free">Free — 100 credits (no payment required)</option>
         <option value="starter">Starter — 500 credits ($29)</option>
         <option value="pro">Pro — 2,000 credits ($99)</option>
         <option value="enterprise">Enterprise — 10,000 credits ($499)</option>
       </select>
-      <p class="tier-note">Free plan: verify email to get your API key instantly.</p>
 
-      <label class="tos-check">
+      <label style="margin-bottom:10px">Plan</label>
+      <div class="plans">
+        <div class="plan-card selected" data-tier="free">
+          <div class="plan-name">Free</div>
+          <div class="plan-price">$0</div>
+          <div class="plan-credits">100 credits</div>
+        </div>
+        <div class="plan-card featured" data-tier="starter">
+          <div class="plan-badge">POPULAR</div>
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">$29</div>
+          <div class="plan-credits">500 credits</div>
+        </div>
+        <div class="plan-card" data-tier="pro">
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$99</div>
+          <div class="plan-credits">2,000 credits</div>
+        </div>
+        <div class="plan-card" data-tier="enterprise">
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-price">$499</div>
+          <div class="plan-credits">10,000 credits</div>
+        </div>
+      </div>
+      <p class="tier-note" style="margin-top:10px">Free plan: verify email to get your API key instantly. Credits reset monthly.</p>
+
+      <label class="tos-check" style="margin-top:4px">
         <input type="checkbox" id="tos-agree" required />
         <span>I agree to the <a href="/terms.html" target="_blank">Terms of Service</a> and <a href="/privacy.html" target="_blank">Privacy Policy</a>, including the no-refund policy and monthly credit reset.</span>
       </label>
@@ -146,21 +234,41 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </form>
 
     <div class="message" id="message"></div>
-    <div class="back"><a href="/">&#8592; Back to home</a></div>
-    <div style="margin-top:16px;text-align:center">
-      <a href="https://security-orchestra-orchestrator.onrender.com/webchat.html" target="_blank" rel="noopener" style="display:inline-block;background:#1c2a3a;border:1px solid #30363d;border-radius:6px;color:#58a6ff;font-size:13px;font-weight:600;padding:10px 20px;text-decoration:none;">💬 Launch Web Chat</a>
+
+    <hr class="divider">
+
+    <a href="https://security-orchestra-orchestrator.onrender.com/webchat.html" target="_blank" rel="noopener" class="webchat-btn">💬 Launch Web Chat</a>
+
+    <div class="footer-links" style="margin-top:16px">
+      <a href="/">&#8592; Back to home</a>
+      <a href="/terms.html" target="_blank">Terms</a>
+      <a href="/privacy.html" target="_blank">Privacy</a>
     </div>
   </div>
 
   <script>
-    // Pre-select tier from URL param
+    // ── Plan card selection ────────────────────────────────────────────────
+    const planCards = document.querySelectorAll('.plan-card');
+    const tierSelect = document.getElementById('tier');
+
+    planCards.forEach(card => {
+      card.addEventListener('click', () => {
+        planCards.forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        tierSelect.value = card.dataset.tier;
+        updateButton();
+      });
+    });
+
+    // ── Pre-select tier from URL param ────────────────────────────────────
     const urlParams = new URLSearchParams(window.location.search);
     const tierParam = urlParams.get('tier');
     if (tierParam) {
-      const sel = document.getElementById('tier');
-      if ([...sel.options].some(o => o.value === tierParam)) {
-        sel.value = tierParam;
-        updateButton();
+      const matchCard = document.querySelector(`.plan-card[data-tier="${tierParam}"]`);
+      if (matchCard) {
+        planCards.forEach(c => c.classList.remove('selected'));
+        matchCard.classList.add('selected');
+        tierSelect.value = tierParam;
       }
     }
 
@@ -170,9 +278,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       const tier = document.getElementById('tier').value;
       const btn = document.getElementById('submit-btn');
       const labels = {
-        free: 'Get Started Free',
-        starter: 'Continue to Payment — $29',
-        pro: 'Continue to Payment — $99',
+        free:       'Get Started Free',
+        starter:    'Continue to Payment — $29',
+        pro:        'Continue to Payment — $99',
         enterprise: 'Continue to Payment — $499',
       };
       btn.textContent = labels[tier] || 'Get Started';
@@ -199,7 +307,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
         if (res.ok) {
           if (data.checkoutUrl) {
-            // Redirect to Stripe checkout
             window.location.href = data.checkoutUrl;
             return;
           }
@@ -207,6 +314,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           msgEl.textContent = data.message || 'Check your email!';
           msgEl.style.display = 'block';
           document.getElementById('signup-form').reset();
+          planCards.forEach(c => c.classList.remove('selected'));
+          document.querySelector('.plan-card[data-tier="free"]').classList.add('selected');
         } else {
           msgEl.className = 'message error';
           msgEl.textContent = data.error || 'Something went wrong. Please try again.';

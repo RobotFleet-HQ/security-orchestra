@@ -1311,6 +1311,7 @@ function detectWorkflowFromText(
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
+function createServer(): Server {
 const server = new Server(
   { name: "orchestrator", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -1484,6 +1485,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
 });
 
+  return server;
+}
+
 // ─── Startup ──────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1600,7 +1604,8 @@ async function main() {
         log("info", `SSE session ${transport.sessionId} closed`);
       });
       log("info", `SSE session ${transport.sessionId} opened`);
-      await server.connect(transport);
+      const srv = createServer();
+      await srv.connect(transport);
     });
 
     app.post("/message", express.json(), async (req, res) => {
@@ -2033,6 +2038,7 @@ async function main() {
   } else {
     // ── Local: stdio transport (Claude Desktop) ──────────────────────────────
     const transport = new StdioServerTransport();
+    const server = createServer();
     await server.connect(transport);
     log("info", "Server ready — listening on stdio");
   }

@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { initDb, TIERS } from "./database.js";
+import { initDb, TIERS, dbGet, dbRunChanges } from "./database.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
@@ -126,6 +126,26 @@ app.post("/webhook-test", express.raw({ type: "*/*" }), (req, res) => {
   };
   console.log("[webhook-test]", JSON.stringify(info, null, 2));
   res.json({ received: true, debug: info });
+});
+
+// ─── Admin: delete user ───────────────────────────────────────────────────────
+app.delete("/admin/user", async (req: express.Request, res: express.Response) => {
+  const { email, secret } = req.query as { email?: string; secret?: string };
+  if (secret !== "orchestra123") {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  if (!email) {
+    return res.status(400).json({ error: "email query param required" });
+  }
+  const emailLower = (email as string).toLowerCase().trim();
+  const user = await dbGet<{ id: string }>("SELECT id FROM users WHERE email = ?", [emailLower]);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  await dbRunChanges("DELETE FROM credits WHERE user_id = ?", [user.id]);
+  await dbRunChanges("DELETE FROM users WHERE id = ?", [user.id]);
+  console.log(`[admin] deleted user ${emailLower}`);
+  return res.json({ deleted: true, email: emailLower });
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────

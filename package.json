@@ -1,0 +1,10 @@
+{
+  "name": "security-orchestra-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:services": "pnpm --parallel --filter './packages/*' run dev",
+    "dev:demo": "pnpm --filter apps/demo run dev",
+    "build": "pnpm --filter apps/demo run build"
+  }
+}

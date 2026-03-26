@@ -11,7 +11,7 @@ nav { background: #111; border-bottom: 1px solid #222; padding: 0 24px; display:
 .nav-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; margin-right: auto; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: #00ff88; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
-.nav-tab { padding: 0 20px; height: 54px; display: flex; align-items: center; font-size: 13px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; transition: all .2s; background: none; border-top: none; border-left: none; border-right: none; }
+.nav-tab { padding: 0 20px; height: 54px; display: flex; align-items: center; font-size: 13px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; transition: all .2s; background: none; border-top: none; border-left: none; border-right: none; text-decoration: none; }
 .nav-tab:hover { color: #ccc; }
 .nav-tab.active { color: #00ff88; border-bottom-color: #00ff88; }
 .page { display: none; }
@@ -73,6 +73,7 @@ label { font-size: 11px; color: #aaa; font-weight: 700; letter-spacing: .6px; di
 
 <nav>
   <div class="nav-logo"><div class="dot"></div>Security Orchestra</div>
+  <a class="nav-tab" href="https://robotfleet-hq.github.io/security-orchestra-landing/">🏠 Home</a>
   <button class="nav-tab active" onclick="showPage('setup',this)">📋 Setup Guide</button>
   <button class="nav-tab" onclick="showPage('chat',this)">💬 Web Chat</button>
 </nav>

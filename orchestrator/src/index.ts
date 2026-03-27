@@ -1764,10 +1764,27 @@ async function main() {
 
     // ── A2A: JSON-RPC 2.0 task endpoint ──────────────────────────────────────
     app.post("/a2a", express.json(), async (req, res) => {
-      // Auth: same API key as SSE
-      const apiKey = process.env.ORCHESTRATOR_API_KEY;
-      const supplied = req.headers["x-api-key"] ?? req.headers["authorization"]?.replace(/^Bearer\s+/i, "");
-      if (!apiKey || supplied !== apiKey) {
+      // Auth: same DB-based key lookup as /chat
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
         res.status(401).json({
           jsonrpc: "2.0",
           id: req.body?.id ?? null,
@@ -1786,7 +1803,20 @@ async function main() {
         return;
       }
 
-      if (method !== "tasks/send") {
+      // tasks/get stub
+      if (method === "tasks/get") {
+        res.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            id: params?.id ?? crypto.randomUUID(),
+            status: { state: "completed" },
+          },
+        });
+        return;
+      }
+
+      if (method !== "message/send") {
         res.status(200).json({
           jsonrpc: "2.0",
           id,
@@ -1806,53 +1836,31 @@ async function main() {
         return;
       }
 
-      // Parse text as JSON: { workflow: "...", ...args }
-      let parsed: Record<string, string>;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        res.status(400).json({
-          jsonrpc: "2.0",
-          id,
-          error: { code: -32602, message: "message text must be valid JSON: { workflow: \"...\", ...args }" },
-        });
-        return;
-      }
+      // Detect workflow from natural language (same as /chat)
+      const { workflowName, params: detectedParams } = detectWorkflowFromText(text);
 
-      const workflowName = parsed.workflow;
       if (!workflowName) {
-        res.status(400).json({
+        res.json({
           jsonrpc: "2.0",
           id,
-          error: { code: -32602, message: "Missing required field: workflow" },
+          result: {
+            id: crypto.randomUUID(),
+            status: { state: "completed" },
+            artifacts: [{ name: "response", parts: [{ kind: "text", text: "I couldn't determine which agent to use. Try being more specific, e.g. \"analyze IP 1.2.3.4\" or \"lookup CVE-2024-1234\". See GET /agents for all available workflows." }] }],
+          },
         });
         return;
       }
 
       const wf = WORKFLOWS[workflowName];
-      if (!wf) {
-        res.status(400).json({
-          jsonrpc: "2.0",
-          id,
-          error: { code: -32602, message: `Unknown workflow: "${workflowName}"` },
-        });
-        return;
-      }
-
-      const a2aUserId = "a2a-client";
-      const a2aTier   = "enterprise";
 
       try {
-        // Rate limit
-        enforceRateLimit(a2aUserId, a2aTier);
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const cleanParams = validateWorkflowParams(workflowName, detectedParams);
 
-        // Validate params
-        const cleanParams = validateWorkflowParams(workflowName, parsed);
-
-        // Credit gate
         const billingEnabled = !!process.env.BILLING_API_URL;
         if (billingEnabled) {
-          const balance = await checkCredits(a2aUserId);
+          const balance = await checkCredits(keyRow.user_id);
           if (balance < wf.credits) {
             res.status(402).json({
               jsonrpc: "2.0",
@@ -1863,32 +1871,27 @@ async function main() {
           }
         }
 
-        // Execute
-        logAudit({ user_id: a2aUserId, action: "a2a_workflow_start", resource: workflowName,
-          result: "success", details: { params: cleanParams, tier: a2aTier } });
+        logAudit({ user_id: keyRow.user_id, action: "a2a_workflow_start", resource: workflowName,
+          result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
         const result = await dispatchWorkflow(workflowName, cleanParams);
 
-        // Deduct credits
         if (billingEnabled) {
-          const remaining = await deductCredits(a2aUserId, wf.credits, workflowName);
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
           result.results.credits_used      = wf.credits;
           result.results.credits_remaining = remaining;
         }
 
-        logAudit({ user_id: a2aUserId, action: "a2a_workflow_complete", resource: workflowName,
-          result: "success", duration_ms: Date.now() - startTime, details: { tier: a2aTier } });
+        logAudit({ user_id: keyRow.user_id, action: "a2a_workflow_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
         res.json({
           jsonrpc: "2.0",
           id,
           result: {
-            status: "completed",
-            output: {
-              message: {
-                parts: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-              },
-            },
+            id: crypto.randomUUID(),
+            status: { state: "completed" },
+            artifacts: [{ name: "response", parts: [{ kind: "text", text: JSON.stringify(result, null, 2) }] }],
           },
         });
       } catch (err) {
@@ -1899,6 +1902,92 @@ async function main() {
           id,
           error: { code: -32603, message: msg },
         });
+      }
+    });
+
+    // ── A2A: SSE streaming endpoint ───────────────────────────────────────────
+    app.post("/a2a/stream", express.json(), async (req, res) => {
+      // Auth: same DB-based key lookup as /chat
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const text: string | undefined = req.body?.params?.message?.parts?.[0]?.text;
+      if (!text) {
+        res.status(400).json({ error: "Missing params.message.parts[0].text" });
+        return;
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const { workflowName, params: detectedParams } = detectWorkflowFromText(text);
+
+      if (!workflowName) {
+        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: "I couldn't determine which agent to use. Try being more specific." } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
+        res.end();
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const cleanParams = validateWorkflowParams(workflowName, detectedParams);
+
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        const wf = WORKFLOWS[workflowName];
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "failed" }, error: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` })}\n\n`);
+            res.end();
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "a2a_stream_start", resource: workflowName,
+          result: "success", details: { params: cleanParams, tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "a2a_stream_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(result, null, 2) } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
+        res.end();
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[a2a/stream] workflow error — ${workflowName}: ${msg}`);
+        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "failed" }, error: msg })}\n\n`);
+        res.end();
       }
     });
 

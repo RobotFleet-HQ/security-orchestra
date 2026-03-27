@@ -1,0 +1,14 @@
+{
+  "name": "Security Orchestra",
+  "description": "56 AI-powered data center intelligence agents for threat analysis, asset discovery, and security intelligence",
+  "version": "1.0",
+  "url": "https://security-orchestra-orchestrator.onrender.com/a2a",
+  "skills": [
+    { "id": "threat-analysis", "name": "Threat analysis", "description": "Analyze IPs, domains, CVEs, and threat indicators" },
+    { "id": "asset-discovery", "name": "Asset discovery", "description": "Network and host enumeration and fingerprinting" },
+    { "id": "vulnerability-intelligence", "name": "Vulnerability intelligence", "description": "CVE lookup, CVSS scoring, patch guidance" },
+    { "id": "security-monitoring", "name": "Security monitoring", "description": "Log analysis, anomaly detection, alert triage" }
+  ],
+  "authentication": { "schemes": ["bearer"] },
+  "capabilities": { "streaming": true, "pushNotifications": false }
+}

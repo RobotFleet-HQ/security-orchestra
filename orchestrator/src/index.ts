@@ -480,6 +480,81 @@ const CHAINS: Record<string, {
 
 // ─── Chain Execution ──────────────────────────────────────────────────────────
 
+/** Map the output of a completed step into params for subsequent steps. */
+function extractChainParams(stepId: string, r: Record<string, unknown>): Record<string, string> {
+  const s = (v: unknown): string | undefined =>
+    v !== undefined && v !== null && !Number.isNaN(v) ? String(v) : undefined;
+  const out: Record<string, string> = {};
+
+  if (stepId === "generator_sizing") {
+    const kw = s(r.genset_kw);
+    if (kw) { out.generator_kw = kw; out.load_kw = kw; }
+    if (s(r.tank_size_gal)) out.fuel_capacity_gallons = s(r.tank_size_gal)!;
+    if (s(r.runtime_hours)) out.runtime_hours = s(r.runtime_hours)!;
+    const cost = r.cost_estimate as Record<string, unknown> | undefined;
+    if (cost && s(cost.installed_usd)) out.capex = s(cost.installed_usd)!;
+  }
+
+  if (stepId === "pue_calculator") {
+    const pueObj = r.pue as Record<string, unknown> | undefined;
+    if (pueObj && s(pueObj.value)) out.pue = s(pueObj.value)!;
+    const bk = r.power_breakdown_kw as Record<string, unknown> | undefined;
+    if (bk && s(bk.cooling)) out.cooling_kw = s(bk.cooling)!;
+  }
+
+  if (stepId === "cooling_load") {
+    if (s(r.total_cooling_kw)) out.cooling_kw = s(r.total_cooling_kw)!;
+  }
+
+  if (stepId === "nc_utility_interconnect") {
+    // Carry forward load for subsequent generator/nfpa steps
+    const cap = r.capacity_kw ?? r.load_kw;
+    if (s(cap)) { out.load_kw = s(cap)!; out.generator_kw = s(cap)!; }
+  }
+
+  return out;
+}
+
+/** Fill in params that aren't derivable from prior steps with sensible defaults. */
+function applyChainDefaults(params: Record<string, string>): Record<string, string> {
+  const load_kw = parseFloat(params.load_kw ?? "1000");
+  const p = { ...params };
+  if (!p.runtime_minutes)        p.runtime_minutes        = "15";
+  if (!p.runtime_hours)          p.runtime_hours          = "96";
+  if (!p.fuel_capacity_gallons)  p.fuel_capacity_gallons  = String(Math.round(load_kw * 5));
+  if (!p.ats_transfer_time_seconds) p.ats_transfer_time_seconds = "10";
+  if (!p.level)                  p.level                  = "1";
+  if (!p.ups_capacity_kw)        p.ups_capacity_kw        = String(Math.round(load_kw * 0.15));
+  if (!p.room_sqft)              p.room_sqft              = String(Math.round(load_kw * 10));
+  if (!p.power_rate_kwh)         p.power_rate_kwh         = "0.07";
+  if (!p.years)                  p.years                  = "10";
+  if (!p.annual_opex)            p.annual_opex            = String(Math.round(load_kw * 500));
+  if (!p.revenue_per_year)       p.revenue_per_year       = String(Math.round(load_kw * 1200));
+  if (!p.project_lifetime_years) p.project_lifetime_years = "15";
+  if (!p.capex)                  p.capex                  = String(Math.round(load_kw * 605));
+  if (!p.frameworks)             p.frameworks             = "NFPA,NEC,EPA";
+  if (!p.facility_type)          p.facility_type          = "data_center";
+  if (!p.current_tier)           p.current_tier           = p.tier ?? "2N";
+  if (!p.utility)                p.utility                = "duke_energy";
+  if (!p.load_mw)                p.load_mw                = String(load_kw / 1000);
+  if (!p.generator_config)       p.generator_config       = "2N";
+  if (!p.ups_topology)           p.ups_topology           = "2N";
+  if (!p.cooling_redundancy)     p.cooling_redundancy     = "N+1";
+  if (!p.power_paths)            p.power_paths            = "2";
+  if (!p.fuel_runtime_hours)     p.fuel_runtime_hours     = p.runtime_hours ?? "96";
+  if (!p.transfer_switch_type)   p.transfer_switch_type   = "ATS";
+  if (!p.has_concurrent_maintainability) p.has_concurrent_maintainability = "true";
+  if (!p.has_fault_tolerance)    p.has_fault_tolerance    = "true";
+  if (!p.target_tier)            p.target_tier            = "3";
+  if (!p.sites_json)             p.sites_json             = JSON.stringify([{
+    name: "Charlotte NC Site", state: p.state ?? "NC",
+    power_available_mw: load_kw / 1000 * 2,
+    water_availability: "adequate", land_acres: 50,
+    fiber_providers: 3, distance_to_major_market_miles: 20,
+  }]);
+  return p;
+}
+
 async function runChain(
   chainId: string,
   initialParams: Record<string, string>,
@@ -493,21 +568,16 @@ async function runChain(
 }> {
   const chain = CHAINS[chainId];
   const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
-  let runningParams = { ...initialParams };
+  let runningParams = applyChainDefaults({ ...initialParams });
 
   for (const stepId of chain.steps) {
     try {
       const result = await dispatchWorkflow(stepId, runningParams);
       stepResults.push({ step: stepId, result });
-      // Propagate key numeric outputs into params for subsequent steps
+      // Extract step-specific output→input mappings for next step
       const r = result.results as Record<string, unknown>;
-      const propagate = [
-        "load_kw", "it_load_kw", "recommended_kw", "genset_kva", "ups_kva",
-        "cooling_kw", "pue", "capex", "opex", "total_cost",
-      ];
-      for (const key of propagate) {
-        if (r[key] !== undefined) runningParams[key] = String(r[key]);
-      }
+      const derived = extractChainParams(stepId, r);
+      runningParams = applyChainDefaults({ ...runningParams, ...derived });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       stepResults.push({ step: stepId, result: null, error: msg });

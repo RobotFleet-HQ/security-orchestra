@@ -610,11 +610,27 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.has_fault_tolerance)    p.has_fault_tolerance    = "true";
   if (!p.target_tier)            p.target_tier            = "3";
   if (!p.sites_json)             p.sites_json             = JSON.stringify([{
-    name: "Charlotte NC Site", state: p.state ?? "NC",
+    name: "Site A — " + (p.state ?? "NC"),
+    state: p.state ?? "NC",
     power_available_mw: load_kw / 1000 * 2,
-    water_availability: "adequate", land_acres: 50,
-    fiber_providers: 3, distance_to_major_market_miles: 20,
+    water_availability: "adequate",
+    water_access: "municipal",
+    land_acres: 50,
+    fiber_providers: 3,
+    fiber_quality: "diverse",
+    distance_to_major_market_miles: 20,
+    incentives_pct: 5,
+    labor_cost_index: 95,
+    power_rate_kwh: parseFloat(p.power_rate_kwh ?? "0.07"),
+    risk_score: 2,
   }]);
+  if (!p.construction_tier)      p.construction_tier      = "tier3";
+  // construction_cost uses tier1-tier4 format; map from 2N/N+1 if needed
+  if (!p.tier_label) {
+    const tm: Record<string, string> = { "N": "tier1", "N+1": "tier2", "2N": "tier3", "2N+1": "tier4" };
+    p.tier_label = tm[p.tier ?? "2N"] ?? "tier3";
+  }
+  if (!p.target_runtime_hours)   p.target_runtime_hours   = p.runtime_hours ?? "96";
   if (!p.ats_rating_amps)        p.ats_rating_amps        = String(Math.round(load_kw * 2));
   if (!p.voltage)                p.voltage                = "480";
   if (!p.phases)                 p.phases                 = "3";
@@ -731,9 +747,14 @@ async function dispatchWorkflow(
     }
 
     case "construction_cost": {
+      // args.tier uses "2N"/"N+1" format; construction_cost expects "tier1"–"tier4"
+      const ccTierMap: Record<string, "tier1" | "tier2" | "tier3" | "tier4"> =
+        { "N": "tier1", "N+1": "tier2", "2N": "tier3", "2N+1": "tier4" };
+      const ccTier = (args.tier_label as "tier1" | "tier2" | "tier3" | "tier4") ??
+                     ccTierMap[args.tier ?? ""] ?? "tier3";
       const ccResult = await runConstructionCost({
         capacity_mw:              parseFloat(args.capacity_mw),
-        tier:                     (args.tier as "tier1" | "tier2" | "tier3" | "tier4") ?? undefined,
+        tier:                     ccTier,
         region:                   (args.region as "northeast" | "mid_atlantic" | "southeast" | "midwest" | "southwest" | "mountain" | "pacific" | "pacific_nw") ?? undefined,
         building_type:            (args.building_type as "new_build" | "shell_core" | "retrofit") ?? undefined,
         electricity_rate_per_kwh: args.electricity_rate_per_kwh ? parseFloat(args.electricity_rate_per_kwh) : undefined,

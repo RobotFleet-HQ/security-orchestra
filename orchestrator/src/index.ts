@@ -598,11 +598,11 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.revenue_per_year)       p.revenue_per_year       = String(Math.round(load_kw * 1200));
   if (!p.project_lifetime_years) p.project_lifetime_years = "15";
   if (!p.capex)                  p.capex                  = String(Math.round(load_kw * 605));
-  if (!p.frameworks)             p.frameworks             = "NFPA,NEC,EPA";
+  if (!p.frameworks)             p.frameworks             = "nist_csf,soc2";
   if (!p.facility_type)          p.facility_type          = "data_center";
   if (!p.current_tier)           p.current_tier           = p.tier ?? "2N";
   if (!p.utility)                p.utility                = "duke_energy";
-  if (!p.load_mw)                p.load_mw                = String(load_kw / 1000);
+  if (!p.load_mw)                p.load_mw                = String(Math.max(1, load_kw / 1000));
   if (!p.generator_config)       p.generator_config       = "2N";
   if (!p.ups_topology)           p.ups_topology           = "2N";
   if (!p.cooling_redundancy)     p.cooling_redundancy     = "N+1";
@@ -648,6 +648,7 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.rack_count)             p.rack_count             = String(Math.round(load_kw / 10));
   if (!p.avg_kw_per_rack)        p.avg_kw_per_rack        = "10";
   if (!p.economizer_type)        p.economizer_type        = "air_side";
+  if (!p.pue)                    p.pue                    = "1.4";
   if (!p.pue_mechanical)         p.pue_mechanical         = "1.4";
   if (!p.location)               p.location               = p.state ?? "NC";
   if (!p.roof_sqft)              p.roof_sqft              = p.room_sqft ?? String(Math.round(load_kw * 8));

@@ -1993,6 +1993,116 @@ async function main() {
       }
     });
 
+    // ── OpenAI Agents SDK compatibility ──────────────────────────────────────
+
+    // Helper: resolve keyRow from request headers (same logic as /chat and /a2a)
+    async function resolveKeyRow(
+      req: express.Request
+    ): Promise<{ user_id: string; tier: string; revoked: number } | undefined> {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+      if (!supplied) return undefined;
+      return new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+        (resolve, reject) =>
+          db.get(
+            "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+            [supplied.slice(0, 16)],
+            (err, row) =>
+              err
+                ? reject(err)
+                : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+          )
+      );
+    }
+
+    // GET /openai/tools — return all workflows as OpenAI function tool definitions
+    app.get("/openai/tools", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const tools = Object.entries(WORKFLOWS).map(([name, wf]) => ({
+        type: "function",
+        function: {
+          name,
+          description: wf.description,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Natural language instruction for this agent" },
+            },
+            required: ["query"],
+          },
+        },
+      }));
+
+      res.json(tools);
+    });
+
+    // POST /openai/run — execute a workflow via OpenAI tool call format
+    app.post("/openai/run", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ role: "tool", content: "Error: Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const toolName: string | undefined = req.body?.tool;
+      const query: string | undefined    = req.body?.parameters?.query;
+
+      if (!toolName || !query) {
+        res.status(400).json({ role: "tool", content: "Error: tool and parameters.query are required" });
+        return;
+      }
+
+      const wf = WORKFLOWS[toolName];
+      if (!wf) {
+        res.status(400).json({ role: "tool", content: `Error: Unknown tool "${toolName}"` });
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+
+        const { workflowName, params: detectedParams } = detectWorkflowFromText(query);
+        const targetWorkflow = workflowName ?? toolName;
+        const cleanParams = validateWorkflowParams(targetWorkflow, detectedParams);
+
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json({ role: "tool", content: `Error: Insufficient credits — balance: ${balance}, required: ${wf.credits}` });
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "openai_run_start", resource: targetWorkflow,
+          result: "success", details: { query, tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(targetWorkflow, cleanParams);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, targetWorkflow);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "openai_run_complete", resource: targetWorkflow,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.json({ role: "tool", content: JSON.stringify(result, null, 2) });
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[openai/run] workflow error — ${toolName}: ${msg}`);
+        res.status(500).json({ role: "tool", content: `Error: ${msg}` });
+      }
+    });
+
     // ── POST /chat — conversational workflow interface ────────────────────────
     // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
     // Body:   { messages: [{ role: "user"|"assistant", content: string }] }

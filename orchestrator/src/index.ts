@@ -528,6 +528,9 @@ function extractChainParams(stepId: string, r: Record<string, unknown>): Record<
 
   if (stepId === "cooling_load") {
     if (s(r.total_cooling_kw)) out.cooling_kw = s(r.total_cooling_kw)!;
+    const cr = r.cooling_requirements as Record<string, unknown> | undefined;
+    const designTons = cr?.design_tons_with_margin ?? cr?.total_tons;
+    if (s(designTons)) out.cooling_tons = s(designTons)!;
   }
 
   if (stepId === "nc_utility_interconnect") {
@@ -608,7 +611,10 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.transfer_switch_type)   p.transfer_switch_type   = "ATS";
   if (!p.has_concurrent_maintainability) p.has_concurrent_maintainability = "true";
   if (!p.has_fault_tolerance)    p.has_fault_tolerance    = "true";
-  if (!p.target_tier)            p.target_tier            = "3";
+  if (!p.target_tier) {
+    const tierNumMap: Record<string, string> = { "1": "Tier I", "2": "Tier II", "3": "Tier III", "4": "Tier IV" };
+    p.target_tier = tierNumMap[p.tier ?? "3"] ?? "Tier III";
+  }
   if (!p.sites_json)             p.sites_json             = JSON.stringify([{
     name: "Site A — " + (p.state ?? "NC"),
     state: p.state ?? "NC",
@@ -617,7 +623,7 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
     water_access: "municipal",
     land_acres: 50,
     fiber_providers: 3,
-    fiber_quality: "diverse",
+    fiber_quality: 3,
     distance_to_major_market_miles: 20,
     incentives_pct: 5,
     labor_cost_index: 95,
@@ -636,7 +642,7 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.phases)                 p.phases                 = "3";
   if (!p.cooling_tons)           p.cooling_tons           = String(Math.round(load_kw * 0.3));
   if (!p.cooling_type)           p.cooling_type           = "air_cooled";
-  if (!p.water_available)        p.water_available        = "true";
+  if (!p.water_available)        p.water_available        = "yes";
   if (!p.redundancy)             p.redundancy             = "N+1";
   if (!p.containment_type)       p.containment_type       = "hot_aisle";
   if (!p.rack_count)             p.rack_count             = String(Math.round(load_kw / 10));
@@ -654,10 +660,25 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.solar_fraction)         p.solar_fraction         = "0.3";
   if (!p.contract_term_years)    p.contract_term_years    = "10";
   if (!p.renewable_target_pct)   p.renewable_target_pct   = "30";
-  if (!p.grid_region)            p.grid_region            = "southeast";
+  if (!p.grid_region) {
+    const stateToGrid: Record<string, string> = {
+      NC: "SERC", SC: "SERC", GA: "SERC", FL: "SERC", TN: "SERC", AL: "SERC", MS: "SERC",
+      VA: "RFC",  MD: "RFC",  PA: "RFC",  OH: "RFC",  IN: "RFC",  MI: "RFC",  NJ: "RFC",
+      NY: "NPCC", CT: "NPCC", MA: "NPCC", VT: "NPCC", NH: "NPCC", ME: "NPCC", RI: "NPCC",
+      TX: "TRE",
+      CA: "WECC", OR: "WECC", WA: "WECC", NV: "WECC", AZ: "WECC", CO: "WECC", UT: "WECC",
+      MN: "MRO",  IA: "MRO",  ND: "MRO",  SD: "MRO",  NE: "MRO",  WI: "MRO",  KS: "MRO",
+      IL: "RFC",
+    };
+    p.grid_region = stateToGrid[p.state?.toUpperCase() ?? ""] ?? "SERC";
+  }
+  if (!p.generator_kw)           p.generator_kw           = p.load_kw ?? "1000";
   if (!p.generator_count)        p.generator_count        = "2";
   if (!p.site_acres)             p.site_acres             = "50";
-  if (!p.jurisdiction)           p.jurisdiction           = p.state ?? "NC";
+  if (!p.jurisdiction) {
+    const st = (p.state ?? "").toUpperCase();
+    p.jurisdiction = st === "CA" ? "california" : "nfpa30";
+  }
   if (!p.project_sqft)           p.project_sqft           = p.facility_sqft ?? String(Math.round(load_kw * 10));
   if (!p.building_type)          p.building_type          = "new_build";
   if (!p.target_markets)         p.target_markets         = "Charlotte,Raleigh";

@@ -476,6 +476,30 @@ const CHAINS: Record<string, {
     credits: 8,
     steps: ["nc_utility_interconnect", "generator_sizing", "nfpa_110_checker", "ups_sizing"],
   },
+  emergency_power_package: {
+    name: "Emergency Power Package",
+    description: "UPS sizing → ATS sizing → Generator sizing → Fuel storage → NFPA 110. Complete emergency power system design.",
+    credits: 10,
+    steps: ["ups_sizing", "ats_sizing", "generator_sizing", "fuel_storage", "nfpa_110_checker"],
+  },
+  cooling_optimization: {
+    name: "Cooling Optimization",
+    description: "Cooling load → Chiller sizing → CRAC vs CRAH → Airflow modeling → Economizer analysis. Full cooling system design.",
+    credits: 10,
+    steps: ["cooling_load", "chiller_sizing", "crac_vs_crah", "airflow_modeling", "economizer_analysis"],
+  },
+  full_site_analysis: {
+    name: "Full Site Analysis",
+    description: "Site scoring → Tier certification → Utility interconnect → Permit timeline → Construction cost → Construction timeline. Complete site feasibility study.",
+    credits: 12,
+    steps: ["site_scoring", "tier_certification_checker", "utility_interconnect", "permit_timeline", "construction_cost", "construction_timeline"],
+  },
+  sustainability_package: {
+    name: "Sustainability Package",
+    description: "Carbon footprint → Solar feasibility → Battery storage → Energy procurement → Environmental impact. Full green energy analysis.",
+    credits: 10,
+    steps: ["carbon_footprint", "solar_feasibility", "battery_storage", "energy_procurement", "environmental_impact"],
+  },
 };
 
 // ─── Chain Execution ──────────────────────────────────────────────────────────
@@ -507,9 +531,48 @@ function extractChainParams(stepId: string, r: Record<string, unknown>): Record<
   }
 
   if (stepId === "nc_utility_interconnect") {
-    // Carry forward load for subsequent generator/nfpa steps
     const cap = r.capacity_kw ?? r.load_kw;
     if (s(cap)) { out.load_kw = s(cap)!; out.generator_kw = s(cap)!; }
+  }
+
+  if (stepId === "ups_sizing") {
+    const sizing = r.ups_sizing as Record<string, unknown> | undefined;
+    if (sizing && s(sizing.total_installed_kva)) out.ups_kva = s(sizing.total_installed_kva)!;
+    if (sizing && s(sizing.selected_module_kva)) out.ups_capacity_kw = s(sizing.selected_module_kva)!;
+  }
+
+  if (stepId === "ats_sizing") {
+    if (s(r.ats_rating_amps)) out.ats_rating_amps = s(r.ats_rating_amps)!;
+  }
+
+  if (stepId === "fuel_storage") {
+    if (s(r.tank_size_gal))      out.fuel_capacity_gallons = s(r.tank_size_gal)!;
+    if (s(r.runtime_hours))      out.runtime_hours         = s(r.runtime_hours)!;
+    if (s(r.generator_kw))       out.generator_kw          = s(r.generator_kw)!;
+  }
+
+  if (stepId === "chiller_sizing") {
+    const sel = r.selected_chiller as Record<string, unknown> | undefined;
+    if (sel && s(sel.total_tons)) out.cooling_tons = s(sel.total_tons)!;
+    if (s(r.total_tons))          out.cooling_tons = s(r.total_tons)!;
+  }
+
+  if (stepId === "crac_vs_crah") {
+    const rec = r.recommendation as Record<string, unknown> | undefined;
+    if (rec && s(rec.type))       out.cooling_type = s(rec.type)!;
+    if (s(r.recommended_type))    out.cooling_type = s(r.recommended_type)!;
+  }
+
+  if (stepId === "carbon_footprint") {
+    if (s(r.annual_co2_tonnes))   out.co2_baseline   = s(r.annual_co2_tonnes)!;
+    if (s(r.annual_co2_tons))     out.co2_baseline   = s(r.annual_co2_tons)!;
+    const ae = r.annual_energy as Record<string, unknown> | undefined;
+    if (ae && s(ae.total_kwh))    out.annual_kwh     = s(ae.total_kwh)!;
+  }
+
+  if (stepId === "solar_feasibility") {
+    if (s(r.system_size_kw))      out.solar_kw       = s(r.system_size_kw)!;
+    if (s(r.annual_kwh))          out.annual_kwh     = s(r.annual_kwh)!;
   }
 
   return out;
@@ -552,6 +615,37 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
     water_availability: "adequate", land_acres: 50,
     fiber_providers: 3, distance_to_major_market_miles: 20,
   }]);
+  if (!p.ats_rating_amps)        p.ats_rating_amps        = String(Math.round(load_kw * 2));
+  if (!p.voltage)                p.voltage                = "480";
+  if (!p.phases)                 p.phases                 = "3";
+  if (!p.cooling_tons)           p.cooling_tons           = String(Math.round(load_kw * 0.3));
+  if (!p.cooling_type)           p.cooling_type           = "air_cooled";
+  if (!p.water_available)        p.water_available        = "true";
+  if (!p.redundancy)             p.redundancy             = "N+1";
+  if (!p.containment_type)       p.containment_type       = "hot_aisle";
+  if (!p.rack_count)             p.rack_count             = String(Math.round(load_kw / 10));
+  if (!p.avg_kw_per_rack)        p.avg_kw_per_rack        = "10";
+  if (!p.economizer_type)        p.economizer_type        = "air_side";
+  if (!p.pue_mechanical)         p.pue_mechanical         = "1.4";
+  if (!p.location)               p.location               = p.state ?? "NC";
+  if (!p.roof_sqft)              p.roof_sqft              = p.room_sqft ?? String(Math.round(load_kw * 8));
+  if (!p.facility_sqft)          p.facility_sqft          = p.room_sqft ?? String(Math.round(load_kw * 10));
+  if (!p.annual_kwh)             p.annual_kwh             = String(Math.round(load_kw * 8760));
+  if (!p.utility_rate)           p.utility_rate           = p.power_rate_kwh ?? "0.07";
+  if (!p.battery_hours)          p.battery_hours          = "4";
+  if (!p.chemistry)              p.chemistry              = "lithium_ion";
+  if (!p.target_runtime_minutes) p.target_runtime_minutes = p.runtime_minutes ?? "15";
+  if (!p.solar_fraction)         p.solar_fraction         = "0.3";
+  if (!p.contract_term_years)    p.contract_term_years    = "10";
+  if (!p.renewable_target_pct)   p.renewable_target_pct   = "30";
+  if (!p.grid_region)            p.grid_region            = "southeast";
+  if (!p.generator_count)        p.generator_count        = "2";
+  if (!p.site_acres)             p.site_acres             = "50";
+  if (!p.jurisdiction)           p.jurisdiction           = p.state ?? "NC";
+  if (!p.project_sqft)           p.project_sqft           = p.facility_sqft ?? String(Math.round(load_kw * 10));
+  if (!p.building_type)          p.building_type          = "new_build";
+  if (!p.target_markets)         p.target_markets         = "Charlotte,Raleigh";
+  if (!p.annual_consumption_mwh) p.annual_consumption_mwh = String(Math.round(load_kw * 8.76));
   return p;
 }
 
@@ -1262,6 +1356,18 @@ function detectWorkflowFromText(
   }
   if (/north.{0,10}carolina.{0,20}power|\bnc\b.{0,10}power.{0,20}pack/i.test(t)) {
     return { chainId: "nc_power_package", workflowName: null, params: { load_kw, load_mw, tier: tierNum } };
+  }
+  if (/emergency.{0,10}power|emergency.{0,20}package/i.test(t)) {
+    return { chainId: "emergency_power_package", workflowName: null, params: { load_kw, tier: tierNum } };
+  }
+  if (/cooling.{0,10}optim|cooling.{0,20}system.{0,20}design/i.test(t)) {
+    return { chainId: "cooling_optimization", workflowName: null, params: { it_load_kw: load_kw } };
+  }
+  if (/full.{0,10}site.{0,10}anal|site.{0,10}feasibility|site.{0,10}analysis/i.test(t)) {
+    return { chainId: "full_site_analysis", workflowName: null, params: { load_kw, load_mw, tier: tierNum } };
+  }
+  if (/sustainability|green.{0,10}energy|carbon.{0,10}solar/i.test(t)) {
+    return { chainId: "sustainability_package", workflowName: null, params: { it_load_kw: load_kw } };
   }
 
   // ── Security workflows ──────────────────────────────────────────────────────

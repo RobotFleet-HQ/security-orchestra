@@ -1740,20 +1740,15 @@ async function main() {
       },
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
-      skills: [
-        { id: "generator_sizing",     name: "Generator Sizing",     description: "Size generators for data centers with NFPA 110 compliance, altitude/temp derating, and fuel calculations",   tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "nfpa_110_checker",     name: "NFPA 110 Checker",     description: "Validate emergency power compliance with detailed violation reports",                                          tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "utility_interconnect", name: "Utility Interconnect", description: "Model utility interconnect timelines and costs for 9 major US utilities",                                      tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "pue_calculator",       name: "PUE Calculator",       description: "Calculate Power Usage Effectiveness with optimization recommendations",                                         tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "roi_calculator",       name: "ROI Calculator",       description: "CapEx vs OpEx analysis with NPV and IRR for data center investments",                                           tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "site_scoring",         name: "Site Scoring",         description: "Comprehensive data center site evaluation and ranking",                                                         tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "ups_sizing",           name: "UPS Sizing",           description: "Battery runtime calculations with N/N+1/2N configurations",                                                    tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "cooling_load",         name: "Cooling Load",         description: "BTU calculations and cooling equipment selection",                                                              tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "tco_analyzer",         name: "TCO Analyzer",         description: "Total Cost of Ownership over 5/10/15 year horizons",                                                           tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "compliance_checker",       name: "Compliance Checker",       description: "Multi-standard compliance validation including NFPA, NEC, and EPA",                                                                   tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "tier_certification_checker", name: "Tier Certification Checker", description: "Evaluate Uptime Institute Tier I–IV readiness with gap analysis, remediation costs, and readiness score",                                    tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-        { id: "nc_utility_interconnect",    name: "NC Utility Interconnect",    description: "Model Duke Energy Progress, Duke Energy Carolinas, or Dominion Energy NC interconnect process with county-level detail and NCUC requirements", tags: ["data-center", "critical-power", "infrastructure"], inputModes: ["text"], outputModes: ["text"], examples: [] },
-      ],
+      skills: Object.entries(WORKFLOWS).map(([id, w]) => ({
+        id,
+        name: id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        description: w.description,
+        tags: ["data-center", "critical-power", "infrastructure"],
+        inputModes: ["text"],
+        outputModes: ["text"],
+        examples: [],
+      })),
     };
 
     app.get("/.well-known/agent.json", (_req, res) => {

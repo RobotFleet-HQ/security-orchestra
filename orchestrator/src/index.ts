@@ -1169,21 +1169,7 @@ function detectWorkflowFromText(
 ): { chainId?: string; workflowName: string | null; params: Record<string, string> } {
   const t = text.toLowerCase();
 
-  // ── Chain detection (checked first) ─────────────────────────────────────────
-  if (/full.{0,10}power.{0,15}anal|complete.{0,10}power/i.test(t)) {
-    return { chainId: "full_power_analysis", workflowName: null, params: {} };
-  }
-  if (/site.{0,10}readiness|site.{0,10}evaluat/i.test(t)) {
-    return { chainId: "site_readiness", workflowName: null, params: {} };
-  }
-  if (/\btco\b.{0,40}cool|cool.{0,40}\btco\b|deep.{0,10}dive/i.test(t)) {
-    return { chainId: "tco_deep_dive", workflowName: null, params: {} };
-  }
-  if (/north.{0,10}carolina.{0,20}power|\bnc\b.{0,10}power.{0,20}pack/i.test(t)) {
-    return { chainId: "nc_power_package", workflowName: null, params: {} };
-  }
-
-  // Extract numeric values
+  // Extract numeric values (done first so chains can carry them forward)
   const kwVal  = text.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
   const mwVal  = text.match(/(\d+(?:\.\d+)?)\s*(?:mw|megawatt)/i)?.[1];
   const load_kw =
@@ -1193,6 +1179,20 @@ function detectWorkflowFromText(
   const tierDigit = parseInt(text.match(/tier\s*([1-4])/i)?.[1] ?? "3", 10);
   const TIER_MAP: Record<number, string> = { 1: "N", 2: "N+1", 3: "2N", 4: "2N+1" };
   const tierNum = TIER_MAP[tierDigit] ?? "2N";
+
+  // ── Chain detection (after numeric extraction so params propagate) ───────────
+  if (/full.{0,10}power.{0,15}anal|complete.{0,10}power/i.test(t)) {
+    return { chainId: "full_power_analysis", workflowName: null, params: { load_kw, tier: tierNum } };
+  }
+  if (/site.{0,10}readiness|site.{0,10}evaluat/i.test(t)) {
+    return { chainId: "site_readiness", workflowName: null, params: { load_kw, load_mw, tier: tierNum } };
+  }
+  if (/\btco\b.{0,40}cool|cool.{0,40}\btco\b|deep.{0,10}dive/i.test(t)) {
+    return { chainId: "tco_deep_dive", workflowName: null, params: { it_load_kw: load_kw } };
+  }
+  if (/north.{0,10}carolina.{0,20}power|\bnc\b.{0,10}power.{0,20}pack/i.test(t)) {
+    return { chainId: "nc_power_package", workflowName: null, params: { load_kw, load_mw, tier: tierNum } };
+  }
 
   // ── Security workflows ──────────────────────────────────────────────────────
   if (/subdomain/i.test(t)) {

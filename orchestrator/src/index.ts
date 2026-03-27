@@ -1097,7 +1097,9 @@ function detectWorkflowFromText(
     kwVal ?? (mwVal ? String(parseFloat(mwVal) * 1000) : "1000");
   const load_mw =
     mwVal ?? (kwVal ? String(parseFloat(kwVal) / 1000) : "10");
-  const tierNum = text.match(/tier\s*([1-4])/i)?.[1] ?? "3";
+  const tierDigit = parseInt(text.match(/tier\s*([1-4])/i)?.[1] ?? "3", 10);
+  const TIER_MAP: Record<number, string> = { 1: "N", 2: "N+1", 3: "2N", 4: "2N+1" };
+  const tierNum = TIER_MAP[tierDigit] ?? "2N";
 
   // ── Security workflows ──────────────────────────────────────────────────────
   if (/subdomain/i.test(t)) {

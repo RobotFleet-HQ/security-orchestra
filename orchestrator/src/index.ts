@@ -2187,7 +2187,20 @@ async function main() {
         }
       }
 
-      const { params: initialParams } = detectWorkflowFromText(query);
+      // Extract numeric params directly — detectWorkflowFromText may return {} if
+      // no workflow keyword matches the chain query (e.g. "500kW data center...")
+      const kwVal  = query.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
+      const mwVal  = query.match(/(\d+(?:\.\d+)?)\s*(?:mw|megawatt)/i)?.[1];
+      const load_kw = kwVal ?? (mwVal ? String(parseFloat(mwVal) * 1000) : "1000");
+      const load_mw = mwVal ?? (kwVal ? String(parseFloat(kwVal) / 1000) : "10");
+      const tierDigit = parseInt(query.match(/tier\s*([1-4])/i)?.[1] ?? "3", 10);
+      const CHAIN_TIER_MAP: Record<number, string> = { 1: "N", 2: "N+1", 3: "2N", 4: "2N+1" };
+      const tierNum = CHAIN_TIER_MAP[tierDigit] ?? "2N";
+      const stateMatch = query.match(/\b(NC|SC|VA|TX|CA|NY|FL|GA|OH|PA|IL|WA|OR|CO|AZ|NV)\b/i)?.[1]?.toUpperCase() ?? "NC";
+      const initialParams: Record<string, string> = {
+        load_kw, load_mw, it_load_kw: load_kw, tier: tierNum,
+        state: stateMatch, capacity_mw: load_mw,
+      };
 
       logAudit({
         user_id: keyRow.user_id, action: "chain_start", resource: chainId,

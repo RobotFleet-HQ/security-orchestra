@@ -444,6 +444,85 @@ const WORKFLOWS: Record<string, { description: string; params: string[]; credits
   },
 };
 
+// ─── Chain Registry ───────────────────────────────────────────────────────────
+
+const CHAINS: Record<string, {
+  name: string;
+  description: string;
+  credits: number;
+  steps: string[];
+}> = {
+  full_power_analysis: {
+    name: "Full Power Analysis",
+    description: "Generator sizing → NFPA 110 compliance → UPS sizing → ROI calculator. Complete power infrastructure analysis in one request.",
+    credits: 8,
+    steps: ["generator_sizing", "nfpa_110_checker", "ups_sizing", "roi_calculator"],
+  },
+  site_readiness: {
+    name: "Site Readiness",
+    description: "Site scoring → Tier certification → Utility interconnect → Compliance check. Full site evaluation pipeline.",
+    credits: 8,
+    steps: ["site_scoring", "tier_certification_checker", "utility_interconnect", "compliance_checker"],
+  },
+  tco_deep_dive: {
+    name: "TCO Deep Dive",
+    description: "PUE calculator → Cooling load → TCO analyzer. Full cost of ownership analysis.",
+    credits: 6,
+    steps: ["pue_calculator", "cooling_load", "tco_analyzer"],
+  },
+  nc_power_package: {
+    name: "NC Power Package",
+    description: "NC utility interconnect → Generator sizing → NFPA 110 → UPS sizing. North Carolina specific full power analysis.",
+    credits: 8,
+    steps: ["nc_utility_interconnect", "generator_sizing", "nfpa_110_checker", "ups_sizing"],
+  },
+};
+
+// ─── Chain Execution ──────────────────────────────────────────────────────────
+
+async function runChain(
+  chainId: string,
+  initialParams: Record<string, string>,
+  _userId: string,
+  _tier: string
+): Promise<{
+  chain: string;
+  steps_completed: number;
+  results: Array<{ step: string; result: unknown; error?: string }>;
+  summary: string;
+}> {
+  const chain = CHAINS[chainId];
+  const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
+  let runningParams = { ...initialParams };
+
+  for (const stepId of chain.steps) {
+    try {
+      const result = await dispatchWorkflow(stepId, runningParams);
+      stepResults.push({ step: stepId, result });
+      // Propagate key numeric outputs into params for subsequent steps
+      const r = result.results as Record<string, unknown>;
+      const propagate = [
+        "load_kw", "it_load_kw", "recommended_kw", "genset_kva", "ups_kva",
+        "cooling_kw", "pue", "capex", "opex", "total_cost",
+      ];
+      for (const key of propagate) {
+        if (r[key] !== undefined) runningParams[key] = String(r[key]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      stepResults.push({ step: stepId, result: null, error: msg });
+      // Continue remaining steps even if this one failed
+    }
+  }
+
+  const stepsCompleted = stepResults.filter((s) => !s.error).length;
+  const summary = stepResults
+    .map((s) => (s.error ? `${s.step}: FAILED — ${s.error}` : `${s.step}: OK`))
+    .join("\n");
+
+  return { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
+}
+
 async function dispatchWorkflow(
   name: string,
   args: Record<string, string>
@@ -1087,8 +1166,22 @@ function checkTierAccess(tier: string, agentCost: number): { allowed: boolean; m
 
 function detectWorkflowFromText(
   text: string
-): { workflowName: string | null; params: Record<string, string> } {
+): { chainId?: string; workflowName: string | null; params: Record<string, string> } {
   const t = text.toLowerCase();
+
+  // ── Chain detection (checked first) ─────────────────────────────────────────
+  if (/full.{0,10}power.{0,15}anal|complete.{0,10}power/i.test(t)) {
+    return { chainId: "full_power_analysis", workflowName: null, params: {} };
+  }
+  if (/site.{0,10}readiness|site.{0,10}evaluat/i.test(t)) {
+    return { chainId: "site_readiness", workflowName: null, params: {} };
+  }
+  if (/\btco\b.{0,40}cool|cool.{0,40}\btco\b|deep.{0,10}dive/i.test(t)) {
+    return { chainId: "tco_deep_dive", workflowName: null, params: {} };
+  }
+  if (/north.{0,10}carolina.{0,20}power|\bnc\b.{0,10}power.{0,20}pack/i.test(t)) {
+    return { chainId: "nc_power_package", workflowName: null, params: {} };
+  }
 
   // Extract numeric values
   const kwVal  = text.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
@@ -1740,15 +1833,26 @@ async function main() {
       },
       defaultInputModes: ["text"],
       defaultOutputModes: ["text"],
-      skills: Object.entries(WORKFLOWS).map(([id, w]) => ({
-        id,
-        name: id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-        description: w.description,
-        tags: ["data-center", "critical-power", "infrastructure"],
-        inputModes: ["text"],
-        outputModes: ["text"],
-        examples: [],
-      })),
+      skills: [
+        ...Object.entries(WORKFLOWS).map(([id, w]) => ({
+          id,
+          name: id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          description: w.description,
+          tags: ["data-center", "critical-power", "infrastructure"],
+          inputModes: ["text"],
+          outputModes: ["text"],
+          examples: [],
+        })),
+        ...Object.entries(CHAINS).map(([id, c]) => ({
+          id: `chain_${id}`,
+          name: `${c.name} (chain)`,
+          description: c.description,
+          tags: ["data-center", "critical-power", "chain"],
+          inputModes: ["text"],
+          outputModes: ["text"],
+          examples: [],
+        })),
+      ],
     };
 
     app.get("/.well-known/agent.json", (_req, res) => {
@@ -1833,8 +1937,40 @@ async function main() {
         return;
       }
 
-      // Detect workflow from natural language (same as /chat)
-      const { workflowName, params: detectedParams } = detectWorkflowFromText(text);
+      // Detect chain or workflow from natural language
+      const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
+
+      // ── Chain dispatch ───────────────────────────────────────────────────────
+      if (detectedChainId) {
+        const chain = CHAINS[detectedChainId];
+        const billingEnabledChain = !!process.env.BILLING_API_URL;
+        if (billingEnabledChain) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < chain.credits) {
+            res.status(402).json({
+              jsonrpc: "2.0", id,
+              error: { code: -32002, message: `Insufficient credits — balance: ${balance}, required: ${chain.credits}` },
+            });
+            return;
+          }
+        }
+        logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: detectedChainId,
+          result: "success", details: { params: detectedParams, tier: keyRow.tier } });
+        const chainStartTime = Date.now();
+        const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+        if (billingEnabledChain) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
+        logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: detectedChainId,
+          result: "success", duration_ms: Date.now() - chainStartTime, details: { tier: keyRow.tier } });
+        res.json({
+          jsonrpc: "2.0", id,
+          result: {
+            id: crypto.randomUUID(),
+            status: { state: "completed" },
+            artifacts: [{ name: "response", parts: [{ kind: "text", text: JSON.stringify(chainResult, null, 2) }] }],
+          },
+        });
+        return;
+      }
 
       if (!workflowName) {
         res.json({
@@ -1939,7 +2075,17 @@ async function main() {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const { workflowName, params: detectedParams } = detectWorkflowFromText(text);
+      const { chainId: streamChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
+
+      if (streamChainId) {
+        const chain = CHAINS[streamChainId];
+        const chainResult = await runChain(streamChainId, detectedParams, keyRow.user_id, keyRow.tier);
+        if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${streamChainId}`);
+        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(chainResult, null, 2) } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
+        res.end();
+        return;
+      }
 
       if (!workflowName) {
         res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: "I couldn't determine which agent to use. Try being more specific." } })}\n\n`);
@@ -1988,6 +2134,84 @@ async function main() {
       }
     });
 
+    // ── POST /chain — multi-agent chain execution ─────────────────────────────
+    app.post("/chain", express.json(), async (req, res) => {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const chainId: string | undefined = req.body?.chain;
+      const query: string | undefined   = req.body?.query;
+
+      if (!chainId || !query) {
+        res.status(400).json({ error: "chain and query are required" });
+        return;
+      }
+
+      const chain = CHAINS[chainId];
+      if (!chain) {
+        res.status(400).json({
+          error: `Unknown chain "${chainId}". Available: ${Object.keys(CHAINS).join(", ")}`,
+        });
+        return;
+      }
+
+      const billingEnabled = !!process.env.BILLING_API_URL;
+      if (billingEnabled) {
+        const balance = await checkCredits(keyRow.user_id);
+        if (balance < chain.credits) {
+          res.status(402).json({
+            error: `Insufficient credits — balance: ${balance}, required: ${chain.credits} for chain ${chainId}`,
+          });
+          return;
+        }
+      }
+
+      const { params: initialParams } = detectWorkflowFromText(query);
+
+      logAudit({
+        user_id: keyRow.user_id, action: "chain_start", resource: chainId,
+        result: "success", details: { query, steps: chain.steps, tier: keyRow.tier },
+      });
+      const startTime = Date.now();
+
+      const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier);
+
+      if (billingEnabled) {
+        const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
+        (chainResult as Record<string, unknown>).credits_used      = chain.credits;
+        (chainResult as Record<string, unknown>).credits_remaining = remaining;
+      }
+
+      logAudit({
+        user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
+        result: "success", duration_ms: Date.now() - startTime,
+        details: { steps_completed: chainResult.steps_completed, tier: keyRow.tier },
+      });
+
+      res.json(chainResult);
+    });
+
     // ── OpenAI Agents SDK compatibility ──────────────────────────────────────
 
     // Helper: resolve keyRow from request headers (same logic as /chat and /a2a)
@@ -2020,20 +2244,36 @@ async function main() {
         return;
       }
 
-      const tools = Object.entries(WORKFLOWS).map(([name, wf]) => ({
-        type: "function",
-        function: {
-          name,
-          description: wf.description,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "Natural language instruction for this agent" },
+      const tools = [
+        ...Object.entries(WORKFLOWS).map(([name, wf]) => ({
+          type: "function",
+          function: {
+            name,
+            description: wf.description,
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string", description: "Natural language instruction for this agent" },
+              },
+              required: ["query"],
             },
-            required: ["query"],
           },
-        },
-      }));
+        })),
+        ...Object.entries(CHAINS).map(([name, c]) => ({
+          type: "function",
+          function: {
+            name: `chain_${name}`,
+            description: c.description,
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string", description: "Natural language instruction for this compound workflow chain" },
+              },
+              required: ["query"],
+            },
+          },
+        })),
+      ];
 
       res.json(tools);
     });
@@ -2051,6 +2291,31 @@ async function main() {
 
       if (!toolName || !query) {
         res.status(400).json({ role: "tool", content: "Error: tool and parameters.query are required" });
+        return;
+      }
+
+      // Check if tool is a chain
+      const openaiChainId = toolName.startsWith("chain_") ? toolName.slice(6) : undefined;
+      if (openaiChainId) {
+        const chain = CHAINS[openaiChainId];
+        if (!chain) {
+          res.status(400).json({ role: "tool", content: `Error: Unknown chain "${openaiChainId}"` });
+          return;
+        }
+        try {
+          enforceRateLimit(keyRow.user_id, keyRow.tier);
+          const { params: chainParams } = detectWorkflowFromText(query);
+          logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: openaiChainId,
+            result: "success", details: { query, tier: keyRow.tier } });
+          const chainResult = await runChain(openaiChainId, chainParams, keyRow.user_id, keyRow.tier);
+          if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${openaiChainId}`);
+          logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: openaiChainId,
+            result: "success", details: { tier: keyRow.tier } });
+          res.json({ role: "tool", content: JSON.stringify(chainResult, null, 2) });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          res.status(500).json({ role: "tool", content: `Error: ${msg}` });
+        }
         return;
       }
 
@@ -2161,8 +2426,43 @@ async function main() {
         return;
       }
 
-      // 3. Detect workflow from message text
-      const { workflowName, params: detectedParams } = detectWorkflowFromText(lastUser.content);
+      // 3. Detect chain or workflow from message text
+      const { chainId: chatChainId, workflowName, params: detectedParams } = detectWorkflowFromText(lastUser.content);
+
+      // ── Chain dispatch ─────────────────────────────────────────────────────
+      if (chatChainId) {
+        const chain = CHAINS[chatChainId];
+        const billingEnabledChat = !!process.env.BILLING_API_URL;
+        if (billingEnabledChat) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < chain.credits) {
+            res.status(402).json({
+              error: `Insufficient credits — balance: ${balance}, required: ${chain.credits} for chain ${chatChainId}`,
+            });
+            return;
+          }
+        }
+        try {
+          enforceRateLimit(keyRow.user_id, keyRow.tier);
+          logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: chatChainId,
+            result: "success", details: { params: detectedParams, tier: keyRow.tier } });
+          const chainStartTime = Date.now();
+          const chainResult = await runChain(chatChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          if (billingEnabledChat) {
+            const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chatChainId}`);
+            (chainResult as Record<string, unknown>).credits_used      = chain.credits;
+            (chainResult as Record<string, unknown>).credits_remaining = remaining;
+          }
+          logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: chatChainId,
+            result: "success", duration_ms: Date.now() - chainStartTime, details: { tier: keyRow.tier } });
+          res.json({ reply: JSON.stringify(chainResult, null, 2), agent: `chain:${chatChainId}` });
+        } catch (err) {
+          const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+          log("error", `[chat] chain error — ${chatChainId}: ${msg}`);
+          res.status(500).json({ error: msg });
+        }
+        return;
+      }
 
       if (!workflowName) {
         res.json({

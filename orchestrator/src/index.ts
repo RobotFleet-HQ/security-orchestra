@@ -18,7 +18,7 @@ import { db } from "./database.js";
 import { checkCredits, deductCredits, WORKFLOW_COSTS } from "./billing.js";
 import { validateWorkflowParams } from "./validation.js";
 import { enforceRateLimit } from "./rateLimit.js";
-import { logAudit, auditDb } from "./audit.js";
+import { logAudit, auditDb, auditDbAll } from "./audit.js";
 import { runSubdomainDiscovery } from "./workflows/subdomain.js";
 import { runGeneratorSizing } from "./workflows/generatorSizing.js";
 import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
@@ -1906,6 +1906,128 @@ async function main() {
       } catch (err) {
         log("error", `[provision-key] Error: ${(err as Error).message}`);
         res.status(500).json({ error: "Failed to provision key" });
+      }
+    });
+
+    // Admin: private dashboard data — aggregates today's audit logs
+    app.get("/admin/dashboard-data", async (req, res) => {
+      const adminKey = process.env.ORCHESTRATOR_ADMIN_KEY;
+      const supplied = req.headers["x-admin-key"];
+      if (!adminKey || typeof supplied !== "string") {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const suppliedBuf = Buffer.from(supplied);
+      const expectedBuf = Buffer.from(adminKey);
+      const valid =
+        suppliedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(suppliedBuf, expectedBuf);
+      if (!valid) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const todayStart = today + "T00:00:00.000Z";
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const wfActions = [
+        "workflow_complete", "run_workflow_complete", "agui_workflow_complete",
+        "a2a_workflow_complete", "a2a_stream_complete", "openai_run_complete", "chat_workflow_complete",
+      ];
+      const chainActions = ["chain_complete", "agui_chain_complete"];
+      const allComplete = [...wfActions, ...chainActions];
+
+      try {
+        const ph = (arr: unknown[]) => arr.map(() => "?").join(",");
+
+        const [callsRow] = await auditDbAll(
+          `SELECT COUNT(*) as cnt FROM audit_logs WHERE timestamp >= ? AND action IN (${ph(wfActions)})`,
+          [todayStart, ...wfActions]
+        );
+        const today_calls = (callsRow as unknown as Record<string, number>)?.cnt ?? 0;
+
+        const [chainsRow] = await auditDbAll(
+          `SELECT COUNT(*) as cnt FROM audit_logs WHERE timestamp >= ? AND action IN (${ph(chainActions)})`,
+          [todayStart, ...chainActions]
+        );
+        const today_chains = (chainsRow as unknown as Record<string, number>)?.cnt ?? 0;
+
+        const [usersRow] = await auditDbAll(
+          `SELECT COUNT(DISTINCT user_id) as cnt FROM audit_logs WHERE timestamp >= ?`,
+          [todayStart]
+        );
+        const unique_users = (usersRow as unknown as Record<string, number>)?.cnt ?? 0;
+
+        const [creditsRow] = await auditDbAll(
+          `SELECT SUM(CAST(json_extract(details, '$.deducted') AS INTEGER)) as total
+           FROM audit_logs WHERE timestamp >= ? AND action = 'credit_deduct'`,
+          [todayStart]
+        );
+        const credits_consumed = (creditsRow as unknown as Record<string, number>)?.total ?? 0;
+
+        const topAgentsRows = await auditDbAll(
+          `SELECT resource, COUNT(*) as calls FROM audit_logs
+           WHERE timestamp >= ? AND action IN (${ph(allComplete)}) AND resource IS NOT NULL
+           GROUP BY resource ORDER BY calls DESC LIMIT 10`,
+          [todayStart, ...allComplete]
+        );
+        const top_agents = topAgentsRows.map(r => ({
+          agent: r.resource,
+          calls: (r as unknown as Record<string, number>).calls,
+        }));
+
+        const protocolDefs: [string, string[]][] = [
+          ["MCP",    ["workflow_complete"]],
+          ["HTTP",   ["run_workflow_complete"]],
+          ["AG-UI",  ["agui_workflow_complete", "agui_chain_complete"]],
+          ["ACP",    ["acp_run_complete"]],
+          ["A2A",    ["a2a_workflow_complete", "a2a_stream_complete"]],
+          ["OpenAI", ["openai_run_complete"]],
+          ["Chat",   ["chat_workflow_complete"]],
+          ["Chain",  ["chain_complete"]],
+        ];
+        const protocol_breakdown: Record<string, number> = {};
+        for (const [proto, actions] of protocolDefs) {
+          const [row] = await auditDbAll(
+            `SELECT COUNT(*) as cnt FROM audit_logs WHERE timestamp >= ? AND action IN (${ph(actions)})`,
+            [todayStart, ...actions]
+          );
+          protocol_breakdown[proto] = (row as unknown as Record<string, number>)?.cnt ?? 0;
+        }
+
+        const recent_activity = await auditDbAll(
+          `SELECT id, timestamp, user_id, action, resource, result, duration_ms
+           FROM audit_logs ORDER BY id DESC LIMIT 20`,
+          []
+        );
+
+        const creditHealthRows = await auditDbAll(
+          `SELECT DATE(timestamp) as day,
+                  SUM(CAST(json_extract(details, '$.deducted') AS INTEGER)) as credits
+           FROM audit_logs WHERE timestamp >= ? AND action = 'credit_deduct'
+           GROUP BY DATE(timestamp) ORDER BY day ASC`,
+          [sevenDaysAgo]
+        );
+        const credit_health = creditHealthRows.map(r => ({
+          day: (r as unknown as Record<string, string>).day,
+          credits: (r as unknown as Record<string, number>).credits ?? 0,
+        }));
+
+        res.json({
+          today_calls,
+          today_chains,
+          unique_users,
+          credits_consumed,
+          top_agents,
+          protocol_breakdown,
+          recent_activity,
+          credit_health,
+          generated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        log("error", `[dashboard-data] ${(err as Error).message}`);
+        res.status(500).json({ error: "Failed to load dashboard data" });
       }
     });
 

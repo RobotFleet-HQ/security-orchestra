@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security Orchestra — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0c10;
+      color: #e2e8f0;
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Gate ── */
+    #gate {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+    }
+    #gate h1 { font-size: 22px; font-weight: 600; color: #94a3b8; letter-spacing: .04em; }
+    #gate input {
+      background: #141820;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 15px;
+      padding: 10px 14px;
+      width: 280px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #gate input:focus { border-color: #6366f1; }
+    #gate button {
+      background: #6366f1;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 28px;
+      transition: background .15s;
+    }
+    #gate button:hover { background: #4f46e5; }
+    #gate-error { color: #f87171; font-size: 13px; display: none; }
+
+    /* ── Dashboard ── */
+    #dashboard { display: none; max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header h1 span { color: #6366f1; }
+    #status-bar { color: #64748b; font-size: 12px; }
+    #status-bar .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 700px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .card {
+      background: #141820;
+      border: 1px solid #1e2535;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card .label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+    .card .value { font-size: 32px; font-weight: 700; color: #e2e8f0; line-height: 1; }
+    .card .value.accent { color: #6366f1; }
+    .card .sub { color: #475569; font-size: 11px; margin-top: 6px; }
+
+    /* ── Section title ── */
+    .section { margin-bottom: 28px; }
+    .section h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 14px; }
+
+    /* ── Bar chart ── */
+    #bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #94a3b8; }
+    .bar-track { flex: 1; background: #1e2535; border-radius: 4px; height: 18px; overflow: hidden; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 4px; transition: width .4s ease; }
+    .bar-count { width: 36px; text-align: right; font-size: 12px; color: #64748b; }
+
+    /* ── Protocol pills ── */
+    #protocol-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pill {
+      background: #141820;
+      border: 1px solid #1e2535;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill .proto-name { color: #94a3b8; font-weight: 600; }
+    .pill .proto-count { color: #6366f1; font-weight: 700; }
+
+    /* ── Activity table ── */
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #1e2535; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      background: #141820;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #1e2535;
+    }
+    tbody tr { border-bottom: 1px solid #1a2030; transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #141820; }
+    tbody td { padding: 9px 14px; color: #94a3b8; white-space: nowrap; }
+    tbody td.mono { font-family: "Fira Mono", "Cascadia Code", monospace; font-size: 11px; }
+    .badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .badge.success  { background: #14532d; color: #4ade80; }
+    .badge.failure  { background: #450a0a; color: #f87171; }
+    .badge.blocked  { background: #451a03; color: #fb923c; }
+
+    /* ── Credit health sparkline ── */
+    #credit-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+    .credit-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 4px; }
+    .credit-bar-col .c-bar { width: 100%; background: linear-gradient(180deg, #6366f1, #4f46e5); border-radius: 3px 3px 0 0; min-height: 4px; transition: height .4s ease; }
+    .credit-bar-col .c-day { font-size: 9px; color: #475569; }
+
+    /* ── Loading spinner ── */
+    #loading { display: none; position: fixed; inset: 0; background: #0a0c10cc; align-items: center; justify-content: center; z-index: 100; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #1e2535; border-top-color: #6366f1; border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Password Gate ── -->
+<div id="gate">
+  <h1>Security Orchestra Admin</h1>
+  <input id="key-input" type="password" placeholder="Admin key" autocomplete="current-password" />
+  <button onclick="unlock()">Unlock</button>
+  <span id="gate-error">Invalid admin key</span>
+</div>
+
+<!-- ── Dashboard ── -->
+<div id="dashboard">
+  <header>
+    <h1>Security Orchestra <span>Admin</span></h1>
+    <div id="status-bar"><span class="dot"></span><span id="last-updated">Loading…</span></div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="card">
+      <div class="label">Today's Calls</div>
+      <div class="value accent" id="stat-calls">—</div>
+      <div class="sub">Workflow executions</div>
+    </div>
+    <div class="card">
+      <div class="label">Chain Runs</div>
+      <div class="value accent" id="stat-chains">—</div>
+      <div class="sub">Multi-step chains</div>
+    </div>
+    <div class="card">
+      <div class="label">Unique Users</div>
+      <div class="value" id="stat-users">—</div>
+      <div class="sub">Active today</div>
+    </div>
+    <div class="card">
+      <div class="label">Credits Consumed</div>
+      <div class="value" id="stat-credits">—</div>
+      <div class="sub">Today's spend</div>
+    </div>
+  </div>
+
+  <!-- Top Agents bar chart -->
+  <div class="section">
+    <h2>Top Agents Today</h2>
+    <div id="bar-chart"><div style="color:#475569;font-size:13px">No data yet</div></div>
+  </div>
+
+  <!-- Protocol breakdown -->
+  <div class="section">
+    <h2>Protocol Breakdown</h2>
+    <div id="protocol-pills"></div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="section">
+    <h2>Recent Activity</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Resource</th>
+            <th>Result</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="activity-body">
+          <tr><td colspan="6" style="color:#475569;text-align:center;padding:20px">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Credit health sparkline -->
+  <div class="section">
+    <h2>Credit Spend — Last 7 Days</h2>
+    <div id="credit-bars"><span style="color:#475569;font-size:13px">No data yet</span></div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div></div>
+
+<script>
+  const GATE_KEY   = "orchestra2026";
+  const SESSION_KEY = "so_admin_key";
+  let refreshTimer = null;
+  let lastFetchedAt = null;
+  let tickTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  // ── Gate ──────────────────────────────────────────────────────────────────
+  function unlock() {
+    const v = $("key-input").value.trim();
+    if (v !== GATE_KEY) {
+      $("gate-error").style.display = "block";
+      return;
+    }
+    $("gate-error").style.display = "none";
+    sessionStorage.setItem(SESSION_KEY, v);
+    showDashboard();
+  }
+
+  $("key-input").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
+
+  function showDashboard() {
+    $("gate").style.display      = "none";
+    $("dashboard").style.display = "block";
+    fetchData();
+    refreshTimer = setInterval(fetchData, 60000);
+    tickTimer    = setInterval(updateTick, 1000);
+  }
+
+  // ── On load: restore session ───────────────────────────────────────────────
+  window.addEventListener("DOMContentLoaded", () => {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    if (saved === GATE_KEY) showDashboard();
+  });
+
+  // ── "Last updated" ticker ─────────────────────────────────────────────────
+  function updateTick() {
+    if (!lastFetchedAt) return;
+    const secs = Math.round((Date.now() - lastFetchedAt) / 1000);
+    $("last-updated").textContent =
+      secs < 5 ? "Just updated" : `Updated ${secs}s ago`;
+  }
+
+  // ── Fetch dashboard data ──────────────────────────────────────────────────
+  async function fetchData() {
+    $("loading").style.display = "flex";
+    try {
+      const res = await fetch("/admin/dashboard-data", {
+        headers: { "x-admin-key": GATE_KEY },
+      });
+      if (res.status === 401) {
+        sessionStorage.removeItem(SESSION_KEY);
+        location.reload();
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      lastFetchedAt = Date.now();
+      render(d);
+    } catch (e) {
+      $("last-updated").textContent = "Error loading data";
+    } finally {
+      $("loading").style.display = "none";
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function render(d) {
+    $("stat-calls").textContent   = d.today_calls   ?? 0;
+    $("stat-chains").textContent  = d.today_chains  ?? 0;
+    $("stat-users").textContent   = d.unique_users  ?? 0;
+    $("stat-credits").textContent = d.credits_consumed ?? 0;
+
+    renderBarChart(d.top_agents ?? []);
+    renderProtocols(d.protocol_breakdown ?? {});
+    renderActivity(d.recent_activity ?? []);
+    renderCreditHealth(d.credit_health ?? []);
+  }
+
+  function renderBarChart(agents) {
+    const el = $("bar-chart");
+    if (!agents.length) { el.innerHTML = '<div style="color:#475569;font-size:13px">No agent calls yet today</div>'; return; }
+    const max = agents[0].calls || 1;
+    el.innerHTML = agents.map(a => `
+      <div class="bar-row">
+        <div class="bar-label" title="${a.agent}">${fmt(a.agent)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(a.calls / max * 100)}%"></div></div>
+        <div class="bar-count">${a.calls}</div>
+      </div>
+    `).join("");
+  }
+
+  function renderProtocols(pb) {
+    const el = $("protocol-pills");
+    const entries = Object.entries(pb).filter(([,v]) => v > 0);
+    if (!entries.length) { el.innerHTML = '<span style="color:#475569;font-size:13px">No calls yet</span>'; return; }
+    el.innerHTML = entries.map(([k, v]) => `
+      <div class="pill">
+        <span class="proto-name">${k}</span>
+        <span class="proto-count">${v}</span>
+      </div>
+    `).join("");
+  }
+
+  function renderActivity(rows) {
+    const tbody = $("activity-body");
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#475569;text-align:center;padding:20px">No activity yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="mono">${fmtTime(r.timestamp)}</td>
+        <td class="mono">${trunc(r.user_id, 18)}</td>
+        <td>${r.action}</td>
+        <td class="mono">${r.resource ? trunc(r.resource, 22) : '—'}</td>
+        <td><span class="badge ${r.result}">${r.result}</span></td>
+        <td>${r.duration_ms != null ? r.duration_ms + "ms" : "—"}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderCreditHealth(days) {
+    const el = $("credit-bars");
+    if (!days.length) { el.innerHTML = '<span style="color:#475569;font-size:13px">No credit spend yet</span>'; return; }
+    const max = Math.max(...days.map(d => d.credits || 0), 1);
+    el.innerHTML = days.map(d => `
+      <div class="credit-bar-col">
+        <div class="c-bar" style="height:${Math.round((d.credits || 0) / max * 68)}px" title="${d.credits} credits"></div>
+        <div class="c-day">${fmtDay(d.day)}</div>
+      </div>
+    `).join("");
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function fmt(s) {
+    return (s || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+  function trunc(s, n) {
+    return s && s.length > n ? s.slice(0, n) + "…" : (s || "");
+  }
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch { return iso.slice(11, 19); }
+  }
+  function fmtDay(s) {
+    if (!s) return "";
+    try {
+      const d = new Date(s + "T12:00:00Z");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch { return s.slice(5); }
+  }
+</script>
+</body>
+</html>

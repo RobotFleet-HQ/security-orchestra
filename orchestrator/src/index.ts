@@ -599,7 +599,7 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
   if (!p.project_lifetime_years) p.project_lifetime_years = "15";
   if (!p.capex)                  p.capex                  = String(Math.round(load_kw * 605));
   if (!p.frameworks)             p.frameworks             = "nist_csf,soc2";
-  if (!p.facility_type)          p.facility_type          = "data_center";
+  if (!p.facility_type)          p.facility_type          = "enterprise";
   if (!p.current_tier)           p.current_tier           = p.tier ?? "2N";
   if (!p.utility)                p.utility                = "duke_energy";
   if (!p.load_mw)                p.load_mw                = String(Math.max(1, load_kw / 1000));

@@ -1,0 +1,13 @@
+{
+  "name": "Security Orchestra",
+  "version": "1.0",
+  "description": "56 AI-powered agents for data center critical power infrastructure",
+  "agntcy_endpoint": "https://security-orchestra-orchestrator.onrender.com/agntcy/directory",
+  "registration_endpoint": "https://security-orchestra-orchestrator.onrender.com/agntcy/register",
+  "authentication": { "type": "bearer" },
+  "capabilities": {
+    "agents": 56,
+    "chains": 8,
+    "protocols": ["MCP", "A2A", "AG-UI", "ACP", "OpenAI"]
+  }
+}

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import path from "path";
+import { mountAgntcy } from "./agntcy.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -3110,6 +3111,21 @@ async function main() {
         log("error", `[chat] workflow error — ${workflowName}: ${msg}`);
         res.status(500).json({ error: msg });
       }
+    });
+
+    // ── AGNTCY layer: ACP per-agent endpoints, OASF manifests, SLIM, directory ──
+    mountAgntcy(app, {
+      workflows: WORKFLOWS,
+      chains:    CHAINS,
+      resolveKeyRow,
+      dispatchWorkflow,
+      runChain,
+      validateWorkflowParams,
+      detectWorkflowFromText,
+      enforceRateLimit,
+      checkCredits,
+      deductCredits,
+      logAudit,
     });
 
     app.listen(PORT, HOST, () =>

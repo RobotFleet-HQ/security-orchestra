@@ -1,3 +1,4 @@
+import path from "path";
 import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import Stripe from "stripe";
@@ -6,6 +7,11 @@ import { sendApiKeyEmail, sendSignupNotification } from "../email.js";
 import { provisionApiKey } from "../provisionKey.js";
 
 const router = Router();
+
+// GET /signup — serve signup.html
+router.get("/", (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "..", "..", "public", "signup.html"));
+});
 
 const DISPOSABLE_DOMAINS = new Set([
   // ── Guerrilla Mail network ────────────────────────────────────────────────

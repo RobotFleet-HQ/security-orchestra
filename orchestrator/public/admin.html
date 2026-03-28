@@ -167,7 +167,7 @@
 <div id="gate">
   <h1>Security Orchestra Admin</h1>
   <input id="key-input" type="password" placeholder="Admin key" autocomplete="current-password" />
-  <button onclick="unlock()">Unlock</button>
+  <button type="button" onclick="unlock()">Unlock</button>
   <span id="gate-error">Invalid admin key</span>
 </div>
 
@@ -246,11 +246,14 @@
 <div id="loading"><div class="spinner"></div></div>
 
 <script>
-  const GATE_KEY   = "orchestra2026";
-  const SESSION_KEY = "so_admin_key";
-  let refreshTimer = null;
+  // GATE_KEY: what the user types in the browser (client-side lock)
+  // ADMIN_API_KEY: the actual server-side key sent in request headers
+  const GATE_KEY    = "orchestra2026";
+  const ADMIN_API_KEY = "security_orchestra_admin_secret_2026";
+  const SESSION_KEY  = "so_admin_key";
+  let refreshTimer  = null;
   let lastFetchedAt = null;
-  let tickTimer = null;
+  let tickTimer     = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -262,7 +265,7 @@
       return;
     }
     $("gate-error").style.display = "none";
-    sessionStorage.setItem(SESSION_KEY, v);
+    sessionStorage.setItem(SESSION_KEY, GATE_KEY);
     showDashboard();
   }
 
@@ -271,15 +274,14 @@
   function showDashboard() {
     $("gate").style.display      = "none";
     $("dashboard").style.display = "block";
+    if (!refreshTimer) refreshTimer = setInterval(fetchData, 60000);
+    if (!tickTimer)    tickTimer    = setInterval(updateTick, 1000);
     fetchData();
-    refreshTimer = setInterval(fetchData, 60000);
-    tickTimer    = setInterval(updateTick, 1000);
   }
 
   // ── On load: restore session ───────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved === GATE_KEY) showDashboard();
+    if (sessionStorage.getItem(SESSION_KEY) === GATE_KEY) showDashboard();
   });
 
   // ── "Last updated" ticker ─────────────────────────────────────────────────
@@ -295,11 +297,11 @@
     $("loading").style.display = "flex";
     try {
       const res = await fetch("/admin/dashboard-data", {
-        headers: { "x-admin-key": GATE_KEY },
+        headers: { "x-admin-key": ADMIN_API_KEY },
       });
       if (res.status === 401) {
-        sessionStorage.removeItem(SESSION_KEY);
-        location.reload();
+        // API key mismatch — show error in status bar, keep dashboard visible
+        $("last-updated").textContent = "Auth error — check server key";
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

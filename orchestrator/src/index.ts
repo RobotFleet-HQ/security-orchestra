@@ -2046,6 +2046,7 @@ async function main() {
         streaming: true,
         pushNotifications: false,
         stateTransitionHistory: false,
+        agui: "https://security-orchestra-orchestrator.onrender.com/agui",
       },
       authentication: {
         schemes: ["bearer"],
@@ -2080,6 +2081,184 @@ async function main() {
 
     app.get("/.well-known/mcp/server-card.json", (_req, res) => {
       res.json(AGENT_CARD);
+    });
+
+    // ── AG-UI discovery ───────────────────────────────────────────────────────
+    const AGUI_DISCOVERY = {
+      name: "Security Orchestra",
+      version: "1.0",
+      agui_endpoint: "https://security-orchestra-orchestrator.onrender.com/agui",
+      agents_endpoint: "https://security-orchestra-orchestrator.onrender.com/agui/agents",
+      authentication: { type: "bearer" },
+      capabilities: { streaming: true, chains: true, multi_agent: true },
+    };
+
+    app.get("/.well-known/agui.json", (_req, res) => {
+      res.json(AGUI_DISCOVERY);
+    });
+
+    // ── AG-UI: agent manifest ─────────────────────────────────────────────────
+    app.get("/agui/agents", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+      const agents = [
+        ...Object.entries(WORKFLOWS).map(([id, wf]) => ({
+          agent_id: id,
+          name: id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          description: wf.description,
+          type: "workflow",
+          capabilities: ["text"],
+        })),
+        ...Object.entries(CHAINS).map(([id, c]) => ({
+          agent_id: `chain_${id}`,
+          name: c.name,
+          description: c.description,
+          type: "chain",
+          capabilities: ["text"],
+        })),
+      ];
+      res.json({ agents });
+    });
+
+    // ── AG-UI: streaming endpoint ─────────────────────────────────────────────
+    function writeAGUIEvent(res: express.Response, event: Record<string, unknown>): void {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+
+    app.post("/agui", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const messages: { role: string; content: string }[] | undefined = req.body?.messages;
+      if (!Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json({ error: "messages array is required" });
+        return;
+      }
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      if (!lastUser) {
+        res.status(400).json({ error: "No user message found" });
+        return;
+      }
+      const text = lastUser.content;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      const runId = crypto.randomUUID();
+      const now = () => new Date().toISOString();
+
+      writeAGUIEvent(res, { type: "RUN_STARTED", run_id: runId, agent_id: req.body?.agent_id ?? "auto", timestamp: now() });
+
+      try {
+        const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
+
+        if (detectedChainId) {
+          const chain = CHAINS[detectedChainId];
+          const billingEnabledChain = !!process.env.BILLING_API_URL;
+          if (billingEnabledChain) {
+            const balance = await checkCredits(keyRow.user_id);
+            if (balance < chain.credits) {
+              writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: `Insufficient credits — balance: ${balance}, required: ${chain.credits}`, timestamp: now() });
+              res.end();
+              return;
+            }
+          }
+
+          const msgId = crypto.randomUUID();
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_START", message_id: msgId, role: "assistant" });
+
+          for (const stepId of chain.steps) {
+            const stepName = stepId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: `\n▶ Running ${stepName}...\n` });
+            const toolCallId = crypto.randomUUID();
+            writeAGUIEvent(res, { type: "TOOL_CALL_START", tool_call_id: toolCallId, tool_call_name: stepId });
+            try {
+              const stepParams = validateWorkflowParams(stepId, detectedParams);
+              await dispatchWorkflow(stepId, stepParams);
+            } catch (_e) { /* individual step errors don't abort the chain */ }
+            writeAGUIEvent(res, { type: "TOOL_CALL_END", tool_call_id: toolCallId });
+            writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: `✓ ${stepId} complete\n` });
+          }
+
+          logAudit({ user_id: keyRow.user_id, action: "agui_chain_start", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
+          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          if (billingEnabledChain) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
+          logAudit({ user_id: keyRow.user_id, action: "agui_chain_complete", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
+
+          const fullText = JSON.stringify(chainResult, null, 2);
+          for (let i = 0; i < fullText.length; i += 100) {
+            writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: fullText.slice(i, i + 100) });
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_END", message_id: msgId });
+          writeAGUIEvent(res, { type: "RUN_FINISHED", run_id: runId, timestamp: now() });
+          res.end();
+          return;
+        }
+
+        if (!workflowName) {
+          const msgId = crypto.randomUUID();
+          const errText = "I couldn't determine which agent to use. Try being more specific.";
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_START", message_id: msgId, role: "assistant" });
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: errText });
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_END", message_id: msgId });
+          writeAGUIEvent(res, { type: "RUN_FINISHED", run_id: runId, timestamp: now() });
+          res.end();
+          return;
+        }
+
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const cleanParams = validateWorkflowParams(workflowName, detectedParams);
+        const wf = WORKFLOWS[workflowName];
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}`, timestamp: now() });
+            res.end();
+            return;
+          }
+        }
+
+        const toolCallId = crypto.randomUUID();
+        writeAGUIEvent(res, { type: "TOOL_CALL_START", tool_call_id: toolCallId, tool_call_name: workflowName });
+
+        logAudit({ user_id: keyRow.user_id, action: "agui_workflow_start", resource: workflowName, result: "success", details: { params: cleanParams, tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+        logAudit({ user_id: keyRow.user_id, action: "agui_workflow_complete", resource: workflowName, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        const msgId = crypto.randomUUID();
+        writeAGUIEvent(res, { type: "TEXT_MESSAGE_START", message_id: msgId, role: "assistant" });
+        const fullText = JSON.stringify(result, null, 2);
+        for (let i = 0; i < fullText.length; i += 100) {
+          writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: fullText.slice(i, i + 100) });
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        writeAGUIEvent(res, { type: "TEXT_MESSAGE_END", message_id: msgId });
+        writeAGUIEvent(res, { type: "TOOL_CALL_END", tool_call_id: toolCallId });
+        writeAGUIEvent(res, { type: "RUN_FINISHED", run_id: runId, timestamp: now() });
+        res.end();
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[agui] error: ${msg}`);
+        writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: msg, timestamp: now() });
+        res.end();
+      }
     });
 
     // ── A2A: JSON-RPC 2.0 task endpoint ──────────────────────────────────────

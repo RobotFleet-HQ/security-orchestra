@@ -1,0 +1,12 @@
+{
+  "name": "Security Orchestra",
+  "version": "1.0",
+  "agui_endpoint": "https://security-orchestra-orchestrator.onrender.com/agui",
+  "agents_endpoint": "https://security-orchestra-orchestrator.onrender.com/agui/agents",
+  "authentication": { "type": "bearer" },
+  "capabilities": {
+    "streaming": true,
+    "chains": true,
+    "multi_agent": true
+  }
+}

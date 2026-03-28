@@ -2047,6 +2047,7 @@ async function main() {
         pushNotifications: false,
         stateTransitionHistory: false,
         agui: "https://security-orchestra-orchestrator.onrender.com/agui",
+        acp: "https://security-orchestra-orchestrator.onrender.com/acp/runs",
       },
       authentication: {
         schemes: ["bearer"],
@@ -2258,6 +2259,158 @@ async function main() {
         log("error", `[agui] error: ${msg}`);
         writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: msg, timestamp: now() });
         res.end();
+      }
+    });
+
+    // ── ACP: IBM/BeeAI Agent Communication Protocol ───────────────────────────
+    const ACP_DESCRIPTOR = {
+      name: "Security Orchestra",
+      version: "1.0",
+      description: "56 AI-powered agents for data center critical power infrastructure",
+      url: "https://security-orchestra-orchestrator.onrender.com/acp",
+      agents: [
+        {
+          name: "security-orchestra",
+          description: "Routes to any of 56 specialized data center agents plus 8 compound chains",
+          metadata: {
+            framework: "custom",
+            capabilities: ["generator_sizing", "nfpa_110", "ups_sizing", "pue", "tco", "tier_certification", "multi_agent_chains"],
+          },
+        },
+      ],
+      authentication: { type: "bearer" },
+    };
+
+    app.get("/.well-known/acp.json", (_req, res) => {
+      res.json(ACP_DESCRIPTOR);
+    });
+
+    // GET /acp/agents — full workflow + chain listing in ACP format
+    app.get("/acp/agents", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+      const agents = [
+        ...Object.entries(WORKFLOWS).map(([id, wf]) => ({
+          name: id,
+          description: wf.description,
+          metadata: { type: "workflow", credits: wf.credits },
+        })),
+        ...Object.entries(CHAINS).map(([id, c]) => ({
+          name: `chain_${id}`,
+          description: c.description,
+          metadata: { type: "chain", credits: c.credits },
+        })),
+      ];
+      res.json({ agents });
+    });
+
+    // GET /acp/runs/:run_id — run status stub
+    app.get("/acp/runs/:run_id", async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+      res.json({ run_id: req.params.run_id, status: "completed" });
+    });
+
+    // POST /acp/runs — synchronous agent run
+    app.post("/acp/runs", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const runId = crypto.randomUUID();
+      const agentName: string = req.body?.agent_name ?? "security-orchestra";
+
+      // Extract last user message text from ACP envelope
+      const inputMessages: { role: string; content: { type: string; text: string }[] }[] | undefined = req.body?.input;
+      if (!Array.isArray(inputMessages) || inputMessages.length === 0) {
+        res.status(400).json({ run_id: runId, agent_name: agentName, status: "failed", error: "input array is required" });
+        return;
+      }
+      const lastUser = [...inputMessages].reverse().find((m) => m.role === "user");
+      const text = lastUser?.content?.[0]?.text;
+      if (!text) {
+        res.status(400).json({ run_id: runId, agent_name: agentName, status: "failed", error: "No user message text found in input" });
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
+
+        if (detectedChainId) {
+          const chain = CHAINS[detectedChainId];
+          const billingEnabled = !!process.env.BILLING_API_URL;
+          if (billingEnabled) {
+            const balance = await checkCredits(keyRow.user_id);
+            if (balance < chain.credits) {
+              res.status(402).json({ run_id: runId, agent_name: agentName, status: "failed", error: `Insufficient credits — balance: ${balance}, required: ${chain.credits}` });
+              return;
+            }
+          }
+          logAudit({ user_id: keyRow.user_id, action: "acp_run_start", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
+          const startTime = Date.now();
+          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          if (billingEnabled) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
+          logAudit({ user_id: keyRow.user_id, action: "acp_run_complete", resource: detectedChainId, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+          res.json({
+            run_id: runId,
+            agent_name: agentName,
+            status: "completed",
+            output: [{ role: "agent", content: [{ type: "text", text: JSON.stringify(chainResult, null, 2) }] }],
+          });
+          return;
+        }
+
+        if (!workflowName) {
+          res.json({
+            run_id: runId,
+            agent_name: agentName,
+            status: "completed",
+            output: [{ role: "agent", content: [{ type: "text", text: "I couldn't determine which agent to use. Try being more specific." }] }],
+          });
+          return;
+        }
+
+        const wf = WORKFLOWS[workflowName];
+        const cleanParams = validateWorkflowParams(workflowName, detectedParams);
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json({ run_id: runId, agent_name: agentName, status: "failed", error: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` });
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "acp_run_start", resource: workflowName, result: "success", details: { params: cleanParams, tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          result.results.credits_used      = wf.credits;
+          result.results.credits_remaining = remaining;
+        }
+        logAudit({ user_id: keyRow.user_id, action: "acp_run_complete", resource: workflowName, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.json({
+          run_id: runId,
+          agent_name: agentName,
+          status: "completed",
+          output: [{ role: "agent", content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }],
+        });
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[acp/runs] error: ${msg}`);
+        res.status(500).json({ run_id: runId, agent_name: agentName, status: "failed", error: msg });
       }
     });
 

@@ -164,284 +164,347 @@ async function runVulnerabilityAssessment(target: string): Promise<WorkflowResul
 
 // ─── Workflow Registry ────────────────────────────────────────────────────────
 
-const WORKFLOWS: Record<string, { description: string; params: string[]; credits: number }> = {
+const WORKFLOWS: Record<string, {
+  description:    string;
+  params:         string[];
+  credits:        number;
+  version:        string;
+  last_validated: string;
+  standards_refs: string[];
+  stale_risk:     "high" | "medium" | "low";
+}> = {
   subdomain_discovery: {
     description: "Discover subdomains for a target domain using DNS brute-force, certificate transparency, and passive sources",
     params: ["domain"],
     credits: WORKFLOW_COSTS.subdomain_discovery,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: [], stale_risk: "low",
   },
   asset_discovery: {
     description: "Map IP addresses, open ports, technologies, and cloud assets for a target domain",
     params: ["domain"],
     credits: WORKFLOW_COSTS.asset_discovery,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: [], stale_risk: "low",
   },
   vulnerability_assessment: {
     description: "Run vulnerability scans against a target and return prioritized findings with remediation guidance",
     params: ["target"],
     credits: WORKFLOW_COSTS.vulnerability_assessment,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["CVE/NVD"], stale_risk: "low",
   },
   generator_sizing: {
     description: "Size generators for data center loads with industry-standard compliance. Returns genset kVA, fuel consumption, tank size, runtime, ATS sizing, and cost estimates.",
     params: ["load_kw", "tier"],
     credits: WORKFLOW_COSTS.generator_sizing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NFPA 110-2022", "IEEE 446-1987"], stale_risk: "medium",
   },
   utility_interconnect: {
     description: "Analyze utility interconnect requirements for major US power providers. Returns per-load-size timelines, deposit $/kW ranges, first-year cost, competitive intel, and constraint warnings.",
     params: ["utility", "load_mw"],
     credits: WORKFLOW_COSTS.utility_interconnect,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["FERC Order 2023", "IEEE 1547-2018"], stale_risk: "high",
   },
   pue_calculator: {
     description: "Calculate Power Usage Effectiveness (PUE) and efficiency metrics for data center facilities. Analyzes IT load, cooling systems, power distribution, and provides optimization recommendations.",
     params: ["it_load_kw"],
     credits: WORKFLOW_COSTS.pue_calculator,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Green Grid PUE v2", "ISO/IEC 30134-2"], stale_risk: "low",
   },
   construction_cost: {
     description: "Estimate construction costs for data center development. Analyzes $/MW costs, regional pricing factors, tier requirements, and provides detailed cost breakdowns for shell, electrical, mechanical, and IT infrastructure.",
     params: ["capacity_mw"],
     credits: WORKFLOW_COSTS.construction_cost,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["JLL Data Center Outlook 2024", "Turner & Townsend GDCCI 2023", "RS Means City Cost Index 2024"], stale_risk: "high",
   },
   nfpa_110_checker: {
     description: "Check emergency generator compliance per NFPA 110 Level 1 and Level 2 requirements. Validates fuel capacity, ATS transfer time, runtime hours, and returns compliance status with violation details and remediation steps.",
     params: ["generator_kw", "fuel_capacity_gallons", "runtime_hours", "ats_transfer_time_seconds", "level"],
     credits: WORKFLOW_COSTS.nfpa_110_checker,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NFPA 110-2022"], stale_risk: "medium",
   },
   ats_sizing: {
     description: "Size automatic transfer switches per NEC Articles 700, 701, and 702. Calculates load current, applies 125% continuous load factor, selects standard ATS ratings, and returns enclosure options and installation requirements.",
     params: ["load_kw", "voltage", "phases"],
     credits: WORKFLOW_COSTS.ats_sizing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NEC 2023 Art. 700", "NEC 2023 Art. 701", "NEC 2023 Art. 702"], stale_risk: "medium",
   },
   ups_sizing: {
     description: "Size uninterruptible power supplies per IEEE 485 and 1184. Calculates kVA, selects battery strings (VRLA or Li-ion), determines runtime across N/N+1/2N configurations, and provides cost estimates.",
     params: ["load_kw", "runtime_minutes"],
     credits: WORKFLOW_COSTS.ups_sizing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IEEE 485-2010", "IEEE 1184-2006"], stale_risk: "medium",
   },
   fuel_storage: {
     description: "Design diesel fuel storage systems for emergency generators. Calculates tank size, runtime, secondary containment, SPCC thresholds, NFPA 30 compliance, and day tank recommendations.",
     params: ["generator_kw", "target_runtime_hours"],
     credits: WORKFLOW_COSTS.fuel_storage,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NFPA 30-2021", "EPA SPCC 40 CFR 112"], stale_risk: "medium",
   },
   cooling_load: {
     description: "Calculate data center cooling load per ASHRAE TC 9.9. Computes IT heat, UPS losses, envelope gains, converts to tons, sizes CRAC/CRAH units with N+1 redundancy, and checks ASHRAE thermal envelopes.",
     params: ["it_load_kw", "ups_capacity_kw", "room_sqft"],
     credits: WORKFLOW_COSTS.cooling_load,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE TC 9.9-2021"], stale_risk: "low",
   },
   power_density: {
     description: "Analyze rack power density for data centers. Classifies kW/rack density, sizes PDUs and branch circuits per NEC 645, calculates airflow requirements, and provides expansion capacity analysis.",
     params: ["total_it_load_kw", "rack_count"],
     credits: WORKFLOW_COSTS.power_density,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NEC 2023 Art. 645"], stale_risk: "medium",
   },
   redundancy_validator: {
     description: "Validate data center redundancy design against Uptime Institute Tier I–IV standards. Identifies single points of failure, assesses concurrent maintainability, and maps achieved tier with gaps to next level.",
     params: ["design_type", "total_load_kw", "generator_count", "generator_capacity_kw", "ups_count", "ups_capacity_kw", "cooling_units"],
     credits: WORKFLOW_COSTS.redundancy_validator,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Uptime Institute Tier Standard 2022"], stale_risk: "medium",
   },
   // Phase 1 — previously unregistered agents
   demand_response: {
     description: "Model utility demand response program participation for backup generator fleets. Calculates curtailment capacity, annual revenue, response time requirements, and program eligibility by utility.",
     params: ["generator_capacity_kw", "critical_load_kw", "utility_provider"],
     credits: WORKFLOW_COSTS.demand_response,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["FERC Order 745", "PJM DR Tariff"], stale_risk: "high",
   },
   environmental_impact: {
     description: "Assess environmental impact of data center generator operations. Calculates NOx/PM2.5/CO2 emissions per USEPA AP-42, air permit thresholds, CEQA/NEPA triggers, and mitigation requirements.",
     params: ["generator_count", "generator_kw", "site_acres"],
     credits: WORKFLOW_COSTS.environmental_impact,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["EPA AP-42 Section 3.4", "40 CFR Part 60 NSPS"], stale_risk: "medium",
   },
   fire_suppression: {
     description: "Design clean agent fire suppression systems per NFPA 2001 and NFPA 75. Calculates agent quantity (FM-200, Novec 1230, Inergen, CO2), cylinder count, nozzle layout, and discharge time.",
     params: ["room_length_ft", "room_width_ft", "ceiling_height_ft"],
     credits: WORKFLOW_COSTS.fire_suppression,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NFPA 2001-2022", "NFPA 75-2020"], stale_risk: "medium",
   },
   incentive_finder: {
     description: "Identify federal and state financial incentives for data center projects. Analyzes IRA tax credits, state grants, utility rebates, enterprise zone benefits, and job creation incentives by state.",
     params: ["state", "capex", "it_load_mw"],
     credits: WORKFLOW_COSTS.incentive_finder,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IRA 2022 Section 48E", "26 USC 48C"], stale_risk: "high",
   },
   noise_compliance: {
     description: "Analyze generator noise compliance with local ordinances. Calculates sound pressure levels at property line using inverse-square law, assesses zoning compliance, and recommends mitigation.",
     params: ["generator_db_at_23ft", "distance_to_property_line_ft", "local_limit_db"],
     credits: WORKFLOW_COSTS.noise_compliance,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ISO 9613-2", "ANSI S12.18"], stale_risk: "low",
   },
   permit_timeline: {
     description: "Estimate permitting timeline and critical path for data center construction. Analyzes building, electrical, mechanical, fire, and environmental permits by jurisdiction type and project scope.",
     params: ["jurisdiction", "project_sqft", "generator_count"],
     credits: WORKFLOW_COSTS.permit_timeline,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IBC 2021", "IFC 2021"], stale_risk: "medium",
   },
   roi_calculator: {
     description: "Calculate return on investment for data center capital projects. Computes NPV, IRR, simple payback, discounted payback, and cumulative cash flow using DCF analysis.",
     params: ["capex", "annual_opex", "revenue_per_year", "project_lifetime_years"],
     credits: WORKFLOW_COSTS.roi_calculator,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["DCF methodology"], stale_risk: "high",
   },
   tco_analyzer: {
     description: "Analyze total cost of ownership for data center operations. Breaks down power, cooling, labor, hardware refresh, maintenance, and facility costs over a multi-year horizon.",
     params: ["it_load_kw", "power_rate_kwh", "years", "pue"],
     credits: WORKFLOW_COSTS.tco_analyzer,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Green Grid TCO methodology"], stale_risk: "high",
   },
   fiber_connectivity: {
     description: "Analyze fiber connectivity options and costs for a data center location. Evaluates carrier diversity, dark fiber vs lit services, latency to key markets, and redundancy paths.",
     params: ["location", "target_markets"],
     credits: WORKFLOW_COSTS.fiber_connectivity,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Ethernet Alliance 400GbE"], stale_risk: "high",
   },
   harmonic_analysis: {
     description: "Perform harmonic analysis per IEEE 519 for data center power systems. Calculates total harmonic distortion (THD), voltage THD, and recommends filters and transformer derating.",
     params: ["total_load_kva", "ups_percentage", "vfd_percentage", "transformer_kva"],
     credits: WORKFLOW_COSTS.harmonic_analysis,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IEEE 519-2022"], stale_risk: "low",
   },
   site_scoring: {
     description: "Score and rank candidate data center sites across power, connectivity, risk, regulatory, and cost dimensions. Accepts a JSON array of site objects with attributes.",
     params: ["sites_json"],
     credits: WORKFLOW_COSTS.site_scoring,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: [], stale_risk: "low",
   },
   voltage_drop: {
     description: "Calculate voltage drop for data center power distribution circuits per NEC 210.19. Computes percent drop, conductor sizing recommendations, and NEC 647 compliance for sensitive loads.",
     params: ["load_amps", "distance_feet", "voltage", "circuit_type"],
     credits: WORKFLOW_COSTS.voltage_drop,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NEC 2023 Art. 210.19", "NEC 2023 Art. 647"], stale_risk: "low",
   },
   water_availability: {
     description: "Assess water availability and consumption for data center cooling systems. Estimates daily/annual consumption, water stress risk, permit requirements, and recycled water options.",
     params: ["cooling_tons", "location"],
     credits: WORKFLOW_COSTS.water_availability,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["EPA WaterSense", "ASHRAE 90.1-2022"], stale_risk: "medium",
   },
   // Phase 2 — new agents
   network_topology: {
     description: "Design spine-leaf network topology for data center switching fabric. Calculates spine/leaf switch counts, uplink ratios, oversubscription, port requirements, and cabling inventory.",
     params: ["rack_count", "target_bandwidth_gbps", "redundancy_type"],
     credits: WORKFLOW_COSTS.network_topology,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IEEE 802.1Q-2022", "RFC 7938"], stale_risk: "low",
   },
   bandwidth_sizing: {
     description: "Size north-south and east-west bandwidth for data center network fabric. Estimates aggregate throughput, uplink capacity, peering requirements, and recommends fabric speed.",
     params: ["rack_count", "servers_per_rack", "bandwidth_per_server_gbps"],
     credits: WORKFLOW_COSTS.bandwidth_sizing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IEEE 802.3bs-2017"], stale_risk: "low",
   },
   latency_calculator: {
     description: "Calculate propagation latency for data center interconnects. Computes one-way and round-trip delay by medium (fiber, copper, wireless, microwave) and hop count.",
     params: ["distance_km", "medium"],
     credits: WORKFLOW_COSTS.latency_calculator,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ITU-T G.826"], stale_risk: "low",
   },
   ip_addressing: {
     description: "Design IP addressing and VLAN architecture for data center networks. Calculates subnet sizes with growth buffer, prefix lengths, VLAN counts, and management IP allocations.",
     params: ["rack_count", "hosts_per_rack"],
     credits: WORKFLOW_COSTS.ip_addressing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["RFC 1918", "RFC 4291"], stale_risk: "low",
   },
   dns_architecture: {
     description: "Design DNS architecture for data center environments. Recommends authoritative and recursive server counts, anycast deployment, DNSSEC requirements, and QPS capacity.",
     params: ["rack_count"],
     credits: WORKFLOW_COSTS.dns_architecture,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["RFC 1035", "RFC 4033 DNSSEC"], stale_risk: "low",
   },
   bgp_peering: {
     description: "Design BGP peering architecture for data center edge routing. Calculates route reflector requirements, memory for full tables, session counts, and convergence estimates.",
     params: ["asn", "peer_count", "transit_providers"],
     credits: WORKFLOW_COSTS.bgp_peering,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["RFC 4271 BGP-4", "RFC 4456 RR"], stale_risk: "low",
   },
   physical_security: {
     description: "Design physical security systems for data centers per Uptime Institute tier standards. Calculates security zones, guard staffing, camera counts, access control points, and annual cost.",
     params: ["facility_sqft", "tier"],
     credits: WORKFLOW_COSTS.physical_security,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Uptime Institute M&O Stamp 2022", "ANSI/ASIS PSC.1"], stale_risk: "high",
   },
   biometric_design: {
     description: "Design biometric access control systems for data center security zones. Calculates reader counts, FAR/FRR performance, throughput capacity, and enrollment database sizing.",
     params: ["staff_count", "security_zones", "biometric_type"],
     credits: WORKFLOW_COSTS.biometric_design,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NIST SP 800-76-2", "ISO/IEC 19794"], stale_risk: "low",
   },
   surveillance_coverage: {
     description: "Design CCTV surveillance coverage for data center facilities. Calculates camera counts, field of view, storage requirements, and retention compliance for each resolution.",
     params: ["facility_sqft", "camera_resolution", "retention_days"],
     credits: WORKFLOW_COSTS.surveillance_coverage,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NDAA Section 889", "IEC 62676-4"], stale_risk: "medium",
   },
   cybersecurity_controls: {
     description: "Map cybersecurity controls for data center compliance frameworks. Analyzes SOC 2, ISO 27001, NIST CSF, PCI DSS, and FedRAMP control requirements, SIEM sizing, and implementation effort.",
     params: ["facility_type", "compliance_framework", "network_zones"],
     credits: WORKFLOW_COSTS.cybersecurity_controls,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NIST CSF 2.0", "PCI DSS 4.0", "ISO 27001-2022", "FedRAMP Rev 5"], stale_risk: "medium",
   },
   compliance_checker: {
     description: "Check multi-framework compliance posture for data center operations. Identifies control overlaps, gaps, and prioritized remediation across simultaneous compliance programs.",
     params: ["frameworks", "facility_type", "current_tier"],
     credits: WORKFLOW_COSTS.compliance_checker,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["SOC 2 TSC 2017", "ISO 27001-2022", "NIST CSF 2.0", "PCI DSS 4.0"], stale_risk: "medium",
   },
   chiller_sizing: {
     description: "Size water-cooled and air-cooled chillers for data center cooling plants. Calculates cooling tons, chiller plant configuration, N+1/2N sizing, and annual energy consumption.",
     params: ["it_load_kw", "pue", "cooling_type", "redundancy"],
     credits: WORKFLOW_COSTS.chiller_sizing,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE 90.1-2022", "ASHRAE TC 9.9-2021"], stale_risk: "medium",
   },
   crac_vs_crah: {
     description: "Compare CRAC vs CRAH unit selection for data center cooling. Analyzes EER/COP differences, annual energy cost, water availability constraints, and recommends optimal configuration.",
     params: ["it_load_kw", "room_sqft", "water_available"],
     credits: WORKFLOW_COSTS.crac_vs_crah,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE TC 9.9-2021", "ASHRAE 90.1-2022"], stale_risk: "medium",
   },
   airflow_modeling: {
     description: "Model airflow patterns for data center hot/cold aisle containment. Estimates CFM requirements, delta-T across racks, bypass airflow percentage, and hotspot risk by containment type.",
     params: ["rack_count", "avg_kw_per_rack", "room_sqft", "containment_type"],
     credits: WORKFLOW_COSTS.airflow_modeling,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE TC 9.9-2021"], stale_risk: "low",
   },
   humidification: {
     description: "Design humidification and dehumidification systems per ASHRAE A1 envelope. Calculates moisture load, equipment capacity, energy consumption, and seasonal control strategy.",
     params: ["room_sqft", "it_load_kw", "climate_zone"],
     credits: WORKFLOW_COSTS.humidification,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE TC 9.9-2021 Envelope A1"], stale_risk: "low",
   },
   economizer_analysis: {
     description: "Analyze economizer free-cooling potential for data center locations. Estimates annual free-cooling hours by climate, blended PUE improvement, energy savings, and simple payback.",
     params: ["location", "it_load_kw", "pue_mechanical", "economizer_type"],
     credits: WORKFLOW_COSTS.economizer_analysis,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE 90.1-2022 Section 6.5.1"], stale_risk: "medium",
   },
   construction_timeline: {
     description: "Estimate construction timeline for data center development projects. Provides phase-by-phase schedule (design, permits, civil, MEP, commissioning) with state-specific regulatory modifiers.",
     params: ["capacity_mw", "building_type", "state"],
     credits: WORKFLOW_COSTS.construction_timeline,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IBC 2021", "NFPA 1-2021"], stale_risk: "medium",
   },
   commissioning_plan: {
     description: "Generate commissioning plan per ASHRAE Guideline 1.2 for data center infrastructure. Calculates Level 1–4 test hours, witness testing requirements, and integrated systems testing scope.",
     params: ["capacity_mw", "tier"],
     credits: WORKFLOW_COSTS.commissioning_plan,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ASHRAE Guideline 1.2-2019", "Uptime Institute ATD"], stale_risk: "medium",
   },
   maintenance_schedule: {
     description: "Build annual preventive maintenance schedule for data center infrastructure. Calculates PM labor hours, intervals, and annual cost for generators, UPS, cooling, and electrical systems.",
     params: ["generator_count", "ups_count", "cooling_units", "tier"],
     credits: WORKFLOW_COSTS.maintenance_schedule,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NFPA 110-2022 Ch. 8", "IEEE 1188-2005"], stale_risk: "low",
   },
   capacity_planning: {
     description: "Project data center capacity runway and expansion trigger points. Uses logarithmic growth modeling to forecast years to 80% utilization, critical threshold, and end-of-design-life load.",
     params: ["current_load_kw", "current_capacity_kw", "growth_rate_pct_per_year"],
     credits: WORKFLOW_COSTS.capacity_planning,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: [], stale_risk: "low",
   },
   sla_calculator: {
     description: "Calculate SLA availability metrics against Uptime Institute tier benchmarks. Computes allowed downtime minutes/year, MTTR budget, and compliance status for target availability percentage.",
     params: ["tier", "target_availability_pct"],
     credits: WORKFLOW_COSTS.sla_calculator,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Uptime Institute Tier Standard 2022"], stale_risk: "low",
   },
   change_management: {
     description: "Design change management process for data center operations. Defines CAB frequency, change windows, rollback SLA, and staffing model based on tier classification and change volume.",
     params: ["tier", "change_volume_per_month", "staff_count"],
     credits: WORKFLOW_COSTS.change_management,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["ITIL 4", "Uptime Institute M&O Stamp"], stale_risk: "low",
   },
   carbon_footprint: {
     description: "Calculate data center carbon footprint per GHG Protocol Scope 2. Computes location-based and market-based emissions using eGRID factors, renewable energy certificates, and carbon intensity.",
     params: ["it_load_kw", "pue", "grid_region"],
     credits: WORKFLOW_COSTS.carbon_footprint,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["EPA eGRID 2022", "GHG Protocol Scope 2 2015"], stale_risk: "high",
   },
   solar_feasibility: {
     description: "Assess rooftop solar PV feasibility for data center facilities. Calculates system capacity, annual generation, energy offset percentage, IRA tax credit (30%), and simple payback.",
     params: ["facility_sqft", "it_load_kw", "state"],
     credits: WORKFLOW_COSTS.solar_feasibility,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["IRA 2022 Section 48E ITC", "IEC 61853-1"], stale_risk: "high",
   },
   battery_storage: {
     description: "Size battery energy storage systems for data center applications. Supports Li-ion, LFP, VRLA, and flow chemistries for UPS backup, peak shaving, demand response, and islanding use cases.",
     params: ["it_load_kw", "target_runtime_minutes", "chemistry"],
     credits: WORKFLOW_COSTS.battery_storage,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["UL 9540-2023", "NFPA 855-2023", "IEC 62619-2022"], stale_risk: "high",
   },
   energy_procurement: {
     description: "Analyze energy procurement strategies for large data center loads. Compares utility tariffs, PPAs, green tariffs, and direct access contracts with estimated annual cost and renewable content.",
     params: ["annual_consumption_mwh", "state", "contract_term_years"],
     credits: WORKFLOW_COSTS.energy_procurement,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["FERC Order 2023", "RE100 standard"], stale_risk: "high",
   },
   // Phase 3 — premium agents
   tier_certification_checker: {
     description: "Evaluate data center readiness for Uptime Institute Tier I–IV certification. Produces a gap analysis with remediation costs, readiness score, and priority steps. This is a readiness assessment, not official certification.",
     params: ["generator_config", "ups_topology", "cooling_redundancy", "power_paths", "fuel_runtime_hours", "transfer_switch_type", "has_concurrent_maintainability", "has_fault_tolerance", "target_tier"],
     credits: WORKFLOW_COSTS.tier_certification_checker,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["Uptime Institute Tier Standard 2022", "ANSI/TIA-942-B-2017"], stale_risk: "medium",
   },
   nc_utility_interconnect: {
     description: "Model the interconnect application process for Duke Energy Progress, Duke Energy Carolinas, or Dominion Energy NC. Returns utility-specific steps, timeline, fees, NCUC filing requirements, and data center considerations.",
     params: ["utility", "capacity_kw", "county", "interconnect_type", "voltage_level", "project_type"],
     credits: WORKFLOW_COSTS.nc_utility_interconnect,
+    version: "1.0", last_validated: "2026-03-28", standards_refs: ["NCUC Docket E-2 Sub 1142", "IEEE 1547-2018", "FERC Order 2023"], stale_risk: "high",
   },
 };
 
@@ -730,6 +793,7 @@ async function dispatchWorkflow(
   name: string,
   args: Record<string, string>
 ): Promise<WorkflowResult> {
+  const result = await (async (): Promise<WorkflowResult> => {
   switch (name) {
     case "subdomain_discovery": {
       if (!args.domain) throw new McpError(ErrorCode.InvalidParams, "Missing required param: domain");
@@ -1337,6 +1401,21 @@ async function dispatchWorkflow(
       throw new McpError(ErrorCode.InvalidParams,
         `Unknown workflow: "${name}". Call get_capabilities to list available workflows.`);
   }
+  })();
+
+  const wf = WORKFLOWS[name];
+  if (wf) {
+    const freshness: Record<string, unknown> = {
+      last_validated: wf.last_validated,
+      standards:      wf.standards_refs,
+      stale_risk:     wf.stale_risk,
+    };
+    if (wf.stale_risk === "high") {
+      freshness.pricing_note = "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement.";
+    }
+    (result as unknown as Record<string, unknown>).data_freshness = freshness;
+  }
+  return result;
 }
 
 // ─── Tier access control ──────────────────────────────────────────────────────

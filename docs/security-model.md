@@ -159,7 +159,29 @@ publicly, add an internal shared secret header.
 
 ---
 
-## 6. What Is NOT in Scope
+## 6. Stale Data Handling
+
+`stale_risk: "high"` is intentionally informational — it does not block requests.
+Callers receive the flag in every `CanonicalResponse` (inside `data_freshness`) and
+are responsible for implementing their own refusal policy. A hard gate with an
+`allow_stale: true` override is scaffolded in `/admin/errors` and can be activated
+in a future release.
+
+Current behavior by `stale_risk` level:
+
+| `stale_risk` | System behavior | Caller responsibility |
+|---|---|---|
+| `"low"` | No action | None |
+| `"medium"` | No action | Optional — review on quarterly cadence |
+| `"high"` | `pricing_note` injected into response | Display note to end users; do not pass to procurement systems without review |
+
+The `stale_refusals` group in `GET /admin/errors` is pre-wired to capture
+`action: "stale_data_refusal"` audit events. Once a refusal policy is enabled, those
+events will appear there automatically with no dashboard changes required.
+
+---
+
+## 7. What Is NOT in Scope
 
 - **mTLS between services:** orchestrator ↔ billing-api uses plain HTTP. Mitigation:
   deploy on the same internal network (Render private network or localhost).

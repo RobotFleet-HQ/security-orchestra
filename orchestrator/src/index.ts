@@ -74,6 +74,7 @@ import { runSolarFeasibility } from "./workflows/solarFeasibility.js";
 import { runBatteryStorage } from "./workflows/batteryStorage.js";
 import { runEnergyProcurement } from "./workflows/energyProcurement.js";
 import { runTierCertification } from "./workflows/tierCertification.js";
+import { toCanonical, CanonicalResponse } from "./canonical.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -771,7 +772,7 @@ async function runChain(
       const result = await dispatchWorkflow(stepId, runningParams);
       stepResults.push({ step: stepId, result });
       // Extract step-specific output→input mappings for next step
-      const r = result.results as Record<string, unknown>;
+      const r = result.result as Record<string, unknown>;
       const derived = extractChainParams(stepId, r);
       runningParams = applyChainDefaults({ ...runningParams, ...derived });
     } catch (err) {
@@ -792,7 +793,7 @@ async function runChain(
 async function dispatchWorkflow(
   name: string,
   args: Record<string, string>
-): Promise<WorkflowResult> {
+): Promise<CanonicalResponse> {
   const result = await (async (): Promise<WorkflowResult> => {
   switch (name) {
     case "subdomain_discovery": {
@@ -1404,18 +1405,27 @@ async function dispatchWorkflow(
   })();
 
   const wf = WORKFLOWS[name];
+  const taskId = crypto.randomUUID();
+  const rawResults = (result as unknown as { results: unknown }).results;
   if (wf) {
-    const freshness: Record<string, unknown> = {
+    return toCanonical(name, rawResults, {
+      version:        wf.version,
       last_validated: wf.last_validated,
-      standards:      wf.standards_refs,
+      standards_refs: wf.standards_refs,
       stale_risk:     wf.stale_risk,
-    };
-    if (wf.stale_risk === "high") {
-      freshness.pricing_note = "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement.";
-    }
-    (result as unknown as Record<string, unknown>).data_freshness = freshness;
+      credits:        wf.credits,
+      taskId,
+    });
   }
-  return result;
+  // Fallback for workflows not in registry (e.g. mock/legacy)
+  return toCanonical(name, rawResults, {
+    version:        "1.0",
+    last_validated: new Date().toISOString().slice(0, 10),
+    standards_refs: [],
+    stale_risk:     "low",
+    credits:        0,
+    taskId,
+  });
 }
 
 // ─── Tier access control ──────────────────────────────────────────────────────
@@ -1840,7 +1850,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result: "success", details: { params: cleanParams, tier, credits_required: wf.credits } });
     const startTime = Date.now();
 
-    let result: WorkflowResult;
+    let result: CanonicalResponse;
     try {
       result = await dispatchWorkflow(workflowName, cleanParams);
     } catch (err) {
@@ -1858,8 +1868,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       log("info", `credits deducted — cost: ${wf.credits}, remaining: ${remaining}`);
       logAudit({ user_id: userId, action: "credit_deduct", resource: workflowName,
         result: "success", details: { deducted: wf.credits, remaining } });
-      result.results.credits_used      = wf.credits;
-      result.results.credits_remaining = remaining;
+      (result.result as Record<string, unknown>).credits_used      = wf.credits;
+      (result.result as Record<string, unknown>).credits_remaining = remaining;
     }
 
     // 6. Log completion ────────────────────────────────────────────────────────
@@ -2219,8 +2229,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
 
         logAudit({ user_id: keyRow.user_id, action: "run_workflow_complete", resource: workflowName,
@@ -2237,7 +2247,7 @@ async function main() {
     // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
     const AGENT_CARD = {
       name: "Security Orchestra",
-      description: "54 specialized AI agents for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
+      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
       url: "https://security-orchestra-orchestrator.onrender.com",
       version: "1.0.0",
       provider: {
@@ -2440,8 +2450,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
         logAudit({ user_id: keyRow.user_id, action: "agui_workflow_complete", resource: workflowName, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
@@ -2468,12 +2478,12 @@ async function main() {
     const ACP_DESCRIPTOR = {
       name: "Security Orchestra",
       version: "1.0",
-      description: "56 AI-powered agents for data center critical power infrastructure",
+      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure",
       url: "https://security-orchestra-orchestrator.onrender.com/acp",
       agents: [
         {
           name: "security-orchestra",
-          description: "Routes to any of 56 specialized data center agents plus 8 compound chains",
+          description: "Routes to any of the 56 specialized agents + 8 compound chains = 64 total callable tools",
           metadata: {
             framework: "custom",
             capabilities: ["generator_sizing", "nfpa_110", "ups_sizing", "pue", "tco", "tier_certification", "multi_agent_chains"],
@@ -2598,8 +2608,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
         logAudit({ user_id: keyRow.user_id, action: "acp_run_complete", resource: workflowName, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
@@ -2764,8 +2774,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
 
         logAudit({ user_id: keyRow.user_id, action: "a2a_workflow_complete", resource: workflowName,
@@ -2869,8 +2879,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
 
         logAudit({ user_id: keyRow.user_id, action: "a2a_stream_complete", resource: workflowName,
@@ -3114,8 +3124,8 @@ async function main() {
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, targetWorkflow);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
 
         logAudit({ user_id: keyRow.user_id, action: "openai_run_complete", resource: targetWorkflow,
@@ -3235,7 +3245,7 @@ async function main() {
           reply:
             "I couldn't determine which agent to use. Try being more specific, e.g. " +
             "\"size a generator for 500kW\" or \"calculate PUE for a 2MW IT load\". " +
-            "See GET /agents for all 54 available workflows.",
+            "See GET /agents for all available tools (56 specialized agents + 8 compound chains = 64 total callable tools).",
           agent: null,
         });
         return;
@@ -3285,8 +3295,8 @@ async function main() {
         // 8. Deduct credits
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
 
         logAudit({

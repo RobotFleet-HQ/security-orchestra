@@ -4,9 +4,9 @@
 [![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)](https://google.github.io/A2A/)
 [![Transport](https://img.shields.io/badge/Transport-SSE-orange)](https://security-orchestra-orchestrator.onrender.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Agents](https://img.shields.io/badge/Agents-52-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
+[![Agents](https://img.shields.io/badge/Agents-64-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
 
-**52 AI-powered data center intelligence agents via MCP.** Generator sizing, PUE calculations, network topology, cooling load analysis, redundancy validation, site scoring, and more — all accessible to Claude or any MCP client over SSE.
+**56 specialized agents + 8 compound chains = 64 total callable tools via MCP.** Generator sizing, PUE calculations, network topology, cooling load analysis, redundancy validation, site scoring, and more — all accessible to Claude or any MCP client over SSE.
 
 ---
 
@@ -25,7 +25,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. All 52 agents are immediately available.
+Restart Claude Desktop. All 64 tools (56 specialized agents + 8 compound chains) are immediately available.
 
 ---
 
@@ -157,7 +157,7 @@ Restart Claude Desktop. All 52 agents are immediately available.
 │                                                       │
 │  Auth → Rate Limit → Validation → Credit Gate → Run  │
 │                                                       │
-│  52 agent modules registered as MCP tools            │
+│  56 specialized agents + 8 compound chains = 64 tools │
 └──────────┬────────────────────────────────┬──────────┘
            │ HTTP (credit check / deduct)   │ write
            ▼                                ▼
@@ -252,7 +252,7 @@ cd billing-api && npm start
 
 ```
 security-orchestra/
-├── orchestrator/              # MCP server — all 52 agent tools
+├── orchestrator/              # MCP server — 56 specialized agents + 8 compound chains = 64 total callable tools
 │   └── src/
 │       ├── index.ts           # Entry point, tool registry
 │       ├── auth.ts            # API key auth (bcrypt)
@@ -261,7 +261,7 @@ security-orchestra/
 │       ├── billing.ts         # Credit check/deduct
 │       └── audit.ts           # Audit log writer
 ├── billing-api/               # HTTP API — users, credits, Stripe
-├── [agent]-agent/             # 52 individual agent modules
+├── [agent]-agent/             # 56 individual agent modules
 └── mcp.json                   # MCP registry manifest
 ```
 

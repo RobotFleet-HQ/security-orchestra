@@ -7,6 +7,7 @@
 import crypto, { createHmac } from "crypto";
 import express from "express";
 import { AuditEntry } from "./audit.js";
+import { CanonicalResponse } from "./canonical.js";
 
 // ─── Dependency interface ─────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ export interface AgntcyDeps {
   workflows: Record<string, { description: string; params: string[]; credits: number }>;
   chains:    Record<string, { name: string; description: string; credits: number; steps: string[] }>;
   resolveKeyRow:           (req: express.Request) => Promise<{ user_id: string; tier: string; revoked: number } | undefined>;
-  dispatchWorkflow:        (name: string, params: Record<string, string>) => Promise<WorkflowResult>;
+  dispatchWorkflow:        (name: string, params: Record<string, string>) => Promise<CanonicalResponse>;
   runChain:                (chainId: string, params: Record<string, string>, userId: string, tier: string) => Promise<unknown>;
   validateWorkflowParams:  (name: string, params: Record<string, string>) => Record<string, string>;
   detectWorkflowFromText:  (text: string) => { chainId?: string; workflowName: string | null; params: Record<string, string> };
@@ -22,13 +23,6 @@ export interface AgntcyDeps {
   checkCredits:            (userId: string) => Promise<number>;
   deductCredits:           (userId: string, amount: number, description: string) => Promise<number>;
   logAudit:                (entry: AuditEntry) => void;
-}
-
-interface WorkflowResult {
-  workflow: string;
-  target:   string;
-  timestamp: string;
-  results:  Record<string, unknown>;
 }
 
 // ─── Run store ────────────────────────────────────────────────────────────────
@@ -434,8 +428,8 @@ export function mountAgntcy(app: express.Application, deps: AgntcyDeps): void {
         const result = await dispatchWorkflow(agentId, cleanParams);
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, agentId);
-          result.results.credits_used      = wf.credits;
-          result.results.credits_remaining = remaining;
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
         }
         logAudit({ user_id: keyRow.user_id, action: "agntcy_run_complete", resource: agentId, result: "success", duration_ms: Date.now() - t0, details: { tier: keyRow.tier } });
         output = result;

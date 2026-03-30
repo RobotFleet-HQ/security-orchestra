@@ -1,16 +1,19 @@
 # Security Orchestra
 
+56 specialized AI agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure.
+
+[![Smithery](https://smithery.ai/badge/@RobotFleet-HQ/security-orchestra)](https://smithery.ai/servers/@RobotFleet-HQ/security-orchestra)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green)](https://modelcontextprotocol.io)
 [![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)](https://google.github.io/A2A/)
-[![Transport](https://img.shields.io/badge/Transport-SSE-orange)](https://security-orchestra-orchestrator.onrender.com)
+[![Transport](https://img.shields.io/badge/Transport-SSE%20%7C%20stdio-orange)](https://security-orchestra-orchestrator.onrender.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Agents](https://img.shields.io/badge/Agents-64-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
-
-**56 specialized agents + 8 compound chains = 64 total callable tools via MCP.** Generator sizing, PUE calculations, network topology, cooling load analysis, redundancy validation, site scoring, and more — all accessible to Claude or any MCP client over SSE.
+[![Agents](https://img.shields.io/badge/Tools-64-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
 
 ---
 
-## Quick Connect (Claude Desktop)
+## Installation
+
+### Claude Desktop (hosted)
 
 Add to your `claude_desktop_config.json`:
 
@@ -25,58 +28,109 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. All 64 tools (56 specialized agents + 8 compound chains) are immediately available.
+### Claude Code (CLI)
+
+```bash
+claude mcp add security-orchestra https://security-orchestra-orchestrator.onrender.com --transport sse
+```
+
+### npx (Smithery)
+
+```bash
+npx -y @smithery/cli@latest mcp add robotfleet-hq/security-orchestra
+```
+
+Install via [Smithery](https://smithery.ai/servers/@RobotFleet-HQ/security-orchestra).
+
+Restart your MCP client. All 64 tools are immediately available.
 
 ---
 
-## Live Endpoint
+## What It Does
+
+Security Orchestra provides deterministic, standards-based calculations for every phase of data center infrastructure — from site selection to commissioning. Every agent returns structured JSON with citations to applicable codes (NEC, NFPA, IEEE, ASHRAE, Uptime Institute).
+
+### Tool Categories
+
+| Category | Agents | Standards |
+|---|---|---|
+| **Generator Sizing** | `generator_sizing`, `fuel_storage`, `demand_response` | NEC, NFPA 110, NFPA 30 |
+| **NFPA 110 Compliance** | `nfpa_110_checker` | NFPA 110 Level 1 & Level 2 |
+| **UPS / ATS Sizing** | `ups_sizing`, `ats_sizing`, `battery_storage` | IEEE 485, IEEE 1184, NEC 700/701/702 |
+| **PUE & Efficiency** | `pue_calculator`, `economizer_analysis` | ASHRAE TC 9.9 |
+| **Cooling Load** | `cooling_load`, `chiller_sizing`, `crac_vs_crah`, `airflow_modeling`, `humidification` | ASHRAE |
+| **ROI / TCO** | `roi_calculator`, `tco_analyzer`, `construction_cost`, `incentive_finder` | — |
+| **Tier Certification** | `tier_certification`, `redundancy_validator`, `compliance_checker` | Uptime Institute Tier I-IV |
+| **Utility Interconnect** | `utility_interconnect`, `nc_utility_interconnect`, `energy_procurement` | Utility-specific |
+| **Network Design** | `network_topology`, `bandwidth_sizing`, `bgp_peering`, `dns_architecture`, `ip_addressing`, `fiber_connectivity`, `latency_calculator` | — |
+| **Physical Security** | `physical_security`, `biometric_design`, `surveillance_coverage`, `cybersecurity_controls` | NIST CSF, SOC 2, ISO 27001 |
+| **Site & Construction** | `site_scoring`, `construction_timeline`, `permit_timeline`, `environmental_impact`, `water_availability`, `noise_compliance` | NEPA, local codes |
+| **Sustainability** | `carbon_footprint`, `solar_feasibility`, `energy_procurement` | GHG Protocol, IRA |
+| **Operations** | `sla_calculator`, `capacity_planning`, `maintenance_schedule`, `change_management`, `commissioning_plan` | NFPA, OEM specs |
+
+### Compound Chains (8)
+
+Chains run multiple agents sequentially and return a combined result:
+
+| Chain | Pipeline |
+|---|---|
+| `chain_full_power_analysis` | Generator > NFPA 110 > UPS > ROI |
+| `chain_emergency_power_package` | UPS > ATS > Generator > Fuel Storage > NFPA 110 |
+| `chain_site_readiness` | Site Scoring > Tier Cert > Utility Interconnect > Compliance |
+| `chain_full_site_analysis` | Site Scoring > Tier Cert > Utility > Permits > Cost > Timeline |
+| `chain_tco_deep_dive` | PUE > Cooling Load > TCO Analyzer |
+| `chain_cooling_optimization` | Cooling > Chiller > CRAC vs CRAH > Airflow > Economizer |
+| `chain_nc_power_package` | NC Utility Interconnect > Generator > NFPA 110 > UPS |
+| `chain_sustainability_package` | Carbon > Solar > Battery > Energy Procurement > Environmental |
+
+---
+
+## Supported Protocols
+
+Security Orchestra exposes every tool across six agent-communication protocols:
+
+| Protocol | Status | Endpoint | Use Case |
+|---|---|---|---|
+| **MCP** (Model Context Protocol) | Live | SSE: `/sse`, stdio via npx | Claude Desktop, Claude Code, Cursor, any MCP client |
+| **A2A** (Agent2Agent) | Live | `/.well-known/agent.json`, `/a2a` | Google agent-to-agent discovery and task delegation |
+| **OpenAI Agents SDK** | Live | `POST /openai/run` | OpenAI-compatible tool-call format |
+| **AG-UI** | Live | `POST /agui` | CopilotKit streaming agent UI |
+| **ACP** (Agent Communication Protocol) | Live | `POST /acp/runs` | IBM BeeAI agent communication |
+| **AGNTCY / OASF** | Live | Per-agent ACP endpoints + OASF manifests | Cisco AGNTCY interoperability |
+
+---
+
+## Live Endpoints
 
 | | URL |
 |---|---|
-| **MCP SSE** | `https://security-orchestra-orchestrator.onrender.com` |
+| **MCP (SSE)** | `https://security-orchestra-orchestrator.onrender.com` |
 | **Agent Card (A2A)** | `https://security-orchestra-orchestrator.onrender.com/.well-known/agent.json` |
-| **A2A Endpoint** | `https://security-orchestra-orchestrator.onrender.com/a2a` |
-| **MCP Registry ID** | `io.github.RobotFleet-HQ/security-orchestra` |
-
----
-
-## Protocol Support
-
-| Protocol | Status | Use Case |
-|---|---|---|
-| **MCP** (Model Context Protocol) | ✅ Live | Claude Desktop, Claude Code, any MCP client |
-| **A2A** (Agent2Agent Protocol) | ✅ Live | Agent-to-agent discovery and task delegation |
-| **AG-UI** | ✅ Live | Streaming agent UI — `POST /agui` |
-| **ACP / BeeAI** | ✅ Live | IBM agent communication — `POST /acp/runs` |
-| **AGNTCY / OASF** | ✅ Live | Per-agent ACP endpoints + OASF manifests |
-| **OpenAI Agents SDK** | ✅ Live | Tool-call format — `POST /openai/run` |
+| **A2A Tasks** | `https://security-orchestra-orchestrator.onrender.com/a2a` |
+| **Health** | `https://security-orchestra-orchestrator.onrender.com/health` |
+| **Landing Page** | [security-orchestra-landing](https://robotfleet-hq.github.io/security-orchestra-landing/) |
+| **Smithery** | [smithery.ai/@RobotFleet-HQ/security-orchestra](https://smithery.ai/servers/@RobotFleet-HQ/security-orchestra) |
 
 ---
 
 ## Response Contract
 
-Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI, ACP) — returns a `CanonicalResponse` payload. The response shape is defined in [`orchestrator/src/canonical.ts`](orchestrator/src/canonical.ts).
+Every tool call returns a `CanonicalResponse` — same shape regardless of protocol:
 
 ```jsonc
 {
-  "agent_id":          "generator_sizing",        // exact workflow/chain key
+  "agent_id":          "generator_sizing",
   "agent_version":     "1.0",
   "protocol_version":  "1.0",
-  "execution_context": "deterministic_calc",      // see table below
+  "execution_context": "deterministic_calc",
 
-  "status": "success",                            // "success" | "error"
-  "result": { /* workflow-specific data */ },
-
-  // Present only when status === "error"
-  "error_code":    "WORKFLOW_FAILED",
-  "error_message": "Human-readable description",
+  "status": "success",
+  "result": { /* structured data */ },
 
   "data_freshness": {
-    "validated_at":  "2026-03-28",                // ISO date of last logic audit
-    "standards_ref": ["NFPA 110:2022"],           // authoritative sources
-    "stale_risk":    "medium",                    // "low" | "medium" | "high"
-    "pricing_note":  "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement."
-    //               ↑ only present when agent result contains pricing data
+    "validated_at":  "2026-03-28",
+    "standards_ref": ["NFPA 110:2022"],
+    "stale_risk":    "medium"
   },
 
   "a2a": {
@@ -88,163 +142,151 @@ Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI
 }
 ```
 
-**Chain calls** (`POST /chain`) return the same shape with `agent_id: "chain:<chain_id>"` and `result` containing `{ chain, steps_completed, results[], summary }`.
+### Latency
 
-**Knowledge freshness:** `stale_risk` reflects data volatility — `high` means pricing or utility rates that change quarterly, `low` means physics-based constants. See [`VALIDATION_CHECKLIST.md`](VALIDATION_CHECKLIST.md) for per-agent validation cadence.
+All 56 individual agents are **deterministic TypeScript calculations** — no LLM calls, no external I/O.
 
-### execution_context — latency expectations
-
-All 56 individual agents are deterministic TypeScript calculations with no LLM calls and no external I/O.
-
-| `execution_context`  | What it means | Typical latency |
+| Context | Description | Latency |
 |---|---|---|
-| `deterministic_calc` | Pure TypeScript math — all 56 individual agents | < 100 ms |
-| `single_agent`       | One agent with external I/O (DB lookup, API call) | 200–800 ms |
-| `multi_agent_chain`  | N agents run sequentially — all 8 compound chains | ~0.5–5 s (scales with step count) |
-| `cached`             | Result served from cache | < 10 ms |
-
-The 8 compound chains (e.g. `full_power_analysis`, `site_feasibility_complete`) run multiple deterministic agents sequentially and return under the `multi_agent_chain` context. A typical 8-step chain completes in under 5 s on the hosted Render instance.
+| `deterministic_calc` | All 56 individual agents | < 100 ms |
+| `multi_agent_chain` | All 8 compound chains | 0.5-5 s |
+| `cached` | Cached result | < 10 ms |
 
 ---
 
-## All 52 Agents
+## All 56 Agents
 
 ### Power & Electrical
 
 | Agent | What it does |
 |---|---|
-| `generator_sizing` | Size generators for data center loads with industry-standard NEC/NFPA compliance |
-| `ups_sizing` | Size UPS systems per IEEE 485 and 1184 — VRLA or Li-ion, N/N+1/2N configs |
-| `ats_sizing` | Size automatic transfer switches per NEC Articles 700, 701, 702 |
-| `fuel_storage` | Design diesel fuel storage per NFPA 30 — tank size, containment, SPCC thresholds |
-| `nfpa_110_checker` | Validate emergency generator compliance per NFPA 110 Level 1 and Level 2 |
-| `harmonic_analysis` | Analyze harmonic distortion and THD in power distribution systems |
-| `voltage_drop` | Calculate voltage drop across electrical distribution circuits |
-| `power_density` | Analyze rack power density, PDU sizing, NEC 645 branch circuit requirements |
-| `battery_storage` | Design battery energy storage systems for backup and demand management |
-| `demand_response` | Analyze utility demand response programs and curtailment opportunities |
+| `generator_sizing` | Size generators for data center loads with NEC/NFPA compliance |
+| `ups_sizing` | Size UPS systems per IEEE 485/1184 — VRLA or Li-ion, N/N+1/2N configs |
+| `ats_sizing` | Size automatic transfer switches per NEC 700/701/702 |
+| `fuel_storage` | Design diesel fuel storage per NFPA 30 — tanks, containment, SPCC |
+| `nfpa_110_checker` | Validate emergency generator compliance per NFPA 110 |
+| `harmonic_analysis` | Analyze THD in power distribution per IEEE 519 |
+| `voltage_drop` | Calculate voltage drop per NEC 210.19 |
+| `power_density` | Analyze rack power density and PDU sizing per NEC 645 |
+| `battery_storage` | Design BESS for backup, peak shaving, demand response |
+| `demand_response` | Model utility demand response program participation |
 
 ### Cooling & Mechanical
 
 | Agent | What it does |
 |---|---|
-| `cooling_load` | Calculate data center cooling load per ASHRAE TC 9.9 — tons, CRAC/CRAH sizing |
-| `pue_calculator` | Calculate PUE and efficiency metrics with optimization recommendations |
-| `chiller_sizing` | Size chiller systems for cooling plant infrastructure |
-| `crac_vs_crah` | Compare CRAC vs CRAH cooling — cost, efficiency, failure modes |
-| `airflow_modeling` | Model airflow patterns — hot/cold aisle containment, CFD estimates |
-| `economizer_analysis` | Analyze free cooling / economizer feasibility by climate and location |
-| `humidification` | Design humidification systems per ASHRAE environmental classes |
+| `cooling_load` | Calculate cooling load per ASHRAE TC 9.9 |
+| `pue_calculator` | Calculate PUE with optimization recommendations |
+| `chiller_sizing` | Size water-cooled and air-cooled chillers |
+| `crac_vs_crah` | Compare CRAC vs CRAH — cost, efficiency, constraints |
+| `airflow_modeling` | Model hot/cold aisle containment and CFM requirements |
+| `economizer_analysis` | Analyze free-cooling potential by climate zone |
+| `humidification` | Design humidification systems per ASHRAE A1 envelope |
 
 ### Network & Connectivity
 
 | Agent | What it does |
 |---|---|
-| `network_topology` | Design data center network topology — leaf-spine, core-distribution-access |
-| `bandwidth_sizing` | Calculate network bandwidth requirements for projected workloads |
-| `dns_architecture` | Design DNS architecture — authoritative, recursive, anycast |
-| `ip_addressing` | Plan IP addressing and subnetting for large-scale infrastructure |
-| `bgp_peering` | Analyze BGP peering configurations, AS relationships, route policies |
-| `fiber_connectivity` | Design fiber connectivity — dark fiber routes, carrier diversity |
-| `latency_calculator` | Calculate network latency, propagation delay, RTT between sites |
+| `network_topology` | Design spine-leaf network topology |
+| `bandwidth_sizing` | Size north-south and east-west bandwidth |
+| `dns_architecture` | Design DNS — authoritative, recursive, anycast, DNSSEC |
+| `ip_addressing` | Plan IP addressing and VLAN architecture |
+| `bgp_peering` | Design BGP peering and route reflector architecture |
+| `fiber_connectivity` | Analyze fiber routes and carrier diversity |
+| `latency_calculator` | Calculate propagation latency by medium and hop count |
 
 ### Site & Construction
 
 | Agent | What it does |
 |---|---|
-| `site_scoring` | Score potential data center sites — power, water, risk, fiber, incentives |
-| `construction_cost` | Estimate $/MW construction costs with regional factors and tier breakdown |
-| `construction_timeline` | Plan construction timelines — civil, electrical, mechanical, commissioning |
-| `permit_timeline` | Model permitting timelines across federal, state, and local jurisdictions |
-| `environmental_impact` | Assess environmental impact — NEPA, wetlands, stormwater permitting |
-| `water_availability` | Analyze water availability and rights for cooling water supply |
-| `noise_compliance` | Analyze generator and cooling noise levels against local ordinances |
-| `incentive_finder` | Find utility incentives, tax credits, and government grants by location |
+| `site_scoring` | Score candidate sites across power, connectivity, risk, cost |
+| `construction_cost` | Estimate $/MW construction costs with regional factors |
+| `construction_timeline` | Phase-by-phase schedule with regulatory modifiers |
+| `permit_timeline` | Model permitting timelines across jurisdictions |
+| `environmental_impact` | Assess NOx/PM2.5/CO2 emissions per EPA AP-42 |
+| `water_availability` | Assess water supply, stress risk, and recycled water options |
+| `noise_compliance` | Analyze generator noise vs local ordinances |
+| `incentive_finder` | Find federal/state incentives, IRA credits, utility rebates |
 
 ### Utility & Interconnect
 
 | Agent | What it does |
 |---|---|
-| `utility_interconnect` | Analyze utility interconnect for 9 major US utilities — timeline and cost |
-| `nc_utility_interconnect` | North Carolina utility interconnect — detailed timeline, cost, regulatory |
-| `energy_procurement` | Evaluate PPA, direct access, and retail energy procurement strategies |
-| `solar_feasibility` | Analyze on-site solar feasibility — capacity, payback, interconnect |
-| `carbon_footprint` | Calculate Scope 1/2/3 emissions and carbon intensity per kWh |
+| `utility_interconnect` | Analyze utility interconnect for 9 major US utilities |
+| `nc_utility_interconnect` | North Carolina-specific utility interconnect analysis |
+| `energy_procurement` | Evaluate PPA, direct access, and retail energy strategies |
+| `solar_feasibility` | Analyze on-site solar PV — capacity, IRA credits, payback |
+| `carbon_footprint` | Calculate Scope 1/2/3 emissions per GHG Protocol |
 
 ### Compliance & Certification
 
 | Agent | What it does |
 |---|---|
-| `redundancy_validator` | Validate redundancy design against Uptime Institute Tier I–IV standards |
-| `tier_certification` | Assess Uptime Institute tier certification readiness and gap analysis |
-| `compliance_checker` | Check regulatory and standards compliance — NERC CIP, SOC 2, ISO 27001 |
+| `redundancy_validator` | Validate against Uptime Institute Tier I-IV standards |
+| `tier_certification` | Assess tier certification readiness with gap analysis |
+| `compliance_checker` | Check SOC 2, ISO 27001, NIST CSF, PCI DSS, FedRAMP |
 
 ### Physical Security
 
 | Agent | What it does |
 |---|---|
-| `physical_security` | Design layered physical security — mantrap, barriers, access zones |
-| `biometric_design` | Design biometric access control systems — fingerprint, iris, multi-factor |
-| `surveillance_coverage` | Calculate camera coverage — FOV, overlap, blind spot analysis |
-| `cybersecurity_controls` | Assess cybersecurity controls — NIST CSF, CIS Controls mapping |
+| `physical_security` | Design layered physical security per Uptime tier standards |
+| `biometric_design` | Design biometric access control — FAR/FRR, throughput |
+| `surveillance_coverage` | Calculate CCTV coverage, storage, and retention |
+| `cybersecurity_controls` | Map controls to NIST CSF and CIS benchmarks |
 
 ### Financial & Operations
 
 | Agent | What it does |
 |---|---|
-| `roi_calculator` | Calculate ROI for data center investments — CapEx, OpEx, payback period |
-| `tco_analyzer` | Analyze total cost of ownership over 10–20 year facility life |
-| `sla_calculator` | Model SLA uptime tiers — nines, MTTR, annual downtime budgets |
-| `capacity_planning` | Plan capacity growth — power, space, cooling, network expansion |
-| `maintenance_schedule` | Create preventive maintenance schedules per NFPA and manufacturer specs |
-| `change_management` | Plan and track infrastructure change management workflows |
-| `commissioning_plan` | Create commissioning plans — integrated system testing, acceptance criteria |
+| `roi_calculator` | Calculate NPV, IRR, payback using DCF analysis |
+| `tco_analyzer` | Analyze total cost of ownership over facility life |
+| `sla_calculator` | Model SLA availability against tier benchmarks |
+| `capacity_planning` | Forecast capacity runway and expansion triggers |
+| `maintenance_schedule` | Build annual PM schedules per NFPA and OEM specs |
+| `change_management` | Design change management process per tier class |
+| `commissioning_plan` | Generate commissioning plans per ASHRAE Guideline 1.2 |
+| `fire_suppression` | Design clean agent fire suppression per NFPA 2001/75 |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  MCP Client (Claude Desktop / Claude Code / any MCP) │
-└───────────────────────┬──────────────────────────────┘
-                        │ SSE (MCP protocol)
-                        ▼
-┌──────────────────────────────────────────────────────┐
-│  orchestrator/  (Node.js MCP server on Render)        │
-│                                                       │
-│  Auth → Rate Limit → Validation → Credit Gate → Run  │
-│                                                       │
-│  56 specialized agents + 8 compound chains = 64 tools │
-└──────────┬────────────────────────────────┬──────────┘
-           │ HTTP (credit check / deduct)   │ write
-           ▼                                ▼
-┌────────────────────┐           ┌────────────────────┐
-│  billing-api/      │           │  audit.db           │
-│  (Express HTTP)    │           │  (shared SQLite)    │
-│  billing.db        │           └────────────────────┘
-│  ├─ users          │
-│  ├─ subscriptions  │
-│  └─ credits        │
-│  Stripe webhooks   │
-└────────────────────┘
++------------------------------------------------------+
+|  MCP Client (Claude Desktop / Claude Code / Cursor)  |
++-------------------------+----------------------------+
+                          | SSE (MCP protocol)
+                          v
++------------------------------------------------------+
+|  orchestrator/  (Node.js on Render)                  |
+|                                                      |
+|  Auth > Rate Limit > Validation > Credit Gate > Run  |
+|                                                      |
+|  56 agents + 8 chains = 64 tools                    |
+|  Protocols: MCP, A2A, OpenAI, AG-UI, ACP, AGNTCY   |
++----------+----------------------------+--------------+
+           | HTTP (credit check/deduct) | write
+           v                            v
++--------------------+       +--------------------+
+|  billing-api/      |       |  audit.db          |
+|  (Express HTTP)    |       |  (SQLite)          |
+|  Stripe webhooks   |       +--------------------+
++--------------------+
 ```
-
-| Service | Transport | URL |
-|---|---|---|
-| `orchestrator` | SSE (MCP) | `https://security-orchestra-orchestrator.onrender.com` |
-| `billing-api` | HTTP | Separate Render service |
 
 ---
 
-## Pricing Tiers
+## Pricing
 
 | Tier | Monthly | Credits | Rate Limit |
 |---|---|---|---|
-| Free | $0 | 100 | 10/min · 100/hr · 500/day |
-| Starter | $29 | 500 | 60/min · 1,000/hr · 5,000/day |
-| Pro | $99 | 2,000 | 300/min · 5,000/hr · 50,000/day |
-| Enterprise | $499 | 10,000 | 1,000/min · 20,000/hr · 200,000/day |
+| Free | $0 | 100 | 10/min |
+| Starter | $29 | 500 | 60/min |
+| Pro | $99 | 2,000 | 300/min |
+| Enterprise | $499 | 10,000 | 1,000/min |
+
+Get a free API key: [Sign up](https://security-orchestra-billing.onrender.com/signup.html)
 
 ---
 
@@ -254,37 +296,24 @@ The 8 compound chains (e.g. `full_power_analysis`, `site_feasibility_complete`) 
 
 - Node.js 18+
 - npm 9+
-- Stripe account (optional — for paid tiers only)
 
-### Install
+### Install & Run
 
 ```bash
 git clone https://github.com/RobotFleet-HQ/security-orchestra
 cd security-orchestra
+
+# Build
 cd orchestrator && npm install && npm run build && cd ..
 cd billing-api  && npm install && npm run build && cd ..
-```
 
-### Configure
-
-```bash
-# Orchestrator
+# Configure
 cd orchestrator && cp .env.example .env
 npm run generate-key myuser free   # generates sk_live_... key
 
-# Billing API
-cd billing-api && cp .env.example .env
-# Add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-```
-
-### Run
-
-```bash
-# Terminal 1
-cd orchestrator && npm start
-
-# Terminal 2
-cd billing-api && npm start
+# Run
+cd orchestrator && npm start       # Terminal 1
+cd billing-api  && npm start       # Terminal 2
 ```
 
 ### Connect Claude Desktop (self-hosted)
@@ -310,18 +339,32 @@ cd billing-api && npm start
 
 ```
 security-orchestra/
-├── orchestrator/              # MCP server — 56 specialized agents + 8 compound chains = 64 total callable tools
+├── orchestrator/              # MCP server — 64 tools
 │   └── src/
 │       ├── index.ts           # Entry point, tool registry
-│       ├── auth.ts            # API key auth (bcrypt)
+│       ├── auth.ts            # API key auth
 │       ├── rateLimit.ts       # Sliding-window rate limiter
 │       ├── validation.ts      # Input sanitization
 │       ├── billing.ts         # Credit check/deduct
-│       └── audit.ts           # Audit log writer
+│       ├── canonical.ts       # CanonicalResponse shape
+│       └── audit.ts           # Audit log
 ├── billing-api/               # HTTP API — users, credits, Stripe
 ├── [agent]-agent/             # 56 individual agent modules
-└── mcp.json                   # MCP registry manifest
+├── smithery.yaml              # Smithery registry config
+├── mcp.json                   # MCP registry manifest
+└── LICENSE                    # MIT
 ```
+
+---
+
+## Security
+
+- API key authentication on all tool calls
+- Input validation and sanitization on every request
+- Sliding-window rate limiting per key and tier
+- Audit logging of all tool invocations
+- No LLM calls in individual agents — deterministic calculations only
+- Credit-gated access prevents abuse
 
 ---
 

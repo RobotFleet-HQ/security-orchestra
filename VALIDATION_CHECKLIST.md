@@ -1,105 +1,350 @@
-# Security Orchestra — Knowledge Staleness Validation Checklist
+# Security Orchestra — Agent Validation Checklist
 
-All 51 workflows were audited on **2026-03-28** (version 1.0).
-Use this checklist to keep agent knowledge current. Update `last_validated` in `WORKFLOWS` and re-validate Python agent hardcoded data after each check.
+**Last full audit:** 2026-03-28 · **Agent count:** 56 specialized agents + 8 compound chains
+
+Risk classifications and standards refs are the authoritative source in
+`orchestrator/src/canonical.ts → AGENT_METADATA`. This checklist is
+generated from that registry — update both together.
 
 ---
 
-## HIGH RISK — Check Monthly
-*Pricing, utility rates, carbon factors — changes with market conditions*
+## Validation Schedule
 
-| Workflow | Standards / Data Sources | What to verify |
+| Risk tier | Trigger | Rationale |
 |---|---|---|
-| `construction_cost` | JLL Data Center Outlook, Turner & Townsend GDCCI, RS Means City Cost Index | $/kW construction cost ranges, regional multipliers |
-| `carbon_footprint` | EPA eGRID, GHG Protocol Scope 2 | EPA eGRID emission factors by grid region (new release ~Q1 each year) |
-| `nc_utility_interconnect` | NCUC Docket E-2 Sub 1142, IEEE 1547-2018, FERC Order 2023 | Interconnection queue fees, Duke/Dominion tariff updates |
-| `nc_energy_rate_optimizer` | Duke Energy NC tariff, Dominion Energy NC tariff | Demand charge rates, TOU windows, rider schedules |
-| `renewable_energy_credits` | M-RETS, NC REPS | REC pricing by technology and vintage |
-| `energy_procurement_strategy` | EIA Short-Term Energy Outlook | Electricity forward prices, natural gas indices |
-| `demand_response_optimizer` | PJM DR programs, SERC DR programs | Program availability, payment rates per kW-year |
-| `battery_storage_optimizer` | BNEF Battery Price Survey | $/kWh installed cost; ITC adder eligibility |
-| `solar_generation_model` | NREL PVWatts | No code change needed — API-driven; verify API key validity |
-| `power_purchase_agreement` | FERC, NC Utilities Commission | Standard contract terms, avoided-cost rates |
-| `operating_cost_model` | EIA electricity prices, BLS PPI | $/kWh opex ranges, labor cost indices |
-| `financial_model` | IRS MACRS, Section 48C, Bonus Depreciation | Tax credit percentages, depreciation schedules |
-| `incentive_optimizer` | IRA incentives, NC state incentives | Federal/state grant amounts, eligibility windows |
-| `site_acquisition_cost` | CoStar, local assessor data | Land $/acre by region and zoning class |
-| `water_usage_optimizer` | Local utility rate cards | Water cost $/gallon, discharge surcharge rates |
-| `cooling_system_optimizer` | ASHRAE, local wet-bulb data | ASHRAE climate design data updates (annual) |
+| **High** | Monthly | Market pricing, utility tariffs, tax law — can change any quarter |
+| **Medium** | Quarterly | Standards codes on 3–5 year cycles; amendments published mid-cycle |
+| **Low** | Annually | Physics / math fundamentals; protocol RFCs rarely change |
 
 ---
 
-## MEDIUM RISK — Check Quarterly
-*Building codes, regulatory standards — updated on predictable cycles*
+## High-Risk Agents — Validate Monthly
 
-| Workflow | Standards / Data Sources | What to verify |
+*Pricing, utility rates, incentive percentages, carbon factors — tied to market and regulatory cycles.*
+
+### Power & Utilities
+
+- [ ] **`utility_interconnect`** — FERC Order 2023, IEEE 1547:2018
+  - Verify deposit $/kW ranges and timeline estimates per utility
+  - Check FERC interconnection queue reform updates
+  - Confirm IEEE 1547 amendment status
+
+- [ ] **`nc_utility_interconnect`** — NCUC Docket E-2 Sub 1142, IEEE 1547:2018, FERC Order 2023
+  - Duke Energy Progress / Duke Energy Carolinas / Dominion NC tariff schedules
+  - Verify NCUC docket for new orders or fee schedule changes
+  - Confirm interconnect application fees and study deposit amounts
+
+- [ ] **`construction_cost`** — JLL DC Outlook 2024, Turner & Townsend GDCCI 2023, RS Means CCI 2024
+  - $/MW shell, electrical, mechanical, and IT infrastructure cost ranges
+  - Regional cost multipliers by US metro
+  - Verify annual report releases (JLL typically Q1, T&T typically Q2)
+
+- [ ] **`demand_response`** — FERC Order 745, PJM DR Tariff
+  - PJM / SERC demand response payment rates ($/MW-day)
+  - Program availability windows and notice requirements
+  - Verify curtailment capacity calculation methodology
+
+### Finance & Incentives
+
+- [ ] **`roi_calculator`** — DCF methodology
+  - Verify default discount rate assumptions remain market-reasonable
+  - Check that construction cost inputs align with `construction_cost` agent
+
+- [ ] **`tco_analyzer`** — Green Grid TCO methodology
+  - Confirm power rate $/kWh defaults reflect current US averages
+  - Verify labor cost annual defaults (BLS Occupational Handbook)
+  - Check hardware refresh cost assumptions
+
+- [ ] **`incentive_finder`** — IRA 2022 §48E, 26 USC 48C
+  - ITC / PTC percentage — IRS may phase down or extend
+  - State-level grant program availability and caps
+  - Verify qualifying technology lists have not changed
+
+- [ ] **`fiber_connectivity`** — Ethernet Alliance 400GbE
+  - Dark fiber lease rate estimates by market
+  - Carrier availability per city — major provider exits or entries
+  - 400GbE vs 800GbE transition milestones
+
+### Physical Security
+
+- [ ] **`physical_security`** — Uptime Institute M&O Stamp 2022, ANSI/ASIS PSC.1
+  - Guard staffing rates $/hour by region
+  - Verify Uptime M&O Stamp criteria version
+  - Check ANSI/ASIS PSC.1 reaffirmation or revision status
+
+### Sustainability & Energy
+
+- [ ] **`carbon_footprint`** — EPA eGRID 2022, GHG Protocol Scope 2:2015
+  - EPA eGRID emission factors update annually (~Q1) — update grid region lb CO₂/kWh values
+  - Confirm GHG Protocol Scope 2 guidance version (market-based vs location-based)
+
+- [ ] **`solar_feasibility`** — IRA 2022 §48E ITC, IEC 61853-1
+  - ITC percentage (30% base through 2032 — check for adder eligibility changes)
+  - Bonus adder rules (energy community, domestic content) may update quarterly
+  - Verify NREL irradiance data vintage used in calculations
+
+- [ ] **`battery_storage`** — UL 9540:2023, NFPA 855:2023, IEC 62619:2022
+  - $/kWh installed cost (BNEF BESS price index — check quarterly)
+  - ITC adder eligibility for standalone storage (IRS Notice updates)
+  - Verify UL 9540 and NFPA 855 amendment status
+
+- [ ] **`energy_procurement`** — FERC Order 2023, RE100 standard
+  - Utility green tariff availability by state
+  - PPA pricing $/MWh by technology and region
+  - RE100 matching criteria updates
+
+---
+
+## Medium-Risk Agents — Validate Quarterly
+
+*Building codes, engineering standards, regulatory rules — updated on predictable 3–5 year cycles with mid-cycle amendments.*
+
+### Emergency Power
+
+- [ ] **`generator_sizing`** — NFPA 110:2022, IEEE 446:1987
+  - Confirm current NFPA 110 edition; watch for tentative interim amendments
+  - Verify IEEE 446 reaffirmation status (last revised 1987)
+  - Check genset derating factor tables for altitude/temperature
+
+- [ ] **`nfpa_110_checker`** — NFPA 110:2022
+  - Check NFPA 110 TIAs (tentative interim amendments) since 2022 edition
+  - Verify Level 1 vs Level 2 runtime hour requirements still 96h / 8h
+  - Confirm ATS transfer time limits (10s Level 1, 60s Level 2)
+
+- [ ] **`ats_sizing`** — NEC 2023 Art.700, Art.701, Art.702
+  - Verify NC state NEC adoption cycle (check NCDOI — NC historically lags 1 cycle)
+  - Confirm 125% continuous load factor still required
+  - Check standard ATS ampere rating table for new catalog entries
+
+- [ ] **`ups_sizing`** — IEEE 485:2010, IEEE 1184:2006
+  - Check IEEE 485 revision status (last revised 2010)
+  - Check IEEE 1184 revision status (last revised 2006 — overdue)
+  - Verify Li-ion vs VRLA cost crossover assumptions
+
+- [ ] **`fuel_storage`** — NFPA 30:2021, EPA SPCC 40 CFR 112
+  - Confirm NFPA 30 2021 edition is current; watch for 2024 cycle
+  - Verify EPA SPCC aggregate aboveground threshold (currently 1,320 gal)
+  - Check secondary containment sizing formula (110% largest tank)
+
+- [ ] **`redundancy_validator`** — Uptime Institute Tier Standard 2022
+  - Verify Uptime Institute Tier Standard edition (watch for new version)
+  - Check Tier III concurrent maintainability definition hasn't shifted
+  - Confirm N, N+1, 2N, 2N+1 classification logic
+
+- [ ] **`power_density`** — NEC 2023 Art.645
+  - NC NEC adoption status (confirm which cycle is enforced)
+  - Article 645 ITE room definition and PDU branch circuit rules
+
+### Environmental & Site
+
+- [ ] **`environmental_impact`** — EPA AP-42 §3.4, 40 CFR Part 60 NSPS
+  - EPA AP-42 Section 3.4 emission factor updates for diesel reciprocating engines
+  - 40 CFR Part 60 Subpart IIII/JJJJ NSPS tier requirements
+  - State-specific air permit threshold changes (check target state DEQ)
+
+- [ ] **`fire_suppression`** — NFPA 2001:2022, NFPA 75:2020
+  - NFPA 2001 agent flooding factor tables (FM-200, Novec 1230, CO₂)
+  - NFPA 75 IT equipment protection scope
+  - Confirm Novec 1230 / FM-200 phase-down status under EPA SNAP
+
+- [ ] **`permit_timeline`** — IBC 2021, IFC 2021
+  - Charlotte/Raleigh local plan review time SLA updates
+  - NC State Building Code adoption cycle (check for IBC 2024 adoption)
+  - Data center-specific fast-track permit program availability
+
+- [ ] **`water_availability`** — EPA WaterSense, ASHRAE 90.1:2022
+  - Regional water stress index updates (WRI Aqueduct — annual)
+  - ASHRAE 90.1 Section 6 cooling tower blowdown requirements
+
+- [ ] **`construction_timeline`** — IBC 2021, NFPA 1:2021
+  - Verify state-specific permitting modifier assumptions remain accurate
+  - Check for changes to NC conditional use permit / special use permit timelines
+
+### Security & Compliance
+
+- [ ] **`surveillance_coverage`** — NDAA §889, IEC 62676-4
+  - NDAA Section 889 prohibited vendor list updates (FCC publishes updates)
+  - IEC 62676-4 video transmission standard revision status
+
+- [ ] **`cybersecurity_controls`** — NIST CSF 2.0, PCI DSS 4.0, ISO 27001:2022, FedRAMP Rev 5
+  - NIST CSF 2.0 profile updates or supplemental guidance
+  - PCI DSS 4.0 required controls (v3.2.1 EOL was March 2024 — ensure v4 logic)
+  - FedRAMP Rev 5 baselines — check for new control additions
+  - ISO 27001:2022 Annex A control count (93 controls) still accurate
+
+- [ ] **`compliance_checker`** — SOC 2 TSC 2017, ISO 27001:2022, NIST CSF 2.0, PCI DSS 4.0
+  - AICPA Trust Services Criteria — check for 2024 update cycle
+  - Verify control overlap mapping still reflects current framework versions
+
+- [ ] **`tier_certification_checker`** — Uptime Institute Tier Standard 2022, ANSI/TIA-942-B:2017
+  - Watch for Uptime Institute Tier Standard new edition
+  - ANSI/TIA-942-C publication status (B was 2017 — C cycle may be active)
+  - Verify concurrent maintainability and fault tolerance test criteria
+
+### HVAC & Cooling
+
+- [ ] **`chiller_sizing`** — ASHRAE 90.1:2022, ASHRAE TC 9.9:2021
+  - ASHRAE 90.1 chiller efficiency (kW/ton) minimum requirement updates
+  - ASHRAE TC 9.9 recommended operating envelope revisions
+  - Refrigerant phase-down schedule (HFCs under AIM Act — check EPA timeline)
+
+- [ ] **`crac_vs_crah`** — ASHRAE TC 9.9:2021, ASHRAE 90.1:2022
+  - EER/COP comparison values — verify against current manufacturer catalog data
+  - ASHRAE 90.1 CRAC efficiency minimums (check Section 6)
+
+- [ ] **`economizer_analysis`** — ASHRAE 90.1:2022 §6.5.1
+  - ASHRAE 90.1 Section 6.5.1 economizer control requirements
+  - Climate bin hour data — verify source dataset vintage (TMY3 vs TMYx)
+
+- [ ] **`commissioning_plan`** — ASHRAE Guideline 1.2:2019, Uptime Institute ATD
+  - ASHRAE Guideline 1.2 revision cycle (2019 is current — watch for update)
+  - Uptime ATD (Accredited Tier Designer) testing scope changes
+
+---
+
+## Low-Risk Agents — Validate Annually
+
+*Physics-based calculations and engineering fundamentals — only change when underlying standards have major revisions.*
+
+### Security Workflows
+
+- [ ] **`subdomain_discovery`** — No external standards
+  - Verify certificate transparency log sources still active (crt.sh, Google CT)
+  - Check DNS brute-force wordlist vintage
+
+- [ ] **`asset_discovery`** — No external standards
+  - Confirm mock data is clearly labeled; no hardcoded production IPs
+
+- [ ] **`vulnerability_assessment`** — CVE/NVD
+  - Verify CVSS v3.1 scoring weights not superseded by CVSS v4
+  - Check NVD API endpoint hasn't changed (NVD 2.0 API migration complete)
+
+### Electrical Calculations
+
+- [ ] **`pue_calculator`** — Green Grid PUE v2, ISO/IEC 30134-2
+  - Confirm Green Grid PUE v2 definition unchanged
+  - ISO/IEC 30134-2 partial PUE (pPUE) methodology
+
+- [ ] **`cooling_load`** — ASHRAE TC 9.9:2021
+  - Heat transfer coefficients and IT equipment power factor assumptions
+  - CRAC/CRAH sensible heat ratio defaults
+
+- [ ] **`harmonic_analysis`** — IEEE 519:2022
+  - IEEE 519 current distortion limit tables (PCC voltage class)
+  - Transformer K-factor derating formula
+
+- [ ] **`voltage_drop`** — NEC 2023 Art.210.19, NEC 2023 Art.647
+  - NEC recommended 3% / 5% drop limits still in advisory (not mandatory) column
+  - Copper/aluminum resistivity constants unchanged
+
+### Network Engineering
+
+- [ ] **`network_topology`** — IEEE 802.1Q:2022, RFC 7938
+  - RFC 7938 BGP in data center fabric — check for updating RFC
+  - Spine/leaf port count assumptions vs current 400G/800G switch SKUs
+
+- [ ] **`bandwidth_sizing`** — IEEE 802.3bs:2017
+  - 800GbE (IEEE 802.3df) ratification status — may need upper tier adjustment
+  - East-west traffic ratio assumption (currently 80/20 east-west)
+
+- [ ] **`latency_calculator`** — ITU-T G.826
+  - Speed-of-light in fiber constant (2×10⁸ m/s) — no change expected
+  - Per-hop switching latency defaults vs current ASIC specs
+
+- [ ] **`ip_addressing`** — RFC 1918, RFC 4291
+  - RFC 6598 (100.64.0.0/10 shared address space) — consider adding as option
+  - IPv6 /48 per-site allocation assumption vs RFC 6177
+
+- [ ] **`dns_architecture`** — RFC 1035, RFC 4033 DNSSEC
+  - DNSSEC algorithm recommendations — check IANA DNSSEC algorithm registry
+  - Anycast node count assumptions vs current Cloudflare/AWS Route 53 topology
+
+- [ ] **`bgp_peering`** — RFC 4271 BGP-4, RFC 4456 RR
+  - Full table route count assumption (~950K IPv4 routes — grows ~50K/yr)
+  - Memory per-route estimate vs current router platform specs
+
+### Physical & Operations
+
+- [ ] **`biometric_design`** — NIST SP 800-76-2, ISO/IEC 19794
+  - NIST SP 800-76 revision status (check NIST CSRC)
+  - FAR/FRR benchmark values vs current generation sensor specs
+
+- [ ] **`airflow_modeling`** — ASHRAE TC 9.9:2021
+  - CFM/kW airflow rule of thumb (currently ~100 CFM/kW for air-cooled)
+  - Hot/cold aisle temperature delta defaults
+
+- [ ] **`humidification`** — ASHRAE TC 9.9:2021 Envelope A1
+  - ASHRAE A1 allowable humidity range (currently 20–80% RH)
+  - Verify ASHRAE hasn't published a TC 9.9 update narrowing the envelope
+
+- [ ] **`noise_compliance`** — ISO 9613-2, ANSI S12.18
+  - Inverse-square law attenuation formula — no change expected
+  - Verify typical local ordinance dB(A) limits in reference table are current
+
+- [ ] **`site_scoring`** — No external standards
+  - Scoring weight factors for power / connectivity / risk / cost dimensions
+  - Confirm regional water stress index source is current
+
+- [ ] **`maintenance_schedule`** — NFPA 110:2022 Ch.8, IEEE 1188:2005
+  - NFPA 110 Chapter 8 generator test interval (monthly load test, annual full-load)
+  - IEEE 1188 VRLA battery maintenance procedures — check revision status
+
+- [ ] **`capacity_planning`** — No external standards
+  - Logarithmic growth model coefficients — validate against observed industry growth rates
+
+- [ ] **`sla_calculator`** — Uptime Institute Tier Standard 2022
+  - Tier I–IV allowable downtime minutes/year values unchanged
+
+- [ ] **`change_management`** — ITIL 4, Uptime Institute M&O Stamp
+  - ITIL 4 change management practice guidance — check for AXELOS updates
+  - Uptime M&O Stamp operational criteria revision
+
+---
+
+## Compound Chains — Validate When Member Agents Update
+
+Each chain inherits risk from its highest-risk member. Re-test chain output after
+any member agent is re-validated.
+
+| Chain | Highest-risk member | Validate when |
 |---|---|---|
-| `nfpa_110_checker` | NFPA 110-2022 | Check for new edition or tentative interim amendments |
-| `tier_certification_checker` | Uptime Institute Tier Standard 2022, ANSI/TIA-942-B-2017 | New Tier Standard edition; TIA-942-C publication status |
-| `building_code_compliance` | IBC 2021, NC State Building Code | NC adoption of next IBC cycle; local amendments |
-| `ashrae_90_4_checker` | ASHRAE 90.4-2019 | New edition; IECC adoption status |
-| `fire_suppression_checker` | NFPA 2001, NFPA 13-2022 | Edition changes; AHJ amendments |
-| `electrical_compliance` | NEC 2023, NFPA 70E-2021 | State NEC adoption cycle (NC is on 2020 NEC) |
-| `environmental_compliance` | EPA NPDES, NC DEQ | Stormwater permit thresholds, spill reporting rules |
-| `hazmat_compliance` | OSHA PSM, EPA RMP | Threshold quantities, reporting timelines |
-| `seismic_risk_assessment` | ASCE 7-22, USGS Seismic Hazard Maps | USGS hazard map updates; ASCE 7 edition adoption |
-| `wind_load_calculator` | ASCE 7-22, ASCE 7-16 | NC wind speed map updates; code adoption cycle |
-| `accessibility_compliance` | ADA 2010 Standards, NC Accessibility Code | DOJ ADA updates; NC amendments |
-| `zoning_compliance_checker` | Local zoning ordinances | Charlotte/Raleigh UDO amendments (check quarterly) |
-| `permit_timeline_estimator` | Local AHJ data | Charlotte/Raleigh permitting fee schedules and timelines |
-| `contractor_qualification` | NC contractor license board | License category requirements; bond/insurance minimums |
-| `equipment_lead_time_tracker` | Internal sourcing data | Transformer, switchgear, UPS lead times (volatile) |
-| `grid_stability_analyzer` | NERC reliability standards | NERC standard updates; PJM/SERC rule changes |
-| `substation_design_checker` | IEEE C57, NERC FAC-001 | IEEE C57 transformer standard revisions |
-| `generator_sizing_calculator` | NFPA 110-2022, IEEE 446 | Code edition updates; fuel type efficiency factors |
-| `ups_sizing_calculator` | IEEE 1184, IEC 62040 | Standard revision cycle |
-| `power_distribution_design` | NEC 2023, IEEE 3001 | NEC adoption; IEEE 3001 data center power series updates |
-| `cooling_load_calculator` | ASHRAE 55, ASHRAE 62.1 | ASHRAE annual edition updates |
-| `server_room_design` | ASHRAE TC 9.9, TIA-942 | New ASHRAE TC 9.9 white paper releases (annual) |
-| `network_infrastructure_design` | TIA-568, IEEE 802.3 | TIA-568-C.2 revision; 802.3 amendment ratification |
-| `security_system_design` | NFPA 731, UL 2050 | Edition changes; NC private security licensing updates |
-| `staffing_model` | BLS Occupational Handbook | BLS SOC code updates; regional wage surveys |
-| `maintenance_schedule_optimizer` | OEM documentation, NFPA 110 | OEM service bulletin changes; NFPA 110 testing intervals |
+| `full_power_analysis` | `roi_calculator` (high) | Monthly |
+| `site_readiness` | `utility_interconnect` (high) | Monthly |
+| `nc_power_package` | `nc_utility_interconnect` (high) | Monthly |
+| `sustainability_package` | `energy_procurement` (high) | Monthly |
+| `tco_deep_dive` | `tco_analyzer` (high) | Monthly |
+| `full_site_analysis` | `construction_cost` (high) | Monthly |
+| `emergency_power_package` | `ups_sizing` (medium) | Quarterly |
+| `cooling_optimization` | `chiller_sizing` (medium) | Quarterly |
 
 ---
 
-## LOW RISK — Check Annually
-*Physics-based calculations, math, engineering fundamentals — rarely changes*
+## Re-Validation Procedure
 
-| Workflow | Standards / Data Sources | What to verify |
-|---|---|---|
-| `pue_calculator` | The Green Grid PUE definition | Confirm Green Grid hasn't revised PUE methodology |
-| `cable_sizing_calculator` | NEC 310, IEEE 835 | NEC adoption cycle; ampacity table updates |
-| `voltage_drop_calculator` | NEC 647, IEEE 141 | NEC adoption cycle |
-| `load_flow_analysis` | IEEE 399 | Standard revision cycle |
-| `harmonic_distortion_analyzer` | IEEE 519-2022 | Next IEEE 519 revision cycle |
-| `grounding_system_design` | IEEE 80, NEC Article 250 | IEEE 80 revision (last 2013 — check for new edition) |
-| `lightning_protection_design` | NFPA 780, IEC 62305 | NFPA 780 edition cycle |
-| `thermal_modeling` | ASHRAE HoF, CIBSE TM55 | Fundamental physics — verify only if ASHRAE updates coefficients |
-| `structural_load_calculator` | ASCE 7-22, ACI 318 | Major code cycle changes only |
-| `subdomain_discovery` | Internal / nmap | Tool version updates; technique currency |
-| `asset_discovery` | Internal | No external standards |
-| `vulnerability_assessment` | CVE / NVD | NVD API key validity; ensure CVE feed is current |
-| `network_scan` | Internal / nmap | nmap version; NSE script updates |
-| `port_scan` | Internal / nmap | nmap version |
-| `ssl_checker` | Mozilla SSL Configuration Generator | Mozilla recommended cipher suite updates (annual) |
-| `dns_lookup` | IANA, RFC standards | No expiry |
-| `whois_lookup` | IANA RDAP | No expiry |
-| `http_headers_checker` | OWASP Secure Headers | OWASP recommendations update cycle |
-| `subdomain_takeover_checker` | Can-I-Take-Over-XYZ list | Fingerprint list updates (check quarterly in practice) |
+1. Open `orchestrator/src/canonical.ts` → `AGENT_METADATA[<agent_id>]`
+2. Cross-reference `standards` array against the actual published editions
+3. Open the matching workflow file `orchestrator/src/workflows/<agent>.ts`
+4. Audit all hardcoded numeric constants (rates, costs, factors, thresholds)
+5. Update stale values; note source and publication date in an inline comment
+6. Update `last_validated` in `AGENT_METADATA` to today's ISO date
+7. If logic changed materially, bump `version` in the `WORKFLOWS` registry in `index.ts`
+8. Run `npx tsc --noEmit` — must be clean
+9. Commit: `chore: re-validate <agent_id> against <source> <YYYY-MM-DD>`
 
 ---
 
-## How to Re-validate
+## Stale Agent Alert Thresholds
 
-1. Open the relevant Python agent file in `orchestrator/agents/`
-2. Search for hardcoded numeric values (rates, costs, factors)
-3. Cross-reference against the listed standards/sources
-4. Update values if stale
-5. Update `last_validated` field in the matching `WORKFLOWS` entry in `orchestrator/src/index.ts`
-6. Bump `version` field (e.g., `"1.0"` → `"1.1"`)
-7. Commit with message: `"chore: re-validate <workflow> against <source> <date>"`
+Add this check to your CI or a monthly cron job:
+
+```
+High-risk agents: flag if last_validated > 30 days ago
+Medium-risk agents: flag if last_validated > 90 days ago
+Low-risk agents: flag if last_validated > 365 days ago
+```
+
+These thresholds match the `stale_risk` field emitted in every `CanonicalResponse.data_freshness`.
 
 ---
 
-*Last full audit: 2026-03-28*
+*Checklist reflects AGENT_METADATA as of commit `bb17c4f` (2026-03-28)*

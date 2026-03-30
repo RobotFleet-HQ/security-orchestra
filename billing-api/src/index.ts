@@ -13,6 +13,7 @@ import verifyRouter from "./routes/verify.js";
 import creditPurchaseRouter, { handleCreditPurchase } from "./routes/creditPurchase.js";
 import subscriptionRouter from "./routes/subscription.js";
 import manageRouter from "./routes/manage.js";
+import adminErrorsRouter from "./routes/adminErrors.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -158,6 +159,7 @@ app.use("/subscription", subscriptionRouter);
 app.use("/audit", auditRouter);
 app.use("/contact", supportRouter);
 app.use("/dashboard", dashboardRouter);
+app.use("/admin/errors", adminErrorsRouter);
 app.use("/manage", manageRouter);
 
 // ─── 404 handler — catches any unmatched route ────────────────────────────────

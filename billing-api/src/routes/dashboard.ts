@@ -436,6 +436,13 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div id="tickets-empty" class="empty" style="display:none">No support tickets</div>
     </div>
 
+    <!-- System Errors -->
+    <div class="panel">
+      <h2>System Errors <span id="sys-err-badge" class="badge" style="display:none"></span></h2>
+      <div id="sys-err-groups" style="display:flex;flex-direction:column;gap:16px;"></div>
+      <div id="sys-err-empty" class="empty" style="display:none">No errors recorded</div>
+    </div>
+
     <!-- User Lookup -->
     <div class="panel">
       <h2>User Lookup</h2>
@@ -610,6 +617,74 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 
     loadData();
     setInterval(loadData, 30000);
+
+    // ── System Errors panel ──────────────────────────────────────────────────
+    async function loadErrors() {
+      try {
+        var resp = await fetch('/admin/errors');
+        if (!resp.ok) { return; }
+        var d = await resp.json();
+        renderErrors2(d);
+      } catch(e) { /* non-fatal */ }
+    }
+    loadErrors();
+    setInterval(loadErrors, 30000);
+
+    function renderErrors2(d) {
+      var container = document.getElementById('sys-err-groups');
+      var empty     = document.getElementById('sys-err-empty');
+      var badge     = document.getElementById('sys-err-badge');
+
+      var groups = [
+        { key: 'failed_calls',     label: 'Failed Calls',     highlight: false },
+        { key: 'timed_out_chains', label: 'Slow Chains (>' + (d.chain_timeout_threshold_ms/1000) + 's)', highlight: false },
+        { key: 'stale_refusals',   label: 'Stale Refusals',   highlight: true  },
+        { key: 'billing_failures', label: 'Billing Failures',  highlight: true  },
+      ];
+
+      var totalErrors = groups.reduce(function(n, g) { return n + (d[g.key] || []).length; }, 0);
+      if (totalErrors === 0) {
+        container.innerHTML = '';
+        empty.style.display = '';
+        badge.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      badge.textContent = totalErrors;
+      badge.style.display = '';
+
+      container.innerHTML = groups.map(function(g) {
+        var rows = d[g.key] || [];
+        var borderColor = g.highlight ? '#f85149' : '#30363d';
+        var tableRows = rows.map(function(e) {
+          return '<tr>' +
+            '<td class="ts">'   + fmtTsShort(e.timestamp)       + '</td>' +
+            '<td class="mono">' + esc(e.user_id || '—')          + '</td>' +
+            '<td>'              + esc(e.agent_id || '—')          + '</td>' +
+            '<td>'              + esc(e.action)                   + '</td>' +
+            '<td>'              + esc(e.transport || '—')         + '</td>' +
+            '<td class="detail-cell" title="' + esc(e.error_message || '') + '">' + esc(e.error_message || '—') + '</td>' +
+            '<td class="ts">'   + (e.duration_ms != null ? e.duration_ms + 'ms' : '—') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var details = rows.length > 0
+          ? '<div class="overflow-table" style="max-height:220px;"><table>' +
+              '<thead><tr><th>Time</th><th>User</th><th>Agent/Chain</th><th>Action</th><th>Transport</th><th>Error</th><th>ms</th></tr></thead>' +
+              '<tbody>' + tableRows + '</tbody></table></div>'
+          : '<div class="empty" style="padding:12px 0">No events</div>';
+
+        return '<details style="border:1px solid ' + borderColor + ';border-radius:6px;overflow:hidden;">' +
+          '<summary style="padding:10px 14px;cursor:pointer;background:#161b22;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:' + (g.highlight && rows.length > 0 ? '#f85149' : '#e6edf3') + ';">' +
+            esc(g.label) +
+            (rows.length > 0
+              ? '<span style="background:' + (g.highlight ? '#f85149' : '#21262d') + ';color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;">' + rows.length + '</span>'
+              : '<span style="color:#484f58;font-weight:400">— none</span>') +
+          '</summary>' +
+          '<div style="padding:10px 14px;background:#0d1117;">' + details + '</div>' +
+          '</details>';
+      }).join('');
+    }
 
     async function lookupUser() {
       var userId = document.getElementById('user-search').value.trim();

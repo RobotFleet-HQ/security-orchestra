@@ -107,7 +107,19 @@ function requireAuth(): { userId: string; tier: string } {
 // ─── Logging ─────────────────────────────────────────────────────────────────
 
 function log(level: "info" | "warn" | "error", msg: string) {
-  console.error(`[orchestrator] [${level.toUpperCase()}] ${msg}`);
+  const timestamp = new Date().toISOString();
+  if (level === "warn" || level === "error") {
+    // Structured JSON — Render's log search indexes these fields.
+    // Query by: severity:WARN, severity:ERROR
+    console.error(JSON.stringify({
+      severity:  level === "error" ? "ERROR" : "WARN",
+      timestamp,
+      service:   "orchestrator",
+      message:   msg,
+    }));
+  } else {
+    console.error(`[orchestrator] [INFO] ${timestamp} ${msg}`);
+  }
 }
 
 // ─── Workflows ────────────────────────────────────────────────────────────────

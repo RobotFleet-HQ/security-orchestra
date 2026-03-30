@@ -1,13 +1,13 @@
 # Security Orchestra
 
-56 specialized AI agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure.
+50+ specialized AI agents & 8 compound chains for data center critical power infrastructure.
 
 [![Smithery](https://smithery.ai/badge/@RobotFleet-HQ/security-orchestra)](https://smithery.ai/servers/@RobotFleet-HQ/security-orchestra)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green)](https://modelcontextprotocol.io)
 [![A2A Compatible](https://img.shields.io/badge/A2A-Compatible-blue)](https://google.github.io/A2A/)
 [![Transport](https://img.shields.io/badge/Transport-SSE%20%7C%20stdio-orange)](https://security-orchestra-orchestrator.onrender.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Agents](https://img.shields.io/badge/Tools-64-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
+[![Agents](https://img.shields.io/badge/Tools-50plus-purple)](https://github.com/RobotFleet-HQ/security-orchestra)
 
 ---
 
@@ -42,7 +42,7 @@ npx -y @smithery/cli@latest mcp add robotfleet-hq/security-orchestra
 
 Install via [Smithery](https://smithery.ai/servers/@RobotFleet-HQ/security-orchestra).
 
-Restart your MCP client. All 64 tools are immediately available.
+Restart your MCP client. All tools are immediately available.
 
 ---
 
@@ -144,17 +144,17 @@ Every tool call returns a `CanonicalResponse` — same shape regardless of proto
 
 ### Latency
 
-All 56 individual agents are **deterministic TypeScript calculations** — no LLM calls, no external I/O.
+All 50+ individual agents are **deterministic TypeScript calculations** — no LLM calls, no external I/O.
 
 | Context | Description | Latency |
 |---|---|---|
-| `deterministic_calc` | All 56 individual agents | < 100 ms |
+| `deterministic_calc` | All 50+ individual agents | < 100 ms |
 | `multi_agent_chain` | All 8 compound chains | 0.5-5 s |
 | `cached` | Cached result | < 10 ms |
 
 ---
 
-## All 56 Agents
+## All 50+ Agents
 
 ### Power & Electrical
 
@@ -263,7 +263,7 @@ All 56 individual agents are **deterministic TypeScript calculations** — no LL
 |                                                      |
 |  Auth > Rate Limit > Validation > Credit Gate > Run  |
 |                                                      |
-|  56 agents + 8 chains = 64 tools                    |
+|  50+ agents & 8 chains                    |
 |  Protocols: MCP, A2A, OpenAI, AG-UI, ACP, AGNTCY   |
 +----------+----------------------------+--------------+
            | HTTP (credit check/deduct) | write
@@ -339,7 +339,7 @@ cd billing-api  && npm start       # Terminal 2
 
 ```
 security-orchestra/
-├── orchestrator/              # MCP server — 64 tools
+├── orchestrator/              # MCP server — 50+ agents & 8 chains
 │   └── src/
 │       ├── index.ts           # Entry point, tool registry
 │       ├── auth.ts            # API key auth
@@ -349,7 +349,7 @@ security-orchestra/
 │       ├── canonical.ts       # CanonicalResponse shape
 │       └── audit.ts           # Audit log
 ├── billing-api/               # HTTP API — users, credits, Stripe
-├── [agent]-agent/             # 56 individual agent modules
+├── [agent]-agent/             # 50+ individual agent modules
 ├── smithery.yaml              # Smithery registry config
 ├── mcp.json                   # MCP registry manifest
 └── LICENSE                    # MIT

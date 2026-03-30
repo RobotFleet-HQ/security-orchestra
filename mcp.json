@@ -2,7 +2,7 @@
   "name": "security-orchestra",
   "version": "1.0.0",
   "mcpName": "io.github.RobotFleet-HQ/security-orchestra",
-  "description": "56 specialized AI agents + 8 compound chains = 64 callable tools for data center critical power infrastructure",
+  "description": "50+ specialized AI agents & 8 compound chains for data center critical power infrastructure",
   "homepage": "https://github.com/RobotFleet-HQ/security-orchestra",
   "license": "MIT",
   "mcpServers": {

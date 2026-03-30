@@ -1,6 +1,6 @@
 # Security Orchestra — Agent Validation Checklist
 
-**Last full audit:** 2026-03-28 · **Agent count:** 56 specialized agents + 8 compound chains
+**Last full audit:** 2026-03-28 · **Agent count:** 50+ specialized agents + 8 compound chains
 
 Risk classifications and standards refs are the authoritative source in
 `orchestrator/src/staleness.ts → STALENESS`. This checklist is
@@ -8,7 +8,7 @@ generated from that registry — update both together.
 
 ---
 
-## All 56 Agents — Stale Risk Quick Reference
+## All 50+ Agents — Stale Risk Quick Reference
 
 | Agent | stale_risk | validated_at | pricing |
 |---|---|---|---|

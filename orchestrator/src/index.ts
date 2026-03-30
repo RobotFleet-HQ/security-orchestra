@@ -2260,7 +2260,7 @@ async function main() {
     // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
     const AGENT_CARD = {
       name: "Security Orchestra",
-      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
+      description: "50+ specialized agents & 8 compound chains for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
       url: "https://security-orchestra-orchestrator.onrender.com",
       version: "1.0.0",
       provider: {
@@ -2491,12 +2491,12 @@ async function main() {
     const ACP_DESCRIPTOR = {
       name: "Security Orchestra",
       version: "1.0",
-      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure",
+      description: "50+ specialized agents & 8 compound chains for data center critical power infrastructure",
       url: "https://security-orchestra-orchestrator.onrender.com/acp",
       agents: [
         {
           name: "security-orchestra",
-          description: "Routes to any of the 56 specialized agents + 8 compound chains = 64 total callable tools",
+          description: "Routes to any of the 50+ specialized agents & 8 compound chains",
           metadata: {
             framework: "custom",
             capabilities: ["generator_sizing", "nfpa_110", "ups_sizing", "pue", "tco", "tier_certification", "multi_agent_chains"],
@@ -3256,7 +3256,7 @@ async function main() {
           reply:
             "I couldn't determine which agent to use. Try being more specific, e.g. " +
             "\"size a generator for 500kW\" or \"calculate PUE for a 2MW IT load\". " +
-            "See GET /agents for all available tools (56 specialized agents + 8 compound chains = 64 total callable tools).",
+            "See GET /agents for all available tools (50+ specialized agents & 8 compound chains).",
           agent: null,
         });
         return;

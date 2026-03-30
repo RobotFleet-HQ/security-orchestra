@@ -8,7 +8,7 @@ actual `CanonicalResponse` shapes for each. All shapes are accurate to the curre
 
 ## 1. Timeout / Workflow Error
 
-All 56 individual agents are pure TypeScript calculations with no I/O — they do not
+All 50+ individual agents are pure TypeScript calculations with no I/O — they do not
 time out. If a workflow throws an unhandled exception (e.g. a calculation receives
 out-of-range input it cannot handle), the MCP handler wraps it as an
 `ErrorCode.InternalError` and the response takes the error shape below.

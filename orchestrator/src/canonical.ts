@@ -80,7 +80,7 @@ export function toCanonical(
       };
 
   // Default: chains are multi_agent_chain; everything else is deterministic_calc
-  // (all 56 individual agents are pure TypeScript calculations — no LLM calls).
+  // (all 50+ individual agents are pure TypeScript calculations — no LLM calls).
   const executionContext: ExecutionContext =
     meta.executionContext ??
     (agentId.startsWith("chain:") ? "multi_agent_chain" : "deterministic_calc");

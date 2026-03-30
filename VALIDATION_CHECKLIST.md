@@ -3,8 +3,74 @@
 **Last full audit:** 2026-03-28 · **Agent count:** 56 specialized agents + 8 compound chains
 
 Risk classifications and standards refs are the authoritative source in
-`orchestrator/src/canonical.ts → AGENT_METADATA`. This checklist is
+`orchestrator/src/staleness.ts → STALENESS`. This checklist is
 generated from that registry — update both together.
+
+---
+
+## All 56 Agents — Stale Risk Quick Reference
+
+| Agent | stale_risk | validated_at | pricing |
+|---|---|---|---|
+| `subdomain_discovery` | low | 2026-03-28 | — |
+| `asset_discovery` | low | 2026-03-28 | — |
+| `vulnerability_assessment` | low | 2026-03-28 | — |
+| `generator_sizing` | medium | 2026-03-28 | ✓ |
+| `utility_interconnect` | **high** | 2026-03-28 | ✓ |
+| `pue_calculator` | low | 2026-03-28 | — |
+| `construction_cost` | **high** | 2026-03-28 | ✓ |
+| `nfpa_110_checker` | medium | 2026-03-28 | — |
+| `ats_sizing` | medium | 2026-03-28 | ✓ |
+| `ups_sizing` | medium | 2026-03-28 | ✓ |
+| `fuel_storage` | medium | 2026-03-28 | ✓ |
+| `cooling_load` | low | 2026-03-28 | — |
+| `power_density` | medium | 2026-03-28 | — |
+| `redundancy_validator` | medium | 2026-03-28 | — |
+| `harmonic_analysis` | low | 2026-03-28 | — |
+| `voltage_drop` | low | 2026-03-28 | — |
+| `demand_response` | **high** | 2026-03-28 | ✓ |
+| `environmental_impact` | medium | 2026-03-28 | — |
+| `fire_suppression` | medium | 2026-03-28 | ✓ |
+| `incentive_finder` | **high** | 2026-03-28 | ✓ |
+| `noise_compliance` | low | 2026-03-28 | — |
+| `permit_timeline` | medium | 2026-03-28 | — |
+| `roi_calculator` | **high** | 2026-03-28 | ✓ |
+| `tco_analyzer` | **high** | 2026-03-28 | ✓ |
+| `fiber_connectivity` | **high** | 2026-03-28 | ✓ |
+| `site_scoring` | low | 2026-03-28 | — |
+| `water_availability` | medium | 2026-03-28 | — |
+| `network_topology` | low | 2026-03-28 | — |
+| `bandwidth_sizing` | low | 2026-03-28 | — |
+| `latency_calculator` | low | 2026-03-28 | — |
+| `ip_addressing` | low | 2026-03-28 | — |
+| `dns_architecture` | low | 2026-03-28 | — |
+| `bgp_peering` | low | 2026-03-28 | — |
+| `physical_security` | **high** | 2026-03-28 | ✓ |
+| `biometric_design` | low | 2026-03-28 | — |
+| `surveillance_coverage` | medium | 2026-03-28 | ✓ |
+| `cybersecurity_controls` | medium | 2026-03-28 | — |
+| `compliance_checker` | medium | 2026-03-28 | — |
+| `chiller_sizing` | medium | 2026-03-28 | ✓ |
+| `crac_vs_crah` | medium | 2026-03-28 | ✓ |
+| `airflow_modeling` | low | 2026-03-28 | — |
+| `humidification` | low | 2026-03-28 | — |
+| `economizer_analysis` | medium | 2026-03-28 | — |
+| `construction_timeline` | medium | 2026-03-28 | — |
+| `commissioning_plan` | medium | 2026-03-28 | ✓ |
+| `maintenance_schedule` | low | 2026-03-28 | ✓ |
+| `capacity_planning` | low | 2026-03-28 | — |
+| `sla_calculator` | low | 2026-03-28 | — |
+| `change_management` | low | 2026-03-28 | — |
+| `carbon_footprint` | **high** | 2026-03-28 | — |
+| `solar_feasibility` | **high** | 2026-03-28 | ✓ |
+| `battery_storage` | **high** | 2026-03-28 | ✓ |
+| `energy_procurement` | **high** | 2026-03-28 | ✓ |
+| `tier_certification_checker` | medium | 2026-03-28 | — |
+| `nc_utility_interconnect` | **high** | 2026-03-28 | ✓ |
+
+**Summary:** 13 high · 20 medium · 22 low — 27 agents emit `pricing_note`
+
+*Source of truth: `orchestrator/src/staleness.ts`. Update `validated_at` there after each re-audit.*
 
 ---
 

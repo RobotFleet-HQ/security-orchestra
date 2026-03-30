@@ -1407,23 +1407,9 @@ async function dispatchWorkflow(
   const wf = WORKFLOWS[name];
   const taskId = crypto.randomUUID();
   const rawResults = (result as unknown as { results: unknown }).results;
-  if (wf) {
-    return toCanonical(name, rawResults, {
-      version:        wf.version,
-      last_validated: wf.last_validated,
-      standards_refs: wf.standards_refs,
-      stale_risk:     wf.stale_risk,
-      credits:        wf.credits,
-      taskId,
-    });
-  }
-  // Fallback for workflows not in registry (e.g. mock/legacy)
   return toCanonical(name, rawResults, {
-    version:        "1.0",
-    last_validated: new Date().toISOString().slice(0, 10),
-    standards_refs: [],
-    stale_risk:     "low",
-    credits:        0,
+    version: wf?.version ?? "1.0",
+    credits: wf?.credits ?? 0,
     taskId,
   });
 }

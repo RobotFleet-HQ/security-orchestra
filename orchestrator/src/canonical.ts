@@ -17,10 +17,19 @@ export interface DataFreshness {
 
 // ─── CanonicalResponse ────────────────────────────────────────────────────────
 
+// How the result was produced — lets callers set latency expectations and
+// decide whether to show a spinner, stream, or batch.
+export type ExecutionContext =
+  | "deterministic_calc"   // pure TypeScript math; no LLM, no I/O — sub-100 ms
+  | "single_agent"         // one agent with external I/O (DB, API) — typically 200–800 ms
+  | "multi_agent_chain"    // N agents run sequentially — scales with step count; 8-step chains ~5–30 s
+  | "cached";              // result served from cache — sub-10 ms
+
 export interface CanonicalResponse {
-  agent_id:         string;   // e.g. "generator_sizing" or "chain:full_power_analysis"
-  agent_version:    string;   // semver
-  protocol_version: "1.0";   // fixed — breaking changes use a new version
+  agent_id:          string;           // e.g. "generator_sizing" or "chain:full_power_analysis"
+  agent_version:     string;           // semver
+  protocol_version:  "1.0";           // fixed — breaking changes use a new version
+  execution_context: ExecutionContext; // how the result was produced
 
   status: "success" | "error";
   result: unknown;            // workflow-specific payload; null on error
@@ -48,9 +57,10 @@ export function toCanonical(
   agentId: string,
   result:  unknown,
   meta: {
-    version: string;
-    credits: number;
-    taskId:  string;
+    version:           string;
+    credits:           number;
+    taskId:            string;
+    executionContext?: ExecutionContext;
   },
   error?: { code: string; message: string }
 ): CanonicalResponse {
@@ -69,12 +79,19 @@ export function toCanonical(
         stale_risk:    "low" as const,
       };
 
+  // Default: chains are multi_agent_chain; everything else is deterministic_calc
+  // (all 56 individual agents are pure TypeScript calculations — no LLM calls).
+  const executionContext: ExecutionContext =
+    meta.executionContext ??
+    (agentId.startsWith("chain:") ? "multi_agent_chain" : "deterministic_calc");
+
   const resp: CanonicalResponse = {
-    agent_id:         agentId,
-    agent_version:    meta.version,
-    protocol_version: "1.0",
-    status:           error ? "error" : "success",
-    result:           error ? null : result,
+    agent_id:          agentId,
+    agent_version:     meta.version,
+    protocol_version:  "1.0",
+    execution_context: executionContext,
+    status:            error ? "error" : "success",
+    result:            error ? null : result,
     data_freshness,
     a2a: {
       task_id:           meta.taskId,

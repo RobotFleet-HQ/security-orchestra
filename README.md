@@ -59,11 +59,12 @@ Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI
 
 ```jsonc
 {
-  "agent_id":         "generator_sizing",   // exact workflow/chain key
-  "agent_version":    "1.0",
-  "protocol_version": "1.0",
+  "agent_id":          "generator_sizing",        // exact workflow/chain key
+  "agent_version":     "1.0",
+  "protocol_version":  "1.0",
+  "execution_context": "deterministic_calc",      // see table below
 
-  "status": "success",                      // "success" | "error"
+  "status": "success",                            // "success" | "error"
   "result": { /* workflow-specific data */ },
 
   // Present only when status === "error"
@@ -71,11 +72,11 @@ Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI
   "error_message": "Human-readable description",
 
   "data_freshness": {
-    "last_validated": "2026-03-28",         // ISO date of last logic audit
-    "standards_refs": ["NFPA 110:2022"],    // authoritative sources
-    "stale_risk":     "medium",             // "low" | "medium" | "high"
-    "pricing_note":   "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement."
-    //                ↑ only present when agent result contains pricing data
+    "validated_at":  "2026-03-28",                // ISO date of last logic audit
+    "standards_ref": ["NFPA 110:2022"],           // authoritative sources
+    "stale_risk":    "medium",                    // "low" | "medium" | "high"
+    "pricing_note":  "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement."
+    //               ↑ only present when agent result contains pricing data
   },
 
   "a2a": {
@@ -90,6 +91,19 @@ Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI
 **Chain calls** (`POST /chain`) return the same shape with `agent_id: "chain:<chain_id>"` and `result` containing `{ chain, steps_completed, results[], summary }`.
 
 **Knowledge freshness:** `stale_risk` reflects data volatility — `high` means pricing or utility rates that change quarterly, `low` means physics-based constants. See [`VALIDATION_CHECKLIST.md`](VALIDATION_CHECKLIST.md) for per-agent validation cadence.
+
+### execution_context — latency expectations
+
+All 56 individual agents are deterministic TypeScript calculations with no LLM calls and no external I/O.
+
+| `execution_context`  | What it means | Typical latency |
+|---|---|---|
+| `deterministic_calc` | Pure TypeScript math — all 56 individual agents | < 100 ms |
+| `single_agent`       | One agent with external I/O (DB lookup, API call) | 200–800 ms |
+| `multi_agent_chain`  | N agents run sequentially — all 8 compound chains | ~0.5–5 s (scales with step count) |
+| `cached`             | Result served from cache | < 10 ms |
+
+The 8 compound chains (e.g. `full_power_analysis`, `site_feasibility_complete`) run multiple deterministic agents sequentially and return under the `multi_agent_chain` context. A typical 8-step chain completes in under 5 s on the hosted Render instance.
 
 ---
 

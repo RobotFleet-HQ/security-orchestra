@@ -757,12 +757,7 @@ async function runChain(
   initialParams: Record<string, string>,
   _userId: string,
   _tier: string
-): Promise<{
-  chain: string;
-  steps_completed: number;
-  results: Array<{ step: string; result: unknown; error?: string }>;
-  summary: string;
-}> {
+): Promise<CanonicalResponse> {
   const chain = CHAINS[chainId];
   const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
   let runningParams = applyChainDefaults({ ...initialParams });
@@ -787,7 +782,12 @@ async function runChain(
     .map((s) => (s.error ? `${s.step}: FAILED — ${s.error}` : `${s.step}: OK`))
     .join("\n");
 
-  return { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
+  const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
+  return toCanonical(`chain:${chainId}`, payload, {
+    version: "1.0",
+    credits: chain.credits,
+    taskId:  crypto.randomUUID(),
+  });
 }
 
 async function dispatchWorkflow(
@@ -2961,14 +2961,13 @@ async function main() {
 
       if (billingEnabled) {
         const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
-        (chainResult as Record<string, unknown>).credits_used      = chain.credits;
-        (chainResult as Record<string, unknown>).credits_remaining = remaining;
+        (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
       }
 
       logAudit({
         user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
         result: "success", duration_ms: Date.now() - startTime,
-        details: { steps_completed: chainResult.steps_completed, tier: keyRow.tier },
+        details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier },
       });
 
       res.json(chainResult);
@@ -3212,8 +3211,7 @@ async function main() {
           const chainResult = await runChain(chatChainId, detectedParams, keyRow.user_id, keyRow.tier);
           if (billingEnabledChat) {
             const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chatChainId}`);
-            (chainResult as Record<string, unknown>).credits_used      = chain.credits;
-            (chainResult as Record<string, unknown>).credits_remaining = remaining;
+            (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
           }
           logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: chatChainId,
             result: "success", duration_ms: Date.now() - chainStartTime, details: { tier: keyRow.tier } });

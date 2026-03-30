@@ -18,7 +18,7 @@ export interface DataFreshness {
 export interface CanonicalResponse {
   agent_id:         string;        // e.g. "generator_sizing"
   agent_version:    string;        // semver
-  protocol_version: string;        // always "1.0"
+  protocol_version: "1.0";          // fixed — breaking changes use a new version
 
   status:        "success" | "error";
   result:        unknown;          // workflow-specific payload; null on error

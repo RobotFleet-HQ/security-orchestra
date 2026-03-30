@@ -16,7 +16,7 @@ export interface AgntcyDeps {
   chains:    Record<string, { name: string; description: string; credits: number; steps: string[] }>;
   resolveKeyRow:           (req: express.Request) => Promise<{ user_id: string; tier: string; revoked: number } | undefined>;
   dispatchWorkflow:        (name: string, params: Record<string, string>) => Promise<CanonicalResponse>;
-  runChain:                (chainId: string, params: Record<string, string>, userId: string, tier: string) => Promise<unknown>;
+  runChain:                (chainId: string, params: Record<string, string>, userId: string, tier: string) => Promise<CanonicalResponse>;
   validateWorkflowParams:  (name: string, params: Record<string, string>) => Record<string, string>;
   detectWorkflowFromText:  (text: string) => { chainId?: string; workflowName: string | null; params: Record<string, string> };
   enforceRateLimit:        (userId: string, tier: string) => unknown;

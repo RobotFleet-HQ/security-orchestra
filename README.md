@@ -46,6 +46,50 @@ Restart Claude Desktop. All 64 tools (56 specialized agents + 8 compound chains)
 |---|---|---|
 | **MCP** (Model Context Protocol) | ✅ Live | Claude Desktop, Claude Code, any MCP client |
 | **A2A** (Agent2Agent Protocol) | ✅ Live | Agent-to-agent discovery and task delegation |
+| **AG-UI** | ✅ Live | Streaming agent UI — `POST /agui` |
+| **ACP / BeeAI** | ✅ Live | IBM agent communication — `POST /acp/runs` |
+| **AGNTCY / OASF** | ✅ Live | Per-agent ACP endpoints + OASF manifests |
+| **OpenAI Agents SDK** | ✅ Live | Tool-call format — `POST /openai/run` |
+
+---
+
+## Response Contract
+
+Every workflow and chain call — regardless of transport (MCP, A2A, REST, AG-UI, ACP) — returns a `CanonicalResponse` payload. The response shape is defined in [`orchestrator/src/canonical.ts`](orchestrator/src/canonical.ts).
+
+```jsonc
+{
+  "agent_id":         "generator_sizing",   // exact workflow/chain key
+  "agent_version":    "1.0",
+  "protocol_version": "1.0",
+
+  "status": "success",                      // "success" | "error"
+  "result": { /* workflow-specific data */ },
+
+  // Present only when status === "error"
+  "error_code":    "WORKFLOW_FAILED",
+  "error_message": "Human-readable description",
+
+  "data_freshness": {
+    "last_validated": "2026-03-28",         // ISO date of last logic audit
+    "standards_refs": ["NFPA 110:2022"],    // authoritative sources
+    "stale_risk":     "medium",             // "low" | "medium" | "high"
+    "pricing_note":   "Cost estimates based on 2026 Q1 market data. Verify current pricing before procurement."
+    //                ↑ only present when agent result contains pricing data
+  },
+
+  "a2a": {
+    "task_id":           "uuid-v4",
+    "input_tokens_used": 0,
+    "credits_consumed":  5,
+    "callable_by": ["google-a2a", "openai-agents", "ag-ui", "acp", "agntcy"]
+  }
+}
+```
+
+**Chain calls** (`POST /chain`) return the same shape with `agent_id: "chain:<chain_id>"` and `result` containing `{ chain, steps_completed, results[], summary }`.
+
+**Knowledge freshness:** `stale_risk` reflects data volatility — `high` means pricing or utility rates that change quarterly, `low` means physics-based constants. See [`VALIDATION_CHECKLIST.md`](VALIDATION_CHECKLIST.md) for per-agent validation cadence.
 
 ---
 

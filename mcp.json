@@ -1,7 +1,8 @@
 {
   "name": "security-orchestra",
   "version": "1.0.0",
-  "description": "Data center power infrastructure intelligence - generator sizing with industry-standard specs and utility interconnect modeling for major US power providers.",
+  "mcpName": "io.github.RobotFleet-HQ/security-orchestra",
+  "description": "56 specialized AI agents + 8 compound chains = 64 callable tools for data center critical power infrastructure",
   "homepage": "https://github.com/RobotFleet-HQ/security-orchestra",
   "license": "MIT",
   "mcpServers": {
@@ -10,16 +11,28 @@
       "transport": "sse",
       "tools": [
         {
+          "name": "get_capabilities",
+          "description": "List all available agents, chains, and their parameters. Returns the full tool catalog with descriptions, required inputs, credit costs, and standards references."
+        },
+        {
+          "name": "subdomain_discovery",
+          "description": "Discover subdomains for a target domain using DNS brute-force, certificate transparency, and passive sources"
+        },
+        {
+          "name": "asset_discovery",
+          "description": "Map IP addresses, open ports, technologies, and cloud assets for a target domain"
+        },
+        {
+          "name": "vulnerability_assessment",
+          "description": "Run vulnerability scans against a target and return prioritized findings with remediation guidance"
+        },
+        {
           "name": "generator_sizing",
-          "description": "Size generators for data center loads with industry-standard compliance"
+          "description": "Size generators for data center loads with industry-standard compliance. Returns genset kVA, fuel consumption, tank size, runtime, ATS sizing, and cost estimates."
         },
         {
           "name": "utility_interconnect",
-          "description": "Analyze utility interconnect for 9 major US utilities"
-        },
-        {
-          "name": "nc_utility_interconnect",
-          "description": "Analyze utility interconnect requirements for North Carolina power provider with detailed timeline, cost estimates, and regional regulatory requirements"
+          "description": "Analyze utility interconnect requirements for major US power providers. Returns per-load-size timelines, deposit $/kW ranges, first-year cost, competitive intel, and constraint warnings."
         },
         {
           "name": "pue_calculator",
@@ -31,15 +44,15 @@
         },
         {
           "name": "nfpa_110_checker",
-          "description": "Check emergency generator compliance per NFPA 110 Level 1 and Level 2 requirements. Validates fuel capacity, ATS transfer time, runtime hours, and returns compliance status with violation details."
+          "description": "Check emergency generator compliance per NFPA 110 Level 1 and Level 2 requirements. Validates fuel capacity, ATS transfer time, runtime hours, and returns compliance status with violation details and remediation steps."
         },
         {
           "name": "ats_sizing",
-          "description": "Size automatic transfer switches per NEC Articles 700, 701, and 702. Calculates load current with 125% continuous factor, selects standard ATS ratings, and returns enclosure and installation requirements."
+          "description": "Size automatic transfer switches per NEC Articles 700, 701, and 702. Calculates load current, applies 125% continuous load factor, selects standard ATS ratings, and returns enclosure options and installation requirements."
         },
         {
           "name": "ups_sizing",
-          "description": "Size uninterruptible power supplies per IEEE 485 and 1184. Calculates kVA, selects battery strings (VRLA or Li-ion), determines runtime for N/N+1/2N configurations, and provides cost estimates."
+          "description": "Size uninterruptible power supplies per IEEE 485 and 1184. Calculates kVA, selects battery strings (VRLA or Li-ion), determines runtime across N/N+1/2N configurations, and provides cost estimates."
         },
         {
           "name": "fuel_storage",
@@ -47,7 +60,7 @@
         },
         {
           "name": "cooling_load",
-          "description": "Calculate data center cooling load per ASHRAE TC 9.9. Computes IT heat, UPS losses, envelope gains, converts to tons, sizes CRAC/CRAH units with N+1 redundancy."
+          "description": "Calculate data center cooling load per ASHRAE TC 9.9. Computes IT heat, UPS losses, envelope gains, converts to tons, sizes CRAC/CRAH units with N+1 redundancy, and checks ASHRAE thermal envelopes."
         },
         {
           "name": "power_density",
@@ -55,7 +68,203 @@
         },
         {
           "name": "redundancy_validator",
-          "description": "Validate data center redundancy design against Uptime Institute Tier I–IV standards. Identifies single points of failure, assesses concurrent maintainability, and maps achieved tier with gaps to next level."
+          "description": "Validate data center redundancy design against Uptime Institute Tier I-IV standards. Identifies single points of failure, assesses concurrent maintainability, and maps achieved tier with gaps to next level."
+        },
+        {
+          "name": "demand_response",
+          "description": "Model utility demand response program participation for backup generator fleets. Calculates curtailment capacity, annual revenue, response time requirements, and program eligibility by utility."
+        },
+        {
+          "name": "environmental_impact",
+          "description": "Assess environmental impact of data center generator operations. Calculates NOx/PM2.5/CO2 emissions per USEPA AP-42, air permit thresholds, CEQA/NEPA triggers, and mitigation requirements."
+        },
+        {
+          "name": "fire_suppression",
+          "description": "Design clean agent fire suppression systems per NFPA 2001 and NFPA 75. Calculates agent quantity (FM-200, Novec 1230, Inergen, CO2), cylinder count, nozzle layout, and discharge time."
+        },
+        {
+          "name": "incentive_finder",
+          "description": "Identify federal and state financial incentives for data center projects. Analyzes IRA tax credits, state grants, utility rebates, enterprise zone benefits, and job creation incentives by state."
+        },
+        {
+          "name": "noise_compliance",
+          "description": "Analyze generator noise compliance with local ordinances. Calculates sound pressure levels at property line using inverse-square law, assesses zoning compliance, and recommends mitigation."
+        },
+        {
+          "name": "permit_timeline",
+          "description": "Estimate permitting timeline and critical path for data center construction. Analyzes building, electrical, mechanical, fire, and environmental permits by jurisdiction type and project scope."
+        },
+        {
+          "name": "roi_calculator",
+          "description": "Calculate return on investment for data center capital projects. Computes NPV, IRR, simple payback, discounted payback, and cumulative cash flow using DCF analysis."
+        },
+        {
+          "name": "tco_analyzer",
+          "description": "Analyze total cost of ownership for data center operations. Breaks down power, cooling, labor, hardware refresh, maintenance, and facility costs over a multi-year horizon."
+        },
+        {
+          "name": "fiber_connectivity",
+          "description": "Analyze fiber connectivity options and costs for a data center location. Evaluates carrier diversity, dark fiber vs lit services, latency to key markets, and redundancy paths."
+        },
+        {
+          "name": "harmonic_analysis",
+          "description": "Perform harmonic analysis per IEEE 519 for data center power systems. Calculates total harmonic distortion (THD), voltage THD, and recommends filters and transformer derating."
+        },
+        {
+          "name": "site_scoring",
+          "description": "Score and rank candidate data center sites across power, connectivity, risk, regulatory, and cost dimensions. Accepts a JSON array of site objects with attributes."
+        },
+        {
+          "name": "voltage_drop",
+          "description": "Calculate voltage drop for data center power distribution circuits per NEC 210.19. Computes percent drop, conductor sizing recommendations, and NEC 647 compliance for sensitive loads."
+        },
+        {
+          "name": "water_availability",
+          "description": "Assess water availability and consumption for data center cooling systems. Estimates daily/annual consumption, water stress risk, permit requirements, and recycled water options."
+        },
+        {
+          "name": "network_topology",
+          "description": "Design spine-leaf network topology for data center switching fabric. Calculates spine/leaf switch counts, uplink ratios, oversubscription, port requirements, and cabling inventory."
+        },
+        {
+          "name": "bandwidth_sizing",
+          "description": "Size north-south and east-west bandwidth for data center network fabric. Estimates aggregate throughput, uplink capacity, peering requirements, and recommends fabric speed."
+        },
+        {
+          "name": "latency_calculator",
+          "description": "Calculate propagation latency for data center interconnects. Computes one-way and round-trip delay by medium (fiber, copper, wireless, microwave) and hop count."
+        },
+        {
+          "name": "ip_addressing",
+          "description": "Design IP addressing and VLAN architecture for data center networks. Calculates subnet sizes with growth buffer, prefix lengths, VLAN counts, and management IP allocations."
+        },
+        {
+          "name": "dns_architecture",
+          "description": "Design DNS architecture for data center environments. Recommends authoritative and recursive server counts, anycast deployment, DNSSEC requirements, and QPS capacity."
+        },
+        {
+          "name": "bgp_peering",
+          "description": "Design BGP peering architecture for data center edge routing. Calculates route reflector requirements, memory for full tables, session counts, and convergence estimates."
+        },
+        {
+          "name": "physical_security",
+          "description": "Design physical security systems for data centers per Uptime Institute tier standards. Calculates security zones, guard staffing, camera counts, access control points, and annual cost."
+        },
+        {
+          "name": "biometric_design",
+          "description": "Design biometric access control systems for data center security zones. Calculates reader counts, FAR/FRR performance, throughput capacity, and enrollment database sizing."
+        },
+        {
+          "name": "surveillance_coverage",
+          "description": "Design CCTV surveillance coverage for data center facilities. Calculates camera counts, field of view, storage requirements, and retention compliance for each resolution."
+        },
+        {
+          "name": "cybersecurity_controls",
+          "description": "Map cybersecurity controls for data center compliance frameworks. Analyzes SOC 2, ISO 27001, NIST CSF, PCI DSS, and FedRAMP control requirements, SIEM sizing, and implementation effort."
+        },
+        {
+          "name": "compliance_checker",
+          "description": "Check multi-framework compliance posture for data center operations. Identifies control overlaps, gaps, and prioritized remediation across simultaneous compliance programs."
+        },
+        {
+          "name": "chiller_sizing",
+          "description": "Size water-cooled and air-cooled chillers for data center cooling plants. Calculates cooling tons, chiller plant configuration, N+1/2N sizing, and annual energy consumption."
+        },
+        {
+          "name": "crac_vs_crah",
+          "description": "Compare CRAC vs CRAH unit selection for data center cooling. Analyzes EER/COP differences, annual energy cost, water availability constraints, and recommends optimal configuration."
+        },
+        {
+          "name": "airflow_modeling",
+          "description": "Model airflow patterns for data center hot/cold aisle containment. Estimates CFM requirements, delta-T across racks, bypass airflow percentage, and hotspot risk by containment type."
+        },
+        {
+          "name": "humidification",
+          "description": "Design humidification and dehumidification systems per ASHRAE A1 envelope. Calculates moisture load, equipment capacity, energy consumption, and seasonal control strategy."
+        },
+        {
+          "name": "economizer_analysis",
+          "description": "Analyze economizer free-cooling potential for data center locations. Estimates annual free-cooling hours by climate, blended PUE improvement, energy savings, and simple payback."
+        },
+        {
+          "name": "construction_timeline",
+          "description": "Estimate construction timeline for data center development projects. Provides phase-by-phase schedule (design, permits, civil, MEP, commissioning) with state-specific regulatory modifiers."
+        },
+        {
+          "name": "commissioning_plan",
+          "description": "Generate commissioning plan per ASHRAE Guideline 1.2 for data center infrastructure. Calculates Level 1-4 test hours, witness testing requirements, and integrated systems testing scope."
+        },
+        {
+          "name": "maintenance_schedule",
+          "description": "Build annual preventive maintenance schedule for data center infrastructure. Calculates PM labor hours, intervals, and annual cost for generators, UPS, cooling, and electrical systems."
+        },
+        {
+          "name": "capacity_planning",
+          "description": "Project data center capacity runway and expansion trigger points. Uses logarithmic growth modeling to forecast years to 80% utilization, critical threshold, and end-of-design-life load."
+        },
+        {
+          "name": "sla_calculator",
+          "description": "Calculate SLA availability metrics against Uptime Institute tier benchmarks. Computes allowed downtime minutes/year, MTTR budget, and compliance status for target availability percentage."
+        },
+        {
+          "name": "change_management",
+          "description": "Design change management process for data center operations. Defines CAB frequency, change windows, rollback SLA, and staffing model based on tier classification and change volume."
+        },
+        {
+          "name": "carbon_footprint",
+          "description": "Calculate data center carbon footprint per GHG Protocol Scope 2. Computes location-based and market-based emissions using eGRID factors, renewable energy certificates, and carbon intensity."
+        },
+        {
+          "name": "solar_feasibility",
+          "description": "Assess rooftop solar PV feasibility for data center facilities. Calculates system capacity, annual generation, energy offset percentage, IRA tax credit (30%), and simple payback."
+        },
+        {
+          "name": "battery_storage",
+          "description": "Size battery energy storage systems for data center applications. Supports Li-ion, LFP, VRLA, and flow chemistries for UPS backup, peak shaving, demand response, and islanding use cases."
+        },
+        {
+          "name": "energy_procurement",
+          "description": "Analyze energy procurement strategies for large data center loads. Compares utility tariffs, PPAs, green tariffs, and direct access contracts with estimated annual cost and renewable content."
+        },
+        {
+          "name": "tier_certification_checker",
+          "description": "Evaluate data center readiness for Uptime Institute Tier I-IV certification. Produces a gap analysis with remediation costs, readiness score, and priority steps."
+        },
+        {
+          "name": "nc_utility_interconnect",
+          "description": "Model the interconnect application process for Duke Energy Progress, Duke Energy Carolinas, or Dominion Energy NC. Returns utility-specific steps, timeline, fees, NCUC filing requirements, and data center considerations."
+        },
+        {
+          "name": "chain_full_power_analysis",
+          "description": "Generator sizing -> NFPA 110 compliance -> UPS sizing -> ROI calculator. Complete power infrastructure analysis in one request."
+        },
+        {
+          "name": "chain_site_readiness",
+          "description": "Site scoring -> Tier certification -> Utility interconnect -> Compliance check. Full site evaluation pipeline."
+        },
+        {
+          "name": "chain_tco_deep_dive",
+          "description": "PUE calculator -> Cooling load -> TCO analyzer. Full cost of ownership analysis."
+        },
+        {
+          "name": "chain_nc_power_package",
+          "description": "NC utility interconnect -> Generator sizing -> NFPA 110 -> UPS sizing. North Carolina specific full power analysis."
+        },
+        {
+          "name": "chain_emergency_power_package",
+          "description": "UPS sizing -> ATS sizing -> Generator sizing -> Fuel storage -> NFPA 110. Complete emergency power system design."
+        },
+        {
+          "name": "chain_cooling_optimization",
+          "description": "Cooling load -> Chiller sizing -> CRAC vs CRAH -> Airflow modeling -> Economizer analysis. Full cooling system design."
+        },
+        {
+          "name": "chain_full_site_analysis",
+          "description": "Site scoring -> Tier certification -> Utility interconnect -> Permit timeline -> Construction cost -> Construction timeline. Complete site feasibility study."
+        },
+        {
+          "name": "chain_sustainability_package",
+          "description": "Carbon footprint -> Solar feasibility -> Battery storage -> Energy procurement -> Environmental impact. Full green energy analysis."
         }
       ]
     }

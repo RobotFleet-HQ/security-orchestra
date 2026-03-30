@@ -1,7 +1,24 @@
 {
-  "name": "security-orchestra-monorepo",
+  "name": "@robotfleet-hq/security-orchestra",
   "version": "1.0.0",
-  "private": true,
+  "description": "56 specialized AI agents + 8 compound chains = 64 callable tools for data center critical power infrastructure",
+  "homepage": "https://github.com/RobotFleet-HQ/security-orchestra",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "ai-agents",
+    "data-center",
+    "power-infrastructure",
+    "nfpa-110",
+    "generator",
+    "ups",
+    "cooling"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RobotFleet-HQ/security-orchestra.git"
+  },
+  "mcpName": "io.github.RobotFleet-HQ/security-orchestra",
   "scripts": {
     "dev:services": "pnpm --parallel --filter './packages/*' run dev",
     "dev:demo": "pnpm --filter apps/demo run dev",

@@ -1886,6 +1886,21 @@ async function main() {
 
   await initAuth();
 
+  // ── Billing guard ──────────────────────────────────────────────────────────
+  // Without BILLING_API_URL all credit checks are skipped — every caller gets
+  // unlimited free access. Fail fast in production-like environments.
+  if (!process.env.BILLING_API_URL) {
+    const NODE_ENV = process.env.NODE_ENV ?? "development";
+    if (NODE_ENV === "production") {
+      log("error", "FATAL: BILLING_API_URL is not set in production — refusing to start. " +
+        "Set BILLING_API_URL to the billing-api service URL (e.g. https://security-orchestra-billing.onrender.com).");
+      process.exit(1);
+    } else {
+      log("warn", "⚠  BILLING_API_URL is not set — all requests will run WITHOUT credit checks or deduction. " +
+        "Set NODE_ENV=production to enforce billing.");
+    }
+  }
+
   const PORT = parseInt(process.env.PORT || '3000');
   const HOST = '0.0.0.0';
 

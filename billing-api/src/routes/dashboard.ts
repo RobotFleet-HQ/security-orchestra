@@ -185,6 +185,62 @@ router.get("/data", async (_req: Request, res: Response) => {
   }
 });
 
+// ─── GET /dashboard/user/:id — per-customer drill-down ───────────────────────
+
+router.get("/user/:id", async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const [user, credits, subscriptions] = await Promise.all([
+      dbGet<{ id: string; email: string; tier: string; created_at: string; ip_address: string | null }>(
+        "SELECT id, email, tier, created_at, ip_address FROM users WHERE id = ?", [id]
+      ),
+      dbGet<{ balance: number; total_purchased: number; total_used: number; updated_at: string }>(
+        "SELECT balance, total_purchased, total_used, updated_at FROM credits WHERE user_id = ?", [id]
+      ),
+      dbAll<{ tier: string; status: string; created_at: string }>(
+        "SELECT tier, status, created_at FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC", [id]
+      ),
+    ]);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Audit log for this user (most recent 100 calls)
+    let auditHistory: unknown[] = [];
+    let workflowTotals: unknown[] = [];
+    try {
+      [auditHistory, workflowTotals] = await Promise.all([
+        auditAll<unknown>(
+          `SELECT id, timestamp, action, resource, result, details, duration_ms
+           FROM audit_logs WHERE user_id = ?
+           ORDER BY timestamp DESC LIMIT 100`,
+          [id]
+        ),
+        auditAll<unknown>(
+          `SELECT resource, COUNT(*) as calls, SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as errors
+           FROM audit_logs WHERE user_id = ? AND action = 'workflow_complete' AND resource IS NOT NULL
+           GROUP BY resource ORDER BY calls DESC`,
+          [id]
+        ),
+      ]);
+    } catch {
+      // audit.db not available — non-fatal
+    }
+
+    return res.json({
+      user,
+      credits: credits ?? { balance: 0, total_purchased: 0, total_used: 0, updated_at: null },
+      subscriptions,
+      audit_history:   auditHistory,
+      workflow_totals: workflowTotals,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: msg });
+  }
+});
+
 // ─── POST /dashboard/tickets/:id/read — mark support ticket read ──────────────
 
 router.post("/tickets/:id/read", async (req: Request, res: Response) => {
@@ -380,6 +436,16 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
       <div id="tickets-empty" class="empty" style="display:none">No support tickets</div>
     </div>
 
+    <!-- User Lookup -->
+    <div class="panel">
+      <h2>User Lookup</h2>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="user-search" type="text" placeholder="User ID (e.g. usr_abc123)" style="flex:1;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:7px 10px;color:#e6edf3;font-size:13px;" onkeydown="if(event.key==='Enter')lookupUser()">
+        <button onclick="lookupUser()" style="background:#238636;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;">Look up</button>
+      </div>
+      <div id="user-result"></div>
+    </div>
+
   </div>
 
   <script>
@@ -544,6 +610,51 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 
     loadData();
     setInterval(loadData, 30000);
+
+    async function lookupUser() {
+      var userId = document.getElementById('user-search').value.trim();
+      var el = document.getElementById('user-result');
+      if (!userId) { el.innerHTML = '<div class="empty">Enter a user ID</div>'; return; }
+      el.innerHTML = '<div class="empty">Loading…</div>';
+      try {
+        var resp = await fetch('/dashboard/user/' + encodeURIComponent(userId));
+        if (resp.status === 404) { el.innerHTML = '<div class="empty">User not found</div>'; return; }
+        if (!resp.ok) { el.innerHTML = '<div class="empty">Error ' + resp.status + '</div>'; return; }
+        var d = await resp.json();
+        var u = d.user, c = d.credits;
+        var rows = d.workflow_totals.map(function(w) {
+          return '<tr><td>' + esc(w.resource) + '</td><td>' + w.calls + '</td><td>' + w.errors + '</td></tr>';
+        }).join('');
+        var history = d.audit_history.slice(0, 20).map(function(r) {
+          return '<tr>' +
+            '<td class="ts">' + fmtTsShort(r.timestamp) + '</td>' +
+            '<td>' + esc(r.action) + (r.resource ? ' <span style="color:#8b949e;font-size:11px;">(' + esc(r.resource) + ')</span>' : '') + '</td>' +
+            '<td><span class="badge-r ' + esc(r.result) + '">' + esc(r.result) + '</span></td>' +
+            '<td class="ts">' + (r.duration_ms != null ? r.duration_ms + 'ms' : '—') + '</td>' +
+            '</tr>';
+        }).join('');
+        el.innerHTML =
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">' +
+            '<div style="background:#0d1117;border-radius:6px;padding:12px;">' +
+              '<div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Account</div>' +
+              '<div style="font-size:13px;margin-bottom:4px;"><span style="color:#8b949e;">Email: </span>' + esc(u.email) + '</div>' +
+              '<div style="font-size:13px;margin-bottom:4px;"><span style="color:#8b949e;">Tier: </span><strong>' + esc(u.tier) + '</strong></div>' +
+              '<div style="font-size:13px;margin-bottom:4px;"><span style="color:#8b949e;">Joined: </span>' + fmtTs(u.created_at) + '</div>' +
+              '<div style="font-size:12px;color:#8b949e;">ID: ' + esc(u.id) + '</div>' +
+            '</div>' +
+            '<div style="background:#0d1117;border-radius:6px;padding:12px;">' +
+              '<div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Credits</div>' +
+              '<div style="font-size:24px;font-weight:700;color:' + (c.balance < 50 ? '#f85149' : '#3fb950') + ';">' + c.balance + '</div>' +
+              '<div style="font-size:12px;color:#8b949e;margin-top:4px;">Purchased: ' + c.total_purchased + ' &nbsp;|&nbsp; Used: ' + c.total_used + '</div>' +
+              '<div style="font-size:11px;color:#8b949e;margin-top:4px;">Updated: ' + fmtTs(c.updated_at) + '</div>' +
+            '</div>' +
+          '</div>' +
+          (rows ? '<div style="margin-bottom:14px;"><div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Workflow Usage</div><table><thead><tr><th>Workflow</th><th>Calls</th><th>Errors</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '') +
+          (history ? '<div><div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Recent Activity (last 20)</div><table><thead><tr><th>Time</th><th>Action</th><th>Result</th><th>Duration</th></tr></thead><tbody>' + history + '</tbody></table></div>' : '<div class="empty">No audit history</div>');
+      } catch(e) {
+        el.innerHTML = '<div class="empty">Failed: ' + esc(e.message) + '</div>';
+      }
+    }
   </script>
 </body>
 </html>`;

@@ -4,6 +4,8 @@
 // Google A2A, OpenAI Agents SDK, AG-UI, ACP/BeeAI, AGNTCY/OASF, and
 // any future A2A protocol.
 
+import crypto from "crypto";
+import { z } from "zod";
 import { STALENESS } from "./staleness.js";
 
 // ─── DataFreshness ────────────────────────────────────────────────────────────
@@ -45,7 +47,53 @@ export interface CanonicalResponse {
     input_tokens_used: number;
     credits_consumed:  number;
     callable_by:       string[];  // ["google-a2a","openai-agents","ag-ui","acp","agntcy"]
+    idempotent:        boolean;   // true = safe to retry; false = state-mutating
   };
+}
+
+// ─── Zod schema (outbound boundary guard) ────────────────────────────────────
+
+export const CanonicalResponseSchema = z.object({
+  agent_id:          z.string(),
+  agent_version:     z.string(),
+  protocol_version:  z.literal("1.0"),
+  execution_context: z.enum(["deterministic_calc", "single_agent", "multi_agent_chain", "cached"]),
+  status:            z.enum(["success", "error"]),
+  result:            z.unknown(),
+  error_code:        z.string().optional(),
+  error_message:     z.string().optional(),
+  data_freshness:    z.object({
+    validated_at:  z.string(),
+    standards_ref: z.array(z.string()),
+    stale_risk:    z.enum(["low", "medium", "high"]),
+    pricing_note:  z.string().optional(),
+  }),
+  a2a: z.object({
+    task_id:           z.string(),
+    input_tokens_used: z.number(),
+    credits_consumed:  z.number(),
+    callable_by:       z.array(z.string()),
+    idempotent:        z.boolean(),
+  }),
+});
+
+export function validateCanonical(response: CanonicalResponse): CanonicalResponse {
+  const check = CanonicalResponseSchema.safeParse(response);
+  if (!check.success) {
+    const issues = check.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    const r = response as unknown as Record<string, unknown>;
+    const a2aBlock = r["a2a"] as { task_id?: string } | undefined;
+    const fallbackTaskId = a2aBlock?.task_id ?? crypto.randomUUID();
+    return toCanonical(
+      response.agent_id ?? "schema_validator",
+      null,
+      { version: "1.0", credits: 0, taskId: fallbackTaskId, idempotent: true },
+      { code: "SCHEMA_VIOLATION", message: `CanonicalResponse failed validation: ${issues}` }
+    );
+  }
+  return response;
 }
 
 // ─── toCanonical ─────────────────────────────────────────────────────────────
@@ -61,6 +109,7 @@ export function toCanonical(
     credits:           number;
     taskId:            string;
     executionContext?: ExecutionContext;
+    idempotent?:       boolean;
   },
   error?: { code: string; message: string }
 ): CanonicalResponse {
@@ -98,6 +147,7 @@ export function toCanonical(
       input_tokens_used: 0,
       credits_consumed:  meta.credits,
       callable_by:       ["google-a2a", "openai-agents", "ag-ui", "acp", "agntcy"],
+      idempotent:        meta.idempotent ?? true,
     },
   };
 

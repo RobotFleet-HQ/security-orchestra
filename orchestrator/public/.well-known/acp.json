@@ -1,12 +1,12 @@
 {
   "name": "Security Orchestra",
   "version": "1.0",
-  "description": "50+ AI-powered agents for data center critical power infrastructure",
+  "description": "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure",
   "url": "https://security-orchestra-orchestrator.onrender.com/acp",
   "agents": [
     {
       "name": "security-orchestra",
-      "description": "Routes to any of 50+ specialized data center agents plus 8 compound chains",
+      "description": "Routes to any of 56 specialized agents + 8 compound chains = 64 total callable tools",
       "metadata": {
         "framework": "custom",
         "capabilities": ["generator_sizing","nfpa_110","ups_sizing","pue","tco","tier_certification","multi_agent_chains"]

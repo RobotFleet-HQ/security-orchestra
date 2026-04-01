@@ -1,6 +1,6 @@
 {
   "name": "Security Orchestra",
-  "description": "50+ AI-powered data center intelligence agents for threat analysis, asset discovery, and security intelligence",
+  "description": "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Threat analysis, asset discovery, generator sizing, PUE, cooling, ROI/TCO, and more.",
   "version": "1.0",
   "url": "https://security-orchestra-orchestrator.onrender.com/a2a",
   "skills": [

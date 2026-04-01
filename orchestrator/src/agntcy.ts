@@ -7,7 +7,8 @@
 import crypto, { createHmac } from "crypto";
 import express from "express";
 import { AuditEntry } from "./audit.js";
-import { CanonicalResponse } from "./canonical.js";
+import { CanonicalResponse, toCanonical } from "./canonical.js";
+import { normalize } from "./protocol-adapters/normalize.js";
 
 // ─── Dependency interface ─────────────────────────────────────────────────────
 
@@ -15,8 +16,8 @@ export interface AgntcyDeps {
   workflows: Record<string, { description: string; params: string[]; credits: number }>;
   chains:    Record<string, { name: string; description: string; credits: number; steps: string[] }>;
   resolveKeyRow:           (req: express.Request) => Promise<{ user_id: string; tier: string; revoked: number } | undefined>;
-  dispatchWorkflow:        (name: string, params: Record<string, string>) => Promise<CanonicalResponse>;
-  runChain:                (chainId: string, params: Record<string, string>, userId: string, tier: string) => Promise<CanonicalResponse>;
+  dispatchWorkflow:        (name: string, params: Record<string, string>, taskId?: string) => Promise<CanonicalResponse>;
+  runChain:                (chainId: string, params: Record<string, string>, userId: string, tier: string, taskId?: string) => Promise<CanonicalResponse>;
   validateWorkflowParams:  (name: string, params: Record<string, string>) => Record<string, string>;
   detectWorkflowFromText:  (text: string) => { chainId?: string; workflowName: string | null; params: Record<string, string> };
   enforceRateLimit:        (userId: string, tier: string) => unknown;
@@ -406,7 +407,7 @@ export function mountAgntcy(app: express.Application, deps: AgntcyDeps): void {
         const { params } = detectWorkflowFromText(text);
         logAudit({ user_id: keyRow.user_id, action: "agntcy_run_start",    resource: agentId, result: "success", details: { tier: keyRow.tier } });
         const t0 = Date.now();
-        output = await runChain(chainKey, params, keyRow.user_id, keyRow.tier);
+        output = await runChain(chainKey, params, keyRow.user_id, keyRow.tier, runId);
         if (billingEnabled) await deductCredits(keyRow.user_id, chain.credits, `chain:${chainKey}`);
         logAudit({ user_id: keyRow.user_id, action: "agntcy_run_complete", resource: agentId, result: "success", duration_ms: Date.now() - t0, details: { tier: keyRow.tier } });
 
@@ -425,7 +426,7 @@ export function mountAgntcy(app: express.Application, deps: AgntcyDeps): void {
         const cleanParams = validateWorkflowParams(agentId, params);
         logAudit({ user_id: keyRow.user_id, action: "agntcy_run_start",    resource: agentId, result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const t0 = Date.now();
-        const result = await dispatchWorkflow(agentId, cleanParams);
+        const result = await dispatchWorkflow(agentId, cleanParams, runId);
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, agentId);
           (result.result as Record<string, unknown>).credits_used      = wf.credits;
@@ -449,20 +450,19 @@ export function mountAgntcy(app: express.Application, deps: AgntcyDeps): void {
         signature:  slimSign(runId, `agent:${agentId}`, now(), JSON.stringify({ run_id: runId })),
       });
 
+      const canonical = output as CanonicalResponse;
       res.json({
-        run_id:        runId,
-        agent_id:      agentId,
-        status:        "completed",
-        created_at:    runRecord.created_at,
-        completed_at:  runRecord.completed_at,
-        output: [{ role: "agent", content: [{ type: "text", text: JSON.stringify(output, null, 2) }] }],
+        ...normalize("agntcy", canonical, { runId, agentId }),
+        created_at: runRecord.created_at,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       runRecord.status       = "failed";
       runRecord.error        = msg;
       runRecord.completed_at = now();
-      res.status(500).json({ run_id: runId, agent_id: agentId, status: "failed", error: msg });
+      const errorCanonical = toCanonical(agentId, null, { version: "1.0", credits: 0, taskId: runId, idempotent: true },
+        { code: "WORKFLOW_ERROR", message: msg });
+      res.status(500).json(normalize("agntcy", errorCanonical, { runId, agentId }));
     }
   });
 

@@ -74,7 +74,8 @@ import { runSolarFeasibility } from "./workflows/solarFeasibility.js";
 import { runBatteryStorage } from "./workflows/batteryStorage.js";
 import { runEnergyProcurement } from "./workflows/energyProcurement.js";
 import { runTierCertification } from "./workflows/tierCertification.js";
-import { toCanonical, CanonicalResponse } from "./canonical.js";
+import { toCanonical, validateCanonical, CanonicalResponse } from "./canonical.js";
+import { normalize } from "./protocol-adapters/normalize.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -768,7 +769,8 @@ async function runChain(
   chainId: string,
   initialParams: Record<string, string>,
   _userId: string,
-  _tier: string
+  _tier: string,
+  taskId?: string
 ): Promise<CanonicalResponse> {
   const chain = CHAINS[chainId];
   const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
@@ -795,16 +797,18 @@ async function runChain(
     .join("\n");
 
   const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
-  return toCanonical(`chain:${chainId}`, payload, {
-    version: "1.0",
-    credits: chain.credits,
-    taskId:  crypto.randomUUID(),
-  });
+  return validateCanonical(toCanonical(`chain:${chainId}`, payload, {
+    version:    "1.0",
+    credits:    chain.credits,
+    taskId:     taskId ?? crypto.randomUUID(),
+    idempotent: true,
+  }));
 }
 
 async function dispatchWorkflow(
   name: string,
-  args: Record<string, string>
+  args: Record<string, string>,
+  taskId?: string
 ): Promise<CanonicalResponse> {
   const result = await (async (): Promise<WorkflowResult> => {
   switch (name) {
@@ -1417,13 +1421,14 @@ async function dispatchWorkflow(
   })();
 
   const wf = WORKFLOWS[name];
-  const taskId = crypto.randomUUID();
+  const resolvedTaskId = taskId ?? crypto.randomUUID();
   const rawResults = (result as unknown as { results: unknown }).results;
-  return toCanonical(name, rawResults, {
-    version: wf?.version ?? "1.0",
-    credits: wf?.credits ?? 0,
-    taskId,
-  });
+  return validateCanonical(toCanonical(name, rawResults, {
+    version:    wf?.version ?? "1.0",
+    credits:    wf?.credits ?? 0,
+    taskId:     resolvedTaskId,
+    idempotent: true,
+  }));
 }
 
 // ─── Tier access control ──────────────────────────────────────────────────────
@@ -2221,6 +2226,8 @@ async function main() {
         return;
       }
 
+      const requestTaskId = extractTaskId(req, req.body?.task_id);
+
       try {
         enforceRateLimit(keyRow.user_id, keyRow.tier);
 
@@ -2238,7 +2245,7 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "run_workflow_start", resource: workflowName,
           result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, requestTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2253,7 +2260,10 @@ async function main() {
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[run] workflow error — ${workflowName}: ${msg}`);
-        res.status(500).json({ error: msg });
+        const errorCanonical = toCanonical(workflowName, null,
+          { version: wf?.version ?? "1.0", credits: 0, taskId: requestTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.status(500).json(errorCanonical);
       }
     });
 
@@ -2386,7 +2396,9 @@ async function main() {
       try {
         const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
 
-        if (detectedChainId) {
+        const aguiTaskId = extractTaskId(req, req.body?.task_id);
+
+      if (detectedChainId) {
           const chain = CHAINS[detectedChainId];
           const billingEnabledChain = !!process.env.BILLING_API_URL;
           if (billingEnabledChain) {
@@ -2408,14 +2420,14 @@ async function main() {
             writeAGUIEvent(res, { type: "TOOL_CALL_START", tool_call_id: toolCallId, tool_call_name: stepId });
             try {
               const stepParams = validateWorkflowParams(stepId, detectedParams);
-              await dispatchWorkflow(stepId, stepParams);
+              await dispatchWorkflow(stepId, stepParams, aguiTaskId);
             } catch (_e) { /* individual step errors don't abort the chain */ }
             writeAGUIEvent(res, { type: "TOOL_CALL_END", tool_call_id: toolCallId });
             writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: `✓ ${stepId} complete\n` });
           }
 
           logAudit({ user_id: keyRow.user_id, action: "agui_chain_start", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
-          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier, aguiTaskId);
           if (billingEnabledChain) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
           logAudit({ user_id: keyRow.user_id, action: "agui_chain_complete", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
 
@@ -2459,7 +2471,7 @@ async function main() {
 
         logAudit({ user_id: keyRow.user_id, action: "agui_workflow_start", resource: workflowName, result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, aguiTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2566,6 +2578,8 @@ async function main() {
         return;
       }
 
+      const requestTaskId = extractTaskId(req, runId);
+
       try {
         enforceRateLimit(keyRow.user_id, keyRow.tier);
         const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
@@ -2582,15 +2596,10 @@ async function main() {
           }
           logAudit({ user_id: keyRow.user_id, action: "acp_run_start", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
           const startTime = Date.now();
-          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier, requestTaskId);
           if (billingEnabled) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
           logAudit({ user_id: keyRow.user_id, action: "acp_run_complete", resource: detectedChainId, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
-          res.json({
-            run_id: runId,
-            agent_name: agentName,
-            status: "completed",
-            output: [{ role: "agent", content: [{ type: "text", text: JSON.stringify(chainResult, null, 2) }] }],
-          });
+          res.json(normalize("acp", chainResult, { runId, agentName }));
           return;
         }
 
@@ -2617,7 +2626,7 @@ async function main() {
 
         logAudit({ user_id: keyRow.user_id, action: "acp_run_start", resource: workflowName, result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, requestTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2626,16 +2635,14 @@ async function main() {
         }
         logAudit({ user_id: keyRow.user_id, action: "acp_run_complete", resource: workflowName, result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
-        res.json({
-          run_id: runId,
-          agent_name: agentName,
-          status: "completed",
-          output: [{ role: "agent", content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }],
-        });
+        res.json(normalize("acp", result, { runId, agentName }));
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[acp/runs] error: ${msg}`);
-        res.status(500).json({ run_id: runId, agent_name: agentName, status: "failed", error: msg });
+        const errorCanonical = toCanonical("security-orchestra", null,
+          { version: "1.0", credits: 0, taskId: requestTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.status(500).json(normalize("acp", errorCanonical, { runId, agentName }));
       }
     });
 
@@ -2713,6 +2720,9 @@ async function main() {
         return;
       }
 
+      // Use A2A task id from params if provided (idempotency support)
+      const requestTaskId = extractTaskId(req, params?.id as string | undefined);
+
       // Detect chain or workflow from natural language
       const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
 
@@ -2733,18 +2743,11 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: detectedChainId,
           result: "success", details: { params: detectedParams, tier: keyRow.tier } });
         const chainStartTime = Date.now();
-        const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier);
+        const chainResult = await runChain(detectedChainId, detectedParams, keyRow.user_id, keyRow.tier, requestTaskId);
         if (billingEnabledChain) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
         logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: detectedChainId,
           result: "success", duration_ms: Date.now() - chainStartTime, details: { tier: keyRow.tier } });
-        res.json({
-          jsonrpc: "2.0", id,
-          result: {
-            id: crypto.randomUUID(),
-            status: { state: "completed" },
-            artifacts: [{ name: "response", parts: [{ kind: "text", text: JSON.stringify(chainResult, null, 2) }] }],
-          },
-        });
+        res.json(normalize("a2a", chainResult, { rpcId: id }));
         return;
       }
 
@@ -2783,7 +2786,7 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "a2a_workflow_start", resource: workflowName,
           result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, requestTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2794,23 +2797,14 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "a2a_workflow_complete", resource: workflowName,
           result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
-        res.json({
-          jsonrpc: "2.0",
-          id,
-          result: {
-            id: crypto.randomUUID(),
-            status: { state: "completed" },
-            artifacts: [{ name: "response", parts: [{ kind: "text", text: JSON.stringify(result, null, 2) }] }],
-          },
-        });
+        res.json(normalize("a2a", result, { rpcId: id }));
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[a2a] workflow error — ${workflowName}: ${msg}`);
-        res.status(500).json({
-          jsonrpc: "2.0",
-          id,
-          error: { code: -32603, message: msg },
-        });
+        const errorCanonical = toCanonical(workflowName ?? "security-orchestra", null,
+          { version: "1.0", credits: 0, taskId: requestTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.status(500).json(normalize("a2a", errorCanonical, { rpcId: id }));
       }
     });
 
@@ -2851,11 +2845,12 @@ async function main() {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
+      const streamTaskId = extractTaskId(req, req.body?.params?.id as string | undefined);
       const { chainId: streamChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
 
       if (streamChainId) {
         const chain = CHAINS[streamChainId];
-        const chainResult = await runChain(streamChainId, detectedParams, keyRow.user_id, keyRow.tier);
+        const chainResult = await runChain(streamChainId, detectedParams, keyRow.user_id, keyRow.tier, streamTaskId);
         if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${streamChainId}`);
         res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(chainResult, null, 2) } })}\n\n`);
         res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
@@ -2888,7 +2883,7 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "a2a_stream_start", resource: workflowName,
           result: "success", details: { params: cleanParams, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, streamTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2978,13 +2973,15 @@ async function main() {
         state: stateMatch, capacity_mw: load_mw,
       };
 
+      const chainTaskId = extractTaskId(req, req.body?.task_id);
+
       logAudit({
         user_id: keyRow.user_id, action: "chain_start", resource: chainId,
         result: "success", details: { query, steps: chain.steps, tier: keyRow.tier },
       });
       const startTime = Date.now();
 
-      const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier);
+      const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, chainTaskId);
 
       if (billingEnabled) {
         const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
@@ -3001,6 +2998,16 @@ async function main() {
     });
 
     // ── OpenAI Agents SDK compatibility ──────────────────────────────────────
+
+    // Helper: extract caller-supplied task_id for idempotency (X-Task-ID header,
+    // body.task_id, or A2A params.id). Falls back to a fresh UUID.
+    function extractTaskId(req: express.Request, bodyTaskId?: string): string {
+      return (
+        (req.headers["x-task-id"] as string | undefined) ??
+        bodyTaskId ??
+        crypto.randomUUID()
+      );
+    }
 
     // Helper: resolve keyRow from request headers (same logic as /chat and /a2a)
     async function resolveKeyRow(
@@ -3076,9 +3083,12 @@ async function main() {
 
       const toolName: string | undefined = req.body?.tool;
       const query: string | undefined    = req.body?.parameters?.query;
+      const openaiTaskId = extractTaskId(req, req.body?.task_id);
 
       if (!toolName || !query) {
-        res.status(400).json({ role: "tool", content: "Error: tool and parameters.query are required" });
+        res.status(400).json(normalize("openai",
+          toCanonical("security-orchestra", null, { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+            { code: "INVALID_PARAMS", message: "tool and parameters.query are required" })));
         return;
       }
 
@@ -3087,7 +3097,9 @@ async function main() {
       if (openaiChainId) {
         const chain = CHAINS[openaiChainId];
         if (!chain) {
-          res.status(400).json({ role: "tool", content: `Error: Unknown chain "${openaiChainId}"` });
+          res.status(400).json(normalize("openai",
+            toCanonical(`chain:${openaiChainId}`, null, { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+              { code: "UNKNOWN_CHAIN", message: `Unknown chain "${openaiChainId}"` })));
           return;
         }
         try {
@@ -3095,21 +3107,27 @@ async function main() {
           const { params: chainParams } = detectWorkflowFromText(query);
           logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: openaiChainId,
             result: "success", details: { query, tier: keyRow.tier } });
-          const chainResult = await runChain(openaiChainId, chainParams, keyRow.user_id, keyRow.tier);
+          const chainResult = await runChain(openaiChainId, chainParams, keyRow.user_id, keyRow.tier, openaiTaskId);
           if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${openaiChainId}`);
           logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: openaiChainId,
             result: "success", details: { tier: keyRow.tier } });
-          res.json({ role: "tool", content: JSON.stringify(chainResult, null, 2) });
+          res.json(normalize("openai", chainResult));
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          res.status(500).json({ role: "tool", content: `Error: ${msg}` });
+          log("error", `[openai/run] chain error — ${openaiChainId}: ${msg}`);
+          const errorCanonical = toCanonical(`chain:${openaiChainId}`, null,
+            { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+            { code: "WORKFLOW_ERROR", message: msg });
+          res.status(500).json(normalize("openai", errorCanonical));
         }
         return;
       }
 
       const wf = WORKFLOWS[toolName];
       if (!wf) {
-        res.status(400).json({ role: "tool", content: `Error: Unknown tool "${toolName}"` });
+        res.status(400).json(normalize("openai",
+          toCanonical(toolName, null, { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+            { code: "UNKNOWN_TOOL", message: `Unknown tool "${toolName}"` })));
         return;
       }
 
@@ -3124,7 +3142,9 @@ async function main() {
         if (billingEnabled) {
           const balance = await checkCredits(keyRow.user_id);
           if (balance < wf.credits) {
-            res.status(402).json({ role: "tool", content: `Error: Insufficient credits — balance: ${balance}, required: ${wf.credits}` });
+            res.status(402).json(normalize("openai",
+              toCanonical(targetWorkflow, null, { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+                { code: "INSUFFICIENT_CREDITS", message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` })));
             return;
           }
         }
@@ -3132,7 +3152,7 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "openai_run_start", resource: targetWorkflow,
           result: "success", details: { query, tier: keyRow.tier } });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(targetWorkflow, cleanParams);
+        const result = await dispatchWorkflow(targetWorkflow, cleanParams, openaiTaskId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, targetWorkflow);
@@ -3143,11 +3163,14 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "openai_run_complete", resource: targetWorkflow,
           result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
-        res.json({ role: "tool", content: JSON.stringify(result, null, 2) });
+        res.json(normalize("openai", result));
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[openai/run] workflow error — ${toolName}: ${msg}`);
-        res.status(500).json({ role: "tool", content: `Error: ${msg}` });
+        const errorCanonical = toCanonical(toolName, null,
+          { version: "1.0", credits: 0, taskId: openaiTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.status(500).json(normalize("openai", errorCanonical));
       }
     });
 
@@ -3215,6 +3238,7 @@ async function main() {
       }
 
       // 3. Detect chain or workflow from message text
+      const chatTaskId = extractTaskId(req, req.body?.task_id);
       const { chainId: chatChainId, workflowName, params: detectedParams } = detectWorkflowFromText(lastUser.content);
 
       // ── Chain dispatch ─────────────────────────────────────────────────────
@@ -3235,7 +3259,7 @@ async function main() {
           logAudit({ user_id: keyRow.user_id, action: "chain_start", resource: chatChainId,
             result: "success", details: { params: detectedParams, tier: keyRow.tier } });
           const chainStartTime = Date.now();
-          const chainResult = await runChain(chatChainId, detectedParams, keyRow.user_id, keyRow.tier);
+          const chainResult = await runChain(chatChainId, detectedParams, keyRow.user_id, keyRow.tier, chatTaskId);
           if (billingEnabledChat) {
             const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chatChainId}`);
             (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
@@ -3301,7 +3325,7 @@ async function main() {
           details:  { params: cleanParams, tier: keyRow.tier },
         });
         const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams);
+        const result = await dispatchWorkflow(workflowName, cleanParams, chatTaskId);
 
         // 8. Deduct credits
         if (billingEnabled) {

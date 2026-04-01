@@ -1,6 +1,6 @@
 {
   "name": "Security Orchestra",
-  "description": "50+ AI-powered data center intelligence agents via MCP. Generator sizing, PUE calculations, network topology, cooling load analysis and more.",
+  "description": "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure via MCP. Generator sizing, PUE calculations, network topology, cooling load analysis and more.",
   "version": "1.0.0",
   "transport": ["sse"],
   "url": "https://security-orchestra-orchestrator.onrender.com",
@@ -8,5 +8,5 @@
     "type": "api-key",
     "header": "x-api-key"
   },
-  "tools": "50+"
+  "tools": 64
 }

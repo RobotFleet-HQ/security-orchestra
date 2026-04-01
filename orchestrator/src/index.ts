@@ -2256,21 +2256,21 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "run_workflow_complete", resource: workflowName,
           result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
-        res.json(result);
+        res.json(validateCanonical(result));
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[run] workflow error — ${workflowName}: ${msg}`);
         const errorCanonical = toCanonical(workflowName, null,
           { version: wf?.version ?? "1.0", credits: 0, taskId: requestTaskId, idempotent: true },
           { code: "WORKFLOW_ERROR", message: msg });
-        res.status(500).json(errorCanonical);
+        res.status(500).json(validateCanonical(errorCanonical));
       }
     });
 
     // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
     const AGENT_CARD = {
       name: "Security Orchestra",
-      description: "50+ specialized agents & 8 compound chains for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
+      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
       url: "https://security-orchestra-orchestrator.onrender.com",
       version: "1.0.0",
       provider: {
@@ -2390,13 +2390,12 @@ async function main() {
 
       const runId = crypto.randomUUID();
       const now = () => new Date().toISOString();
+      const aguiTaskId = extractTaskId(req, req.body?.task_id);
 
       writeAGUIEvent(res, { type: "RUN_STARTED", run_id: runId, agent_id: req.body?.agent_id ?? "auto", timestamp: now() });
 
       try {
         const { chainId: detectedChainId, workflowName, params: detectedParams } = detectWorkflowFromText(text);
-
-        const aguiTaskId = extractTaskId(req, req.body?.task_id);
 
       if (detectedChainId) {
           const chain = CHAINS[detectedChainId];
@@ -2404,7 +2403,10 @@ async function main() {
           if (billingEnabledChain) {
             const balance = await checkCredits(keyRow.user_id);
             if (balance < chain.credits) {
-              writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: `Insufficient credits — balance: ${balance}, required: ${chain.credits}`, timestamp: now() });
+              const aguiCreditErr = toCanonical(detectedChainId, null,
+                { version: "1.0", credits: 0, taskId: aguiTaskId, idempotent: true },
+                { code: "INSUFFICIENT_CREDITS", message: `Insufficient credits — balance: ${balance}, required: ${chain.credits}` });
+              writeAGUIEvent(res, { ...normalize("agui", aguiCreditErr), run_id: runId, timestamp: now() });
               res.end();
               return;
             }
@@ -2431,7 +2433,7 @@ async function main() {
           if (billingEnabledChain) await deductCredits(keyRow.user_id, chain.credits, `chain:${detectedChainId}`);
           logAudit({ user_id: keyRow.user_id, action: "agui_chain_complete", resource: detectedChainId, result: "success", details: { tier: keyRow.tier } });
 
-          const fullText = JSON.stringify(chainResult, null, 2);
+          const fullText = JSON.stringify(validateCanonical(chainResult), null, 2);
           for (let i = 0; i < fullText.length; i += 100) {
             writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: fullText.slice(i, i + 100) });
             await new Promise((r) => setTimeout(r, 10));
@@ -2460,7 +2462,10 @@ async function main() {
         if (billingEnabled) {
           const balance = await checkCredits(keyRow.user_id);
           if (balance < wf.credits) {
-            writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}`, timestamp: now() });
+            const aguiWfCreditErr = toCanonical(workflowName, null,
+              { version: "1.0", credits: 0, taskId: aguiTaskId, idempotent: true },
+              { code: "INSUFFICIENT_CREDITS", message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` });
+            writeAGUIEvent(res, { ...normalize("agui", aguiWfCreditErr), run_id: runId, timestamp: now() });
             res.end();
             return;
           }
@@ -2482,7 +2487,7 @@ async function main() {
 
         const msgId = crypto.randomUUID();
         writeAGUIEvent(res, { type: "TEXT_MESSAGE_START", message_id: msgId, role: "assistant" });
-        const fullText = JSON.stringify(result, null, 2);
+        const fullText = JSON.stringify(validateCanonical(result), null, 2);
         for (let i = 0; i < fullText.length; i += 100) {
           writeAGUIEvent(res, { type: "TEXT_MESSAGE_CONTENT", message_id: msgId, delta: fullText.slice(i, i + 100) });
           await new Promise((r) => setTimeout(r, 10));
@@ -2494,7 +2499,10 @@ async function main() {
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[agui] error: ${msg}`);
-        writeAGUIEvent(res, { type: "RUN_ERROR", run_id: runId, message: msg, timestamp: now() });
+        const aguiErrCanonical = toCanonical("agui", null,
+          { version: "1.0", credits: 0, taskId: aguiTaskId, idempotent: false },
+          { code: "AGUI_ERROR", message: msg });
+        writeAGUIEvent(res, { ...normalize("agui", aguiErrCanonical), run_id: runId, timestamp: now() });
         res.end();
       }
     });
@@ -2503,12 +2511,12 @@ async function main() {
     const ACP_DESCRIPTOR = {
       name: "Security Orchestra",
       version: "1.0",
-      description: "50+ specialized agents & 8 compound chains for data center critical power infrastructure",
+      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure",
       url: "https://security-orchestra-orchestrator.onrender.com/acp",
       agents: [
         {
           name: "security-orchestra",
-          description: "Routes to any of the 50+ specialized agents & 8 compound chains",
+          description: "Routes to any of 56 specialized agents + 8 compound chains = 64 total callable tools",
           metadata: {
             framework: "custom",
             capabilities: ["generator_sizing", "nfpa_110", "ups_sizing", "pue", "tco", "tier_certification", "multi_agent_chains"],
@@ -2852,7 +2860,7 @@ async function main() {
         const chain = CHAINS[streamChainId];
         const chainResult = await runChain(streamChainId, detectedParams, keyRow.user_id, keyRow.tier, streamTaskId);
         if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${streamChainId}`);
-        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(chainResult, null, 2) } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(validateCanonical(chainResult), null, 2) } })}\n\n`);
         res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
         res.end();
         return;
@@ -2894,13 +2902,17 @@ async function main() {
         logAudit({ user_id: keyRow.user_id, action: "a2a_stream_complete", resource: workflowName,
           result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
 
-        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(result, null, 2) } })}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "artifact-update", part: { kind: "text", text: JSON.stringify(validateCanonical(result), null, 2) } })}\n\n`);
         res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "completed" } })}\n\n`);
         res.end();
       } catch (err) {
         const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
         log("error", `[a2a/stream] workflow error — ${workflowName}: ${msg}`);
-        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "failed" }, error: msg })}\n\n`);
+        const streamErrCanonical = toCanonical(workflowName ?? "unknown", null,
+          { version: "1.0", credits: 0, taskId: streamTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.write(`data: ${JSON.stringify(normalize("a2a", validateCanonical(streamErrCanonical), { rpcId: streamTaskId }))}\n\n`);
+        res.write(`data: ${JSON.stringify({ kind: "task-status", status: { state: "failed" } })}\n\n`);
         res.end();
       }
     });
@@ -2981,20 +2993,29 @@ async function main() {
       });
       const startTime = Date.now();
 
-      const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, chainTaskId);
+      try {
+        const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, chainTaskId);
 
-      if (billingEnabled) {
-        const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
-        (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
+          (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
+        }
+
+        logAudit({
+          user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
+          result: "success", duration_ms: Date.now() - startTime,
+          details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier },
+        });
+
+        res.json(validateCanonical(chainResult));
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[chain] error — ${chainId}: ${msg}`);
+        const errCanonical = toCanonical(chainId, null,
+          { version: "1.0", credits: 0, taskId: chainTaskId, idempotent: true },
+          { code: "CHAIN_ERROR", message: msg });
+        res.status(500).json(validateCanonical(errCanonical));
       }
-
-      logAudit({
-        user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
-        result: "success", duration_ms: Date.now() - startTime,
-        details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier },
-      });
-
-      res.json(chainResult);
     });
 
     // ── OpenAI Agents SDK compatibility ──────────────────────────────────────
@@ -3266,11 +3287,14 @@ async function main() {
           }
           logAudit({ user_id: keyRow.user_id, action: "chain_complete", resource: chatChainId,
             result: "success", duration_ms: Date.now() - chainStartTime, details: { tier: keyRow.tier } });
-          res.json({ reply: JSON.stringify(chainResult, null, 2), agent: `chain:${chatChainId}` });
+          res.json({ reply: JSON.stringify(validateCanonical(chainResult), null, 2), agent: `chain:${chatChainId}` });
         } catch (err) {
           const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
           log("error", `[chat] chain error — ${chatChainId}: ${msg}`);
-          res.status(500).json({ error: msg });
+          const chatChainErrCanonical = toCanonical(chatChainId, null,
+            { version: "1.0", credits: 0, taskId: chatTaskId, idempotent: true },
+            { code: "CHAIN_ERROR", message: msg });
+          res.status(500).json(validateCanonical(chatChainErrCanonical));
         }
         return;
       }
@@ -3280,7 +3304,7 @@ async function main() {
           reply:
             "I couldn't determine which agent to use. Try being more specific, e.g. " +
             "\"size a generator for 500kW\" or \"calculate PUE for a 2MW IT load\". " +
-            "See GET /agents for all available tools (50+ specialized agents & 8 compound chains).",
+            "See GET /agents for all available tools (56 specialized agents + 8 compound chains = 64 total).",
           agent: null,
         });
         return;
@@ -3344,7 +3368,7 @@ async function main() {
         });
 
         res.json({
-          reply: JSON.stringify(result, null, 2),
+          reply: JSON.stringify(validateCanonical(result), null, 2),
           agent: workflowName,
         });
       } catch (err) {
@@ -3355,7 +3379,10 @@ async function main() {
             ? err.message
             : String(err);
         log("error", `[chat] workflow error — ${workflowName}: ${msg}`);
-        res.status(500).json({ error: msg });
+        const chatErrCanonical = toCanonical(workflowName, null,
+          { version: "1.0", credits: 0, taskId: chatTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg });
+        res.status(500).json(validateCanonical(chatErrCanonical));
       }
     });
 

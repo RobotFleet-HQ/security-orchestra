@@ -10,7 +10,7 @@
       "Bash(node:*)",
       "Bash(python3:*)",
       "Bash(python:*)",
-      "Bash(KEY=\"sk_live_0eddf684af255bd727fcc6b50ed445eb_2d591a\")"
+      "Bash(node scripts/generateKey.js:*)"
     ]
   }
 }

@@ -246,10 +246,9 @@
 <div id="loading"><div class="spinner"></div></div>
 
 <script>
-  // GATE_KEY: what the user types in the browser (client-side lock)
-  // ADMIN_API_KEY: the actual server-side key sent in request headers
-  const GATE_KEY    = "orchestra2026";
-  const ADMIN_API_KEY = "security_orchestra_admin_secret_2026";
+  // Admin key is entered by the user at login and stored only in sessionStorage.
+  // It is sent server-side on every request; the server validates it against
+  // process.env.ADMIN_PASSWORD — no credentials are hardcoded here.
   const SESSION_KEY  = "so_admin_key";
   let refreshTimer  = null;
   let lastFetchedAt = null;
@@ -260,12 +259,12 @@
   // ── Gate ──────────────────────────────────────────────────────────────────
   function unlock() {
     const v = $("key-input").value.trim();
-    if (v !== GATE_KEY) {
+    if (!v) {
       $("gate-error").style.display = "block";
       return;
     }
     $("gate-error").style.display = "none";
-    sessionStorage.setItem(SESSION_KEY, GATE_KEY);
+    sessionStorage.setItem(SESSION_KEY, v);
     showDashboard();
   }
 
@@ -281,7 +280,7 @@
 
   // ── On load: restore session ───────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
-    if (sessionStorage.getItem(SESSION_KEY) === GATE_KEY) showDashboard();
+    if (sessionStorage.getItem(SESSION_KEY)) showDashboard();
   });
 
   // ── "Last updated" ticker ─────────────────────────────────────────────────
@@ -297,11 +296,16 @@
     $("loading").style.display = "flex";
     try {
       const res = await fetch("/admin/dashboard-data", {
-        headers: { "x-admin-key": ADMIN_API_KEY },
+        headers: { "x-admin-key": sessionStorage.getItem(SESSION_KEY) ?? "" },
       });
       if (res.status === 401) {
-        // API key mismatch — show error in status bar, keep dashboard visible
-        $("last-updated").textContent = "Auth error — check server key";
+        // Password wrong — clear session and return to login gate
+        sessionStorage.removeItem(SESSION_KEY);
+        $("dashboard").style.display = "none";
+        $("gate").style.display      = "flex";
+        $("gate-error").style.display = "block";
+        clearInterval(refreshTimer); refreshTimer = null;
+        clearInterval(tickTimer);    tickTimer    = null;
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

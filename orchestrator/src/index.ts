@@ -1918,12 +1918,43 @@ async function main() {
     }
   }
 
+  // ── Admin password guard ───────────────────────────────────────────────────
+  // ADMIN_PASSWORD gates the /admin/dashboard-data endpoint. Fail fast in
+  // production so the admin UI is never silently unprotected.
+  if (!process.env.ADMIN_PASSWORD) {
+    const NODE_ENV = process.env.NODE_ENV ?? "development";
+    if (NODE_ENV === "production") {
+      log("error", "FATAL: ADMIN_PASSWORD is not set in production — refusing to start. " +
+        "Set ADMIN_PASSWORD to a strong secret to protect the admin dashboard.");
+      process.exit(1);
+    } else {
+      log("warn", "⚠  ADMIN_PASSWORD is not set — /admin/dashboard-data will reject all requests.");
+    }
+  }
+
   const PORT = parseInt(process.env.PORT || '3000');
   const HOST = '0.0.0.0';
 
   if (PORT) {
     // ── Production: HTTP + SSE transport (Railway / remote) ─────────────────
     const app = express();
+
+    // ── Async chain task store (in-memory, 1 hr TTL) ────────────────────────
+    type AsyncChainTask = {
+      status: "pending" | "running" | "complete" | "error";
+      result?: CanonicalResponse;
+      error?: string;
+      createdAt: number;
+    };
+    const asyncChainTasks = new Map<string, AsyncChainTask>();
+    const ASYNC_TASK_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+    function pruneAsyncTasks() {
+      const cutoff = Date.now() - ASYNC_TASK_TTL_MS;
+      for (const [id, task] of asyncChainTasks) {
+        if (task.createdAt < cutoff) asyncChainTasks.delete(id);
+      }
+    }
 
     // ─── Security headers ──────────────────────────────────────────────────
     app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -2018,14 +2049,14 @@ async function main() {
 
     // Admin: private dashboard data — aggregates today's audit logs
     app.get("/admin/dashboard-data", async (req, res) => {
-      const adminKey = process.env.ORCHESTRATOR_ADMIN_KEY;
+      const adminPassword = process.env.ADMIN_PASSWORD;
       const supplied = req.headers["x-admin-key"];
-      if (!adminKey || typeof supplied !== "string") {
+      if (!adminPassword || typeof supplied !== "string") {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
       const suppliedBuf = Buffer.from(supplied);
-      const expectedBuf = Buffer.from(adminKey);
+      const expectedBuf = Buffer.from(adminPassword);
       const valid =
         suppliedBuf.length === expectedBuf.length &&
         crypto.timingSafeEqual(suppliedBuf, expectedBuf);
@@ -3015,6 +3046,155 @@ async function main() {
           { version: "1.0", credits: 0, taskId: chainTaskId, idempotent: true },
           { code: "CHAIN_ERROR", message: msg });
         res.status(500).json(validateCanonical(errCanonical));
+      }
+    });
+
+    // ── POST /chain/async — fire-and-forget chain, returns task_id immediately ─
+    app.post("/chain/async", express.json(), async (req, res) => {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const chainId: string | undefined = req.body?.chain;
+      const query: string | undefined   = req.body?.query;
+
+      if (!chainId || !query) {
+        res.status(400).json({ error: "chain and query are required" });
+        return;
+      }
+
+      const chain = CHAINS[chainId];
+      if (!chain) {
+        res.status(400).json({
+          error: `Unknown chain "${chainId}". Available: ${Object.keys(CHAINS).join(", ")}`,
+        });
+        return;
+      }
+
+      const billingEnabled = !!process.env.BILLING_API_URL;
+      if (billingEnabled) {
+        const balance = await checkCredits(keyRow.user_id);
+        if (balance < chain.credits) {
+          res.status(402).json({
+            error: `Insufficient credits — balance: ${balance}, required: ${chain.credits} for chain ${chainId}`,
+          });
+          return;
+        }
+      }
+
+      const taskId: string =
+        (req.headers["x-task-id"] as string | undefined) ??
+        (req.body?.task_id as string | undefined) ??
+        crypto.randomUUID();
+      pruneAsyncTasks();
+      asyncChainTasks.set(taskId, { status: "pending", createdAt: Date.now() });
+
+      const kwVal   = query.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
+      const mwVal   = query.match(/(\d+(?:\.\d+)?)\s*(?:mw|megawatt)/i)?.[1];
+      const load_kw = kwVal ?? (mwVal ? String(parseFloat(mwVal) * 1000) : "1000");
+      const load_mw = mwVal ?? (kwVal ? String(parseFloat(kwVal) / 1000) : "10");
+      const tierDigit = parseInt(query.match(/tier\s*([1-4])/i)?.[1] ?? "3", 10);
+      const CHAIN_TIER_MAP: Record<number, string> = { 1: "N", 2: "N+1", 3: "2N", 4: "2N+1" };
+      const tierNum = CHAIN_TIER_MAP[tierDigit] ?? "2N";
+      const stateMatch = query.match(/\b(NC|SC|VA|TX|CA|NY|FL|GA|OH|PA|IL|WA|OR|CO|AZ|NV)\b/i)?.[1]?.toUpperCase() ?? "NC";
+      const initialParams: Record<string, string> = {
+        load_kw, load_mw, it_load_kw: load_kw, tier: tierNum,
+        state: stateMatch, capacity_mw: load_mw,
+      };
+
+      // Kick off the chain in the background — do not await
+      (async () => {
+        asyncChainTasks.set(taskId, { status: "running", createdAt: Date.now() });
+        logAudit({
+          user_id: keyRow.user_id, action: "chain_start", resource: chainId,
+          result: "success", details: { query, steps: chain.steps, tier: keyRow.tier, async: true },
+        });
+        const startTime = Date.now();
+        try {
+          const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, taskId);
+          if (billingEnabled) {
+            const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
+            (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
+          }
+          logAudit({
+            user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
+            result: "success", duration_ms: Date.now() - startTime,
+            details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier, async: true },
+          });
+          asyncChainTasks.set(taskId, { status: "complete", result: validateCanonical(chainResult), createdAt: Date.now() });
+        } catch (err) {
+          const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+          log("error", `[chain/async] error — ${chainId}: ${msg}`);
+          asyncChainTasks.set(taskId, { status: "error", error: msg, createdAt: Date.now() });
+        }
+      })();
+
+      res.status(202).json({
+        task_id: taskId,
+        status_url: `/chain/status/${taskId}`,
+      });
+    });
+
+    // ── GET /chain/status/:task_id — poll async chain result ─────────────────
+    app.get("/chain/status/:task_id", async (req, res) => {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) =>
+                  err
+                    ? reject(err)
+                    : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const taskId = req.params.task_id;
+      pruneAsyncTasks();
+      const task = asyncChainTasks.get(taskId);
+
+      if (!task) {
+        res.status(404).json({ error: `Task "${taskId}" not found or expired` });
+        return;
+      }
+
+      if (task.status === "complete") {
+        res.json({ task_id: taskId, status: "complete", result: task.result });
+      } else if (task.status === "error") {
+        res.json({ task_id: taskId, status: "error", error: task.error });
+      } else {
+        res.json({ task_id: taskId, status: task.status });
       }
     });
 

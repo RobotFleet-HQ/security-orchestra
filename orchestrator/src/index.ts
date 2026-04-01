@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import https from "https";
+import http from "http";
 import path from "path";
 import { mountAgntcy } from "./agntcy.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -1956,10 +1958,11 @@ async function main() {
 
     // ── Async chain task store (in-memory, 1 hr TTL) ────────────────────────
     type AsyncChainTask = {
-      status: "pending" | "running" | "complete" | "error";
-      result?: CanonicalResponse;
-      error?: string;
-      createdAt: number;
+      status:      "pending" | "running" | "complete" | "error";
+      result?:     CanonicalResponse;
+      error?:      string;
+      createdAt:   number;
+      webhook_url?: string;
     };
     const asyncChainTasks = new Map<string, AsyncChainTask>();
     const ASYNC_TASK_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -1968,6 +1971,108 @@ async function main() {
       const cutoff = Date.now() - ASYNC_TASK_TTL_MS;
       for (const [id, task] of asyncChainTasks) {
         if (task.createdAt < cutoff) asyncChainTasks.delete(id);
+      }
+    }
+
+    // ── Webhook delivery log (ring buffer, max 100) ──────────────────────────
+    interface WebhookDelivery {
+      task_id:         string;
+      webhook_url:     string;
+      status:          "delivered" | "failed";
+      attempts:        number;
+      last_attempt_at: string;
+    }
+    const webhookDeliveries: WebhookDelivery[] = [];
+    const WEBHOOK_DELIVERY_MAX = 100;
+
+    // Low-level HTTP/HTTPS POST — returns the response status code.
+    function httpPost(
+      url: string,
+      body: string,
+      headers: Record<string, string>
+    ): Promise<number> {
+      return new Promise((resolve, reject) => {
+        const parsed    = new URL(url);
+        const isHttps   = parsed.protocol === "https:";
+        const transport = isHttps ? https : http;
+        const port      = parsed.port
+          ? parseInt(parsed.port, 10)
+          : (isHttps ? 443 : 80);
+        const req = transport.request(
+          {
+            hostname: parsed.hostname,
+            port,
+            path:     parsed.pathname + parsed.search,
+            method:   "POST",
+            headers,
+          },
+          (res) => {
+            res.resume(); // drain response body
+            resolve(res.statusCode ?? 0);
+          }
+        );
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+    }
+
+    // Deliver webhook with HMAC-SHA256 signature, up to 3 attempts (2 s delay).
+    // Non-blocking — callers fire-and-forget with void.
+    async function deliverWebhook(
+      taskId: string,
+      webhookUrl: string,
+      payload: {
+        task_id:      string;
+        status:       string;
+        result?:      CanonicalResponse;
+        error?:       string;
+        completed_at: string;
+      }
+    ): Promise<void> {
+      const body       = JSON.stringify(payload);
+      const secret     = process.env.WEBHOOK_SECRET ?? "";
+      const sig        = crypto.createHmac("sha256", secret).update(body).digest("hex");
+      const byteLen    = Buffer.byteLength(body).toString();
+      const reqHeaders: Record<string, string> = {
+        "Content-Type":    "application/json",
+        "Content-Length":  byteLen,
+        "X-Signature-256": `sha256=${sig}`,
+        "User-Agent":      "SecurityOrchestra/1.0",
+      };
+
+      let attempts  = 0;
+      let delivered = false;
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        attempts = attempt;
+        try {
+          if (attempt > 1) await new Promise<void>(r => setTimeout(r, 2000));
+          const statusCode = await httpPost(webhookUrl, body, reqHeaders);
+          if (statusCode >= 200 && statusCode < 300) {
+            delivered = true;
+            break;
+          }
+          log("warn", `[webhook] attempt ${attempt}/3 — HTTP ${statusCode} for task ${taskId}`);
+        } catch (err) {
+          log("warn", `[webhook] attempt ${attempt}/3 — error for task ${taskId}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      const delivery: WebhookDelivery = {
+        task_id:         taskId,
+        webhook_url:     webhookUrl,
+        status:          delivered ? "delivered" : "failed",
+        attempts,
+        last_attempt_at: new Date().toISOString(),
+      };
+      webhookDeliveries.push(delivery);
+      if (webhookDeliveries.length > WEBHOOK_DELIVERY_MAX) webhookDeliveries.shift();
+
+      if (!delivered) {
+        log("error", `[webhook] all ${attempts} attempt(s) failed — task ${taskId} → ${webhookUrl}`);
+      } else {
+        log("info", `[webhook] delivered — task ${taskId} → ${webhookUrl} (${attempts} attempt(s))`);
       }
     }
 
@@ -2202,6 +2307,30 @@ async function main() {
         return;
       }
       res.json(getHealthReport());
+    });
+
+    // Admin: webhook delivery log — last 100 deliveries, most recent first
+    app.get("/admin/webhooks", (req, res) => {
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      const supplied      = req.headers["x-admin-key"];
+      if (!adminPassword || typeof supplied !== "string") {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const suppliedBuf = Buffer.from(supplied);
+      const expectedBuf = Buffer.from(adminPassword);
+      const valid =
+        suppliedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(suppliedBuf, expectedBuf);
+      if (!valid) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      res.json({
+        deliveries:   webhookDeliveries.slice().reverse(),
+        total:        webhookDeliveries.length,
+        generated_at: new Date().toISOString(),
+      });
     });
 
     // One active SSE transport per session, keyed by sessionId
@@ -3110,8 +3239,10 @@ async function main() {
         return;
       }
 
-      const chainId: string | undefined = req.body?.chain;
-      const query: string | undefined   = req.body?.query;
+      const chainId:    string | undefined = req.body?.chain;
+      const query:      string | undefined = req.body?.query;
+      const webhookUrl: string | undefined = typeof req.body?.webhook_url === "string"
+        ? req.body.webhook_url : undefined;
 
       if (!chainId || !query) {
         res.status(400).json({ error: "chain and query are required" });
@@ -3142,7 +3273,7 @@ async function main() {
         (req.body?.task_id as string | undefined) ??
         crypto.randomUUID();
       pruneAsyncTasks();
-      asyncChainTasks.set(taskId, { status: "pending", createdAt: Date.now() });
+      asyncChainTasks.set(taskId, { status: "pending", createdAt: Date.now(), webhook_url: webhookUrl });
 
       const kwVal   = query.match(/(\d+(?:\.\d+)?)\s*(?:kw|kilowatt)/i)?.[1];
       const mwVal   = query.match(/(\d+(?:\.\d+)?)\s*(?:mw|megawatt)/i)?.[1];
@@ -3159,7 +3290,7 @@ async function main() {
 
       // Kick off the chain in the background — do not await
       (async () => {
-        asyncChainTasks.set(taskId, { status: "running", createdAt: Date.now() });
+        asyncChainTasks.set(taskId, { status: "running", createdAt: Date.now(), webhook_url: webhookUrl });
         logAudit({
           user_id: keyRow.user_id, action: "chain_start", resource: chainId,
           result: "success", details: { query, steps: chain.steps, tier: keyRow.tier, async: true },
@@ -3176,11 +3307,28 @@ async function main() {
             result: "success", duration_ms: Date.now() - startTime,
             details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier, async: true },
           });
-          asyncChainTasks.set(taskId, { status: "complete", result: validateCanonical(chainResult), createdAt: Date.now() });
+          const canonicalResult = validateCanonical(chainResult);
+          asyncChainTasks.set(taskId, { status: "complete", result: canonicalResult, createdAt: Date.now(), webhook_url: webhookUrl });
+          if (webhookUrl) {
+            void deliverWebhook(taskId, webhookUrl, {
+              task_id:      taskId,
+              status:       "complete",
+              result:       canonicalResult,
+              completed_at: new Date().toISOString(),
+            });
+          }
         } catch (err) {
           const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
           log("error", `[chain/async] error — ${chainId}: ${msg}`);
-          asyncChainTasks.set(taskId, { status: "error", error: msg, createdAt: Date.now() });
+          asyncChainTasks.set(taskId, { status: "error", error: msg, createdAt: Date.now(), webhook_url: webhookUrl });
+          if (webhookUrl) {
+            void deliverWebhook(taskId, webhookUrl, {
+              task_id:      taskId,
+              status:       "error",
+              error:        msg,
+              completed_at: new Date().toISOString(),
+            });
+          }
         }
       })();
 

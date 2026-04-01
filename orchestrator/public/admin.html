@@ -155,6 +155,48 @@
     .credit-bar-col .c-bar { width: 100%; background: linear-gradient(180deg, #6366f1, #4f46e5); border-radius: 3px 3px 0 0; min-height: 4px; transition: height .4s ease; }
     .credit-bar-col .c-day { font-size: 9px; color: #475569; }
 
+    /* ── Agent health table ── */
+    .health-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .health-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .health-dot.green  { background: #22c55e; box-shadow: 0 0 4px #22c55e80; }
+    .health-dot.yellow { background: #f59e0b; box-shadow: 0 0 4px #f59e0b80; }
+    .health-dot.red    { background: #ef4444; box-shadow: 0 0 4px #ef444480; }
+    .health-dot.gray   { background: #475569; }
+    .stale-badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .stale-badge.low    { background: #14532d; color: #4ade80; }
+    .stale-badge.medium { background: #713f12; color: #fbbf24; }
+    .stale-badge.high   { background: #450a0a; color: #f87171; }
+    .stale-badge.none   { background: #1e2535; color: #475569; }
+    #health-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    #health-panel-header h2 { margin-bottom: 0; }
+    #health-last-updated { color: #475569; font-size: 11px; }
+
     /* ── Loading spinner ── */
     #loading { display: none; position: fixed; inset: 0; background: #0a0c10cc; align-items: center; justify-content: center; z-index: 100; }
     .spinner { width: 36px; height: 36px; border: 3px solid #1e2535; border-top-color: #6366f1; border-radius: 50%; animation: spin .8s linear infinite; }
@@ -240,6 +282,33 @@
   <div class="section">
     <h2>Credit Spend — Last 7 Days</h2>
     <div id="credit-bars"><span style="color:#475569;font-size:13px">No data yet</span></div>
+  </div>
+
+  <!-- Agent Health -->
+  <div class="section">
+    <div id="health-panel-header">
+      <h2>Agent Health</h2>
+      <span id="health-last-updated">Refreshes every 30s</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Calls</th>
+            <th>Errors</th>
+            <th>Error Rate</th>
+            <th>Avg Latency</th>
+            <th>Last Called</th>
+            <th>Status</th>
+            <th>Staleness Risk</th>
+          </tr>
+        </thead>
+        <tbody id="health-body">
+          <tr><td colspan="8" style="color:#475569;text-align:center;padding:20px">No agent calls recorded yet</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -408,6 +477,68 @@
       return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     } catch { return s.slice(5); }
   }
+
+  // ── Agent Health ──────────────────────────────────────────────────────────
+  let healthRefreshTimer = null;
+
+  function startHealthRefresh() {
+    fetchHealth();
+    if (!healthRefreshTimer) healthRefreshTimer = setInterval(fetchHealth, 30000);
+  }
+
+  async function fetchHealth() {
+    try {
+      const res = await fetch("/admin/health", {
+        headers: { "x-admin-key": sessionStorage.getItem(SESSION_KEY) ?? "" },
+      });
+      if (!res.ok) return; // auth failure handled by main fetchData
+      const data = await res.json();
+      renderHealth(data.agents ?? []);
+      $("health-last-updated").textContent = "Updated " + new Date().toLocaleTimeString("en-US", { hour12: false });
+    } catch { /* silent — errors surface in main panel */ }
+  }
+
+  function renderHealth(agents) {
+    const tbody = $("health-body");
+    if (!agents.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="color:#475569;text-align:center;padding:20px">No agent calls recorded yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = agents.map(a => {
+      const errorRate = a.error_rate ?? 0;
+      const pct       = (errorRate * 100).toFixed(1) + "%";
+      let dotClass, label;
+      if (a.call_count === 0) { dotClass = "gray";   label = "Idle"; }
+      else if (errorRate < 0.05) { dotClass = "green";  label = "Healthy"; }
+      else if (errorRate < 0.20) { dotClass = "yellow"; label = "Degraded"; }
+      else                       { dotClass = "red";    label = "Unhealthy"; }
+
+      const staleClass = a.stale_risk ?? "none";
+      const staleLabel = a.stale_risk ? a.stale_risk.charAt(0).toUpperCase() + a.stale_risk.slice(1) : "—";
+      const staleBadge = `<span class="stale-badge ${staleClass}">${staleLabel}</span>`;
+
+      const lastCalled = a.last_called ? fmtTime(a.last_called) : "—";
+      const latency    = a.avg_latency_ms > 0 ? a.avg_latency_ms + "ms" : "—";
+
+      return `<tr>
+        <td class="mono" title="${a.agent_id}">${fmt(a.agent_id)}</td>
+        <td>${a.call_count}</td>
+        <td>${a.error_count}</td>
+        <td style="color:${errorRate >= 0.20 ? '#f87171' : errorRate >= 0.05 ? '#fbbf24' : '#4ade80'}">${pct}</td>
+        <td>${latency}</td>
+        <td class="mono">${lastCalled}</td>
+        <td><span class="health-status"><span class="health-dot ${dotClass}"></span>${label}</span></td>
+        <td>${staleBadge}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  // Hook health refresh into showDashboard
+  const _origShowDashboard = showDashboard;
+  showDashboard = function() {
+    _origShowDashboard();
+    startHealthRefresh();
+  };
 </script>
 </body>
 </html>

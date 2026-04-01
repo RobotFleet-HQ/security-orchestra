@@ -19,6 +19,7 @@ import { checkCredits, deductCredits, WORKFLOW_COSTS } from "./billing.js";
 import { validateWorkflowParams } from "./validation.js";
 import { enforceRateLimit } from "./rateLimit.js";
 import { logAudit, auditDb, auditDbAll } from "./audit.js";
+import { recordCall, getHealthReport } from "./health-monitor.js";
 import { runSubdomainDiscovery } from "./workflows/subdomain.js";
 import { runGeneratorSizing } from "./workflows/generatorSizing.js";
 import { runUtilityInterconnect } from "./workflows/utilityInterconnect.js";
@@ -772,6 +773,7 @@ async function runChain(
   _tier: string,
   taskId?: string
 ): Promise<CanonicalResponse> {
+  const _chainStart = Date.now();
   const chain = CHAINS[chainId];
   const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
   let runningParams = applyChainDefaults({ ...initialParams });
@@ -797,12 +799,19 @@ async function runChain(
     .join("\n");
 
   const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
-  return validateCanonical(toCanonical(`chain:${chainId}`, payload, {
+  const _chainCanonical = validateCanonical(toCanonical(`chain:${chainId}`, payload, {
     version:    "1.0",
     credits:    chain.credits,
     taskId:     taskId ?? crypto.randomUUID(),
     idempotent: true,
   }));
+  const _chainHadError = stepResults.some((s) => s.error);
+  recordCall(
+    `chain:${chainId}`,
+    Date.now() - _chainStart,
+    _chainHadError ? new Error(`${stepResults.filter(s => s.error).length} step(s) failed`) : undefined
+  );
+  return _chainCanonical;
 }
 
 async function dispatchWorkflow(
@@ -810,6 +819,7 @@ async function dispatchWorkflow(
   args: Record<string, string>,
   taskId?: string
 ): Promise<CanonicalResponse> {
+  const _hwStart = Date.now();
   const result = await (async (): Promise<WorkflowResult> => {
   switch (name) {
     case "subdomain_discovery": {
@@ -1418,17 +1428,22 @@ async function dispatchWorkflow(
       throw new McpError(ErrorCode.InvalidParams,
         `Unknown workflow: "${name}". Call get_capabilities to list available workflows.`);
   }
-  })();
+  })().catch((err: unknown) => {
+    recordCall(name, Date.now() - _hwStart, err instanceof Error ? err : new Error(String(err)));
+    throw err;
+  });
 
   const wf = WORKFLOWS[name];
   const resolvedTaskId = taskId ?? crypto.randomUUID();
   const rawResults = (result as unknown as { results: unknown }).results;
-  return validateCanonical(toCanonical(name, rawResults, {
+  const _canonical = validateCanonical(toCanonical(name, rawResults, {
     version:    wf?.version ?? "1.0",
     credits:    wf?.credits ?? 0,
     taskId:     resolvedTaskId,
     idempotent: true,
   }));
+  recordCall(name, Date.now() - _hwStart);
+  return _canonical;
 }
 
 // ─── Tier access control ──────────────────────────────────────────────────────
@@ -2167,6 +2182,26 @@ async function main() {
         log("error", `[dashboard-data] ${(err as Error).message}`);
         res.status(500).json({ error: "Failed to load dashboard data" });
       }
+    });
+
+    // Admin: agent health metrics — per-agent call counts, error rates, latencies
+    app.get("/admin/health", async (req, res) => {
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      const supplied      = req.headers["x-admin-key"];
+      if (!adminPassword || typeof supplied !== "string") {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      const suppliedBuf = Buffer.from(supplied);
+      const expectedBuf = Buffer.from(adminPassword);
+      const valid =
+        suppliedBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(suppliedBuf, expectedBuf);
+      if (!valid) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      res.json(getHealthReport());
     });
 
     // One active SSE transport per session, keyed by sessionId

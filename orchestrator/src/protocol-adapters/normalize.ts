@@ -108,6 +108,11 @@ export function normalize(
 export function normalize(
   protocol: Protocol,
   canonical: CanonicalResponse,
+  opts?: NormalizeOpts
+): A2AWire | ACPWire | OpenAIWire | MCPWire | AGNTCYWire | AGUIEventPayload;
+export function normalize(
+  protocol: Protocol,
+  canonical: CanonicalResponse,
   opts: NormalizeOpts = {}
 ): A2AWire | ACPWire | OpenAIWire | MCPWire | AGNTCYWire | AGUIEventPayload {
   const text      = JSON.stringify(canonical, null, 2);

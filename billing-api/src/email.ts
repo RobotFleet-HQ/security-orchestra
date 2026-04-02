@@ -1,4 +1,5 @@
 import sgMail from "@sendgrid/mail";
+import { logFailedDelivery } from "./database.js";
 
 const FROM_EMAIL =
   process.env.SENDGRID_FROM_EMAIL ?? "noreply@security-orchestra.com";
@@ -8,6 +9,42 @@ function initSg(): void {
   if (!key) throw new Error("SENDGRID_API_KEY not set");
   sgMail.setApiKey(key);
   console.log(`[email] SendGrid initialised — key prefix: ${key.slice(0, 8)}... from: ${process.env.SENDGRID_FROM_EMAIL ?? "(default)"}`);
+}
+
+// ─── Retry wrapper ────────────────────────────────────────────────────────────
+// Attempts to send up to 3 times with exponential backoff (1s, 2s).
+// On final failure, logs to failed_deliveries table before rethrowing.
+
+async function sendWithRetry(
+  message: Parameters<typeof sgMail.send>[0],
+  emailType: string,
+  to: string
+): Promise<void> {
+  const retryDelaysMs = [1000, 2000];
+  let lastError: Error = new Error("unknown");
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await sgMail.send(message);
+      return;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[email] ${emailType} to ${to} failed (attempt ${attempt + 1}/3): ${lastError.message}`);
+      if (attempt < retryDelaysMs.length) {
+        await new Promise<void>(r => setTimeout(r, retryDelaysMs[attempt]));
+      }
+    }
+  }
+
+  // All 3 attempts exhausted — persist to failed_deliveries for manual retry
+  try {
+    await logFailedDelivery(to, emailType, lastError.message);
+    console.error(`[email] ${emailType} to ${to} — all retries exhausted, logged to failed_deliveries`);
+  } catch (dbErr) {
+    console.error(`[email] failed_deliveries insert also failed: ${(dbErr as Error).message}`);
+  }
+
+  throw lastError;
 }
 
 function canSpamFooter(to: string, baseUrl: string): string {
@@ -36,7 +73,7 @@ export async function sendApiKeyEmail(
   initSg();
   console.log(`[email] sendApiKeyEmail → to="${to}" tier="${tier}" keyPrefix="${apiKey.slice(0, 16)}"`);
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
-  const [response] = await sgMail.send({
+  await sendWithRetry({
     to,
     from: FROM_EMAIL,
     subject: "Your Security Orchestra API Key",
@@ -72,8 +109,8 @@ export async function sendApiKeyEmail(
         ${canSpamFooter(to, baseUrl)}
       </div>
     `,
-  });
-  console.log(`[email] sendApiKeyEmail → sent OK, statusCode=${response.statusCode}`);
+  }, "api_key", to);
+  console.log(`[email] sendApiKeyEmail → sent OK`);
 }
 
 export async function sendVerificationEmail(
@@ -83,7 +120,7 @@ export async function sendVerificationEmail(
   initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
   const verifyUrl = `${baseUrl}/verify?token=${token}`;
-  await sgMail.send({
+  await sendWithRetry({
     to,
     from: FROM_EMAIL,
     subject: "Verify your Security Orchestra account",
@@ -101,7 +138,7 @@ export async function sendVerificationEmail(
         ${canSpamFooter(to, baseUrl)}
       </div>
     `,
-  });
+  }, "verification", to);
 }
 
 export async function sendLowCreditWarning(
@@ -110,7 +147,7 @@ export async function sendLowCreditWarning(
 ): Promise<void> {
   initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
-  await sgMail.send({
+  await sendWithRetry({
     to,
     from: FROM_EMAIL,
     subject: "Low Credit Warning — Security Orchestra",
@@ -128,7 +165,7 @@ export async function sendLowCreditWarning(
         ${canSpamFooter(to, baseUrl)}
       </div>
     `,
-  });
+  }, "low_credit_warning", to);
 }
 
 export async function sendCreditPurchaseConfirmation(
@@ -138,7 +175,7 @@ export async function sendCreditPurchaseConfirmation(
 ): Promise<void> {
   initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
-  await sgMail.send({
+  await sendWithRetry({
     to,
     from: FROM_EMAIL,
     subject: `${credits} credits added — Security Orchestra`,
@@ -150,7 +187,7 @@ export async function sendCreditPurchaseConfirmation(
         ${canSpamFooter(to, baseUrl)}
       </div>
     `,
-  });
+  }, "credit_purchase_confirmation", to);
 }
 
 export async function sendSignupNotification(
@@ -160,8 +197,9 @@ export async function sendSignupNotification(
   timestamp: string
 ): Promise<void> {
   initSg();
-  await sgMail.send({
-    to: "contact.securityorchestra@gmail.com",
+  const notifyTo = "contact.securityorchestra@gmail.com";
+  await sendWithRetry({
+    to: notifyTo,
     from: FROM_EMAIL,
     subject: `New Signup - ${tier} - ${customerEmail}`,
     html: `
@@ -175,7 +213,7 @@ export async function sendSignupNotification(
         </table>
       </div>
     `,
-  });
+  }, "signup_notification", notifyTo);
   console.log(`[email] sendSignupNotification → sent for ${customerEmail} (${tier})`);
 }
 
@@ -186,7 +224,7 @@ export async function sendUpgradeConfirmation(
 ): Promise<void> {
   initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
-  await sgMail.send({
+  await sendWithRetry({
     to,
     from: FROM_EMAIL,
     subject: `Plan upgraded to ${tier} — Security Orchestra`,
@@ -203,5 +241,5 @@ export async function sendUpgradeConfirmation(
         ${canSpamFooter(to, baseUrl)}
       </div>
     `,
-  });
+  }, "upgrade_confirmation", to);
 }

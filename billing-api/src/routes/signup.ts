@@ -101,7 +101,7 @@ const DISPOSABLE_DOMAINS = new Set([
   "pancakemail.com", "pimpedupmyspace.com", "pjjkp.com",
   "plexolan.de", "pookmail.com", "privacy.net", "proxymail.eu",
   "prtnx.com", "putthisinyourspamdatabase.com",
-  "qq.com", "qisoa.com", "quickinbox.com",
+  "qisoa.com", "quickinbox.com",
   "rcpt.at", "recode.me", "recyclemail.dk", "regbypass.com",
   "rejectmail.com", "rklips.com", "rmqkr.net",
   "rppkn.com", "rtrtr.com",
@@ -158,12 +158,31 @@ const DISPOSABLE_DOMAINS = new Set([
   "www.e4ward.com", "wwwnew.eu",
   "xagloo.co", "xagloo.com", "xemaps.com", "xents.com",
   "xmaily.com", "xoxy.net", "xww.ro",
-  "yapped.net", "yeah.net", "yep.it", "yogamaven.com",
+  "yapped.net", "yep.it", "yogamaven.com",
   "yomail.info", "yopmail.pp.ua",
   "za.com", "zehnminuten.de", "zehnminuten.net", "zehnminutenmail.de",
   "zetmail.com", "zippymail.info", "zoaxe.com", "zoemail.net",
   "zoemail.org", "zomg.info",
 ]);
+
+// ─── IP-based signup rate limiter ────────────────────────────────────────────
+// Configurable via SIGNUP_RATE_LIMIT_PER_IP (default: 10 signups per hour).
+// Whitelisted IPs bypass this check.
+const _ipCounts = new Map<string, { count: number; windowStart: number }>();
+const IP_RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour sliding window
+const IP_RATE_LIMIT = parseInt(process.env.SIGNUP_RATE_LIMIT_PER_IP ?? "10", 10);
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = _ipCounts.get(ip);
+  if (!entry || now - entry.windowStart > IP_RATE_WINDOW_MS) {
+    _ipCounts.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= IP_RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -200,6 +219,13 @@ router.post("/", async (req: Request, res: Response) => {
     WHITELISTED_EMAILS.has(emailLower) ||
     emailLower.endsWith("@security-orchestra.io") ||
     WHITELISTED_IPS.has(clientIp);
+
+  // ── IP rate limit — whitelisted IPs bypass ───────────────────────────────────
+  if (!isWhitelisted && !checkIpRateLimit(clientIp)) {
+    return res.status(429).json({
+      error: `Too many signups from this IP address. Limit: ${IP_RATE_LIMIT} per hour.`,
+    });
+  }
 
   // ── Reject disposable / throwaway email domains ──────────────────────────────
   if (!isWhitelisted) {

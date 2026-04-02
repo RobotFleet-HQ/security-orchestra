@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { initDb, TIERS, dbGet, dbRunChanges } from "./database.js";
+import { initDb, TIERS, dbGet, dbRunChanges, getFailedDeliveries } from "./database.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
@@ -129,10 +129,22 @@ app.post("/webhook-test", express.raw({ type: "*/*" }), (req, res) => {
   res.json({ received: true, debug: info });
 });
 
+// ─── Admin: failed deliveries ────────────────────────────────────────────────
+app.get("/admin/failed-deliveries", async (_req: express.Request, res: express.Response) => {
+  const adminSecret = process.env.BILLING_ADMIN_SECRET;
+  const supplied = _req.headers["x-admin-key"] as string | undefined;
+  if (!adminSecret || !supplied || supplied !== adminSecret) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const rows = await getFailedDeliveries();
+  return res.json({ count: rows.length, failed_deliveries: rows });
+});
+
 // ─── Admin: delete user ───────────────────────────────────────────────────────
 app.delete("/admin/user", async (req: express.Request, res: express.Response) => {
   const { email, secret } = req.query as { email?: string; secret?: string };
-  if (secret !== "orchestra123") {
+  const adminSecret = process.env.BILLING_ADMIN_SECRET;
+  if (!adminSecret || secret !== adminSecret) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   if (!email) {

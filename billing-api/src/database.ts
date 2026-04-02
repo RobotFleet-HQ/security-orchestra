@@ -79,12 +79,42 @@ export function initDb(): Promise<void> {
           status TEXT NOT NULL DEFAULT 'unread',
           created_at TEXT NOT NULL
         )
+      `);
+
+      db.run(`
+        CREATE TABLE IF NOT EXISTS failed_deliveries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL,
+          email_type TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          last_attempt_at TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 1,
+          last_error TEXT NOT NULL
+        )
       `, (err) => {
         if (err) reject(err);
         else resolve();
       });
     });
   });
+}
+
+export function logFailedDelivery(email: string, emailType: string, error: string): Promise<void> {
+  const now = new Date().toISOString();
+  return dbRun(
+    "INSERT INTO failed_deliveries (email, email_type, created_at, last_attempt_at, attempts, last_error) VALUES (?, ?, ?, ?, 1, ?)",
+    [email, emailType, now, now, error]
+  );
+}
+
+export function getFailedDeliveries(): Promise<Array<{
+  id: number; email: string; email_type: string;
+  created_at: string; last_attempt_at: string; attempts: number; last_error: string;
+}>> {
+  return dbAll<{
+    id: number; email: string; email_type: string;
+    created_at: string; last_attempt_at: string; attempts: number; last_error: string;
+  }>("SELECT * FROM failed_deliveries ORDER BY created_at DESC LIMIT 200", []);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

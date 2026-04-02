@@ -186,7 +186,7 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid email address" });
   }
 
-  // ── Owner / tester whitelist — bypasses all rate limits and geo blocks ───────
+  // ── Owner / tester whitelist — bypasses disposable-domain check ─────────────
   const clientIp =
     (req.headers["x-forwarded-for"] as string | undefined)
       ?.split(",")[0]
@@ -200,6 +200,14 @@ router.post("/", async (req: Request, res: Response) => {
     WHITELISTED_EMAILS.has(emailLower) ||
     emailLower.endsWith("@security-orchestra.io") ||
     WHITELISTED_IPS.has(clientIp);
+
+  // ── Reject disposable / throwaway email domains ──────────────────────────────
+  if (!isWhitelisted) {
+    const domain = emailLower.split("@")[1] ?? "";
+    if (DISPOSABLE_DOMAINS.has(domain)) {
+      return res.status(400).json({ error: "Disposable email addresses are not allowed." });
+    }
+  }
 
   // ── Internal test bypass ────────────────────────────────────────────────────
   // test@security-orchestra.io skips IP/disposable checks and returns the key

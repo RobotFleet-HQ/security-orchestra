@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { initDb, TIERS, dbGet, dbRunChanges, getFailedDeliveries } from "./database.js";
+import { logEmailTransport } from "./email.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
@@ -226,7 +227,7 @@ async function main() {
   app.listen(PORT, () => {
     console.log(`Billing API running on http://localhost:${PORT}`);
     console.log("Stripe configured:", !!process.env.STRIPE_SECRET_KEY);
-    console.log("SendGrid configured:", !!process.env.SENDGRID_API_KEY);
+    logEmailTransport();
   });
 }
 

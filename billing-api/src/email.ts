@@ -1,42 +1,45 @@
+// ─── Email transport ──────────────────────────────────────────────────────────
+// Primary:  Gmail SMTP via nodemailer (App Password auth).
+//           Google signs outgoing mail with gmail.com DKIM + SPF, so DMARC
+//           alignment succeeds for the contact.securityorchestra@gmail.com FROM.
+// Fallback: SendGrid API (@sendgrid/mail) — used when GMAIL_APP_PASSWORD is not
+//           set. Note: SendGrid cannot achieve DMARC alignment for a gmail.com
+//           FROM address, so deliverability is lower on the fallback path.
+//
+// To enable Gmail SMTP:
+//   1. Enable 2-Step Verification on the sending Gmail account.
+//   2. Generate an App Password: myaccount.google.com/apppasswords
+//   3. Set GMAIL_APP_PASSWORD in your environment (and GMAIL_USER if different
+//      from the default below).
+
+import nodemailer from "nodemailer";
+import type { Transporter, SendMailOptions } from "nodemailer";
 import sgMail from "@sendgrid/mail";
 import { logFailedDelivery } from "./database.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FROM_EMAIL =
-  process.env.SENDGRID_FROM_EMAIL ?? "noreply@security-orchestra.io";
+const GMAIL_USER = process.env.GMAIL_USER ?? "contact.securityorchestra@gmail.com";
+const FROM_EMAIL  = process.env.SENDGRID_FROM_EMAIL ?? GMAIL_USER;
+const REPLY_TO    = GMAIL_USER;
 
-const REPLY_TO = "contact.securityorchestra@gmail.com";
+// ─── Transport factory ────────────────────────────────────────────────────────
 
-function initSg(): void {
-  const key = process.env.SENDGRID_API_KEY;
-  if (!key) throw new Error("SENDGRID_API_KEY not set");
-  sgMail.setApiKey(key);
-}
-
-// ─── List-Unsubscribe headers (RFC 2369 + RFC 8058) ──────────────────────────
-// Both mailto and HTTP forms are included. Gmail uses the HTTP + Post form for
-// one-click unsubscribe; other clients fall back to mailto.
-
-function unsubscribeHeaders(
-  to: string,
-  baseUrl: string
-): Record<string, string> {
-  const mailtoUrl = `mailto:${REPLY_TO}?subject=unsubscribe&body=${encodeURIComponent(to)}`;
-  const httpUrl   = `${baseUrl}/unsubscribe?email=${encodeURIComponent(to)}`;
-  return {
-    "List-Unsubscribe":      `<${mailtoUrl}>, <${httpUrl}>`,
-    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-    "Precedence":            "bulk",
-  };
+function getGmailTransport(): Transporter {
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!pass) throw new Error("GMAIL_APP_PASSWORD not set");
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: GMAIL_USER, pass },
+  });
 }
 
 // ─── Retry wrapper ────────────────────────────────────────────────────────────
 // 3 attempts with 1s → 2s backoff. On final failure, persists to
-// failed_deliveries so no customer email address is silently lost.
+// failed_deliveries so no customer email is silently lost.
 
 async function sendWithRetry(
-  message: Parameters<typeof sgMail.send>[0],
+  message: SendMailOptions,
   emailType: string,
   to: string
 ): Promise<void> {
@@ -45,7 +48,24 @@ async function sendWithRetry(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await sgMail.send(message);
+      if (process.env.GMAIL_APP_PASSWORD) {
+        // Primary: Gmail SMTP — proper DKIM + SPF alignment
+        const transport = getGmailTransport();
+        await transport.sendMail(message);
+      } else {
+        // Fallback: SendGrid
+        const key = process.env.SENDGRID_API_KEY;
+        if (!key) throw new Error("Neither GMAIL_APP_PASSWORD nor SENDGRID_API_KEY is set");
+        sgMail.setApiKey(key);
+        // nodemailer headers is Record<string,…> — SendGrid wants plain object
+        const { headers, ...rest } = message;
+        const sgHeaders = headers
+          ? Object.fromEntries(
+              Object.entries(headers as Record<string, string>).map(([k, v]) => [k, String(v)])
+            )
+          : undefined;
+        await sgMail.send({ ...rest, headers: sgHeaders } as Parameters<typeof sgMail.send>[0]);
+      }
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -66,7 +86,17 @@ async function sendWithRetry(
   throw lastError;
 }
 
-// ─── Footer helpers ───────────────────────────────────────────────────────────
+// ─── Headers helpers ──────────────────────────────────────────────────────────
+
+function unsubscribeHeaders(to: string, baseUrl: string): Record<string, string> {
+  const mailtoUrl = `mailto:${REPLY_TO}?subject=unsubscribe&body=${encodeURIComponent(to)}`;
+  const httpUrl   = `${baseUrl}/unsubscribe?email=${encodeURIComponent(to)}`;
+  return {
+    "List-Unsubscribe":      `<${mailtoUrl}>, <${httpUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "Precedence":            "bulk",
+  };
+}
 
 function htmlFooter(to: string, baseUrl: string): string {
   const unsubUrl = `${baseUrl}/unsubscribe?email=${encodeURIComponent(to)}`;
@@ -97,6 +127,11 @@ function textFooter(to: string, baseUrl: string): string {
   ].join("\n");
 }
 
+export function logEmailTransport(): void {
+  const transport = process.env.GMAIL_APP_PASSWORD ? "Gmail SMTP" : "SendGrid (fallback)";
+  console.log(`[email] transport: ${transport}, from: ${FROM_EMAIL}`);
+}
+
 // ─── Email functions ──────────────────────────────────────────────────────────
 
 export async function sendApiKeyEmail(
@@ -104,11 +139,10 @@ export async function sendApiKeyEmail(
   apiKey: string,
   tier: string
 ): Promise<void> {
-  initSg();
   console.log(`[email] sendApiKeyEmail → to="${to}" tier="${tier}" keyPrefix="${apiKey.slice(0, 16)}"`);
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
 
-  const textBody = [
+  const text = [
     "Welcome to Security Orchestra!",
     "",
     `Your API key for the ${tier} plan:`,
@@ -139,11 +173,11 @@ export async function sendApiKeyEmail(
   ].join("\n");
 
   await sendWithRetry({
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
     to,
-    from:    FROM_EMAIL,
     replyTo: REPLY_TO,
     subject: "Your Security Orchestra API Key",
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2 style="color:#238636">Welcome to Security Orchestra!</h2>
@@ -186,11 +220,10 @@ export async function sendVerificationEmail(
   to: string,
   token: string
 ): Promise<void> {
-  initSg();
-  const baseUrl  = process.env.BASE_URL ?? "http://localhost:3001";
+  const baseUrl   = process.env.BASE_URL ?? "http://localhost:3001";
   const verifyUrl = `${baseUrl}/verify?token=${token}`;
 
-  const textBody = [
+  const text = [
     "Verify your Security Orchestra account",
     "",
     "Click the link below to activate your account and receive your API key:",
@@ -201,11 +234,11 @@ export async function sendVerificationEmail(
   ].join("\n");
 
   await sendWithRetry({
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
     to,
-    from:    FROM_EMAIL,
     replyTo: REPLY_TO,
     subject: "Verify your Security Orchestra account",
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2>Verify your email</h2>
@@ -228,10 +261,9 @@ export async function sendLowCreditWarning(
   to: string,
   balance: number
 ): Promise<void> {
-  initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
 
-  const textBody = [
+  const text = [
     "Your Security Orchestra credit balance is running low",
     "",
     `Your account has ${balance} credits remaining.`,
@@ -246,11 +278,11 @@ export async function sendLowCreditWarning(
   ].join("\n");
 
   await sendWithRetry({
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
     to,
-    from:    FROM_EMAIL,
     replyTo: REPLY_TO,
     subject: "Your Security Orchestra credit balance is running low",
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2 style="color:#d29922">Credit balance running low</h2>
@@ -274,10 +306,9 @@ export async function sendCreditPurchaseConfirmation(
   credits: number,
   newBalance: number
 ): Promise<void> {
-  initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
 
-  const textBody = [
+  const text = [
     `${credits} credits added to your Security Orchestra account`,
     "",
     `Your new credit balance: ${newBalance} credits`,
@@ -287,11 +318,11 @@ export async function sendCreditPurchaseConfirmation(
   ].join("\n");
 
   await sendWithRetry({
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
     to,
-    from:    FROM_EMAIL,
     replyTo: REPLY_TO,
     subject: `${credits} credits added to your account`,
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2 style="color:#238636">${credits} Credits Added</h2>
@@ -310,10 +341,7 @@ export async function sendSignupNotification(
   credits: number,
   timestamp: string
 ): Promise<void> {
-  initSg();
-  const notifyTo = REPLY_TO;
-
-  const textBody = [
+  const text = [
     `New signup: ${customerEmail}`,
     `Tier:      ${tier}`,
     `Credits:   ${credits}`,
@@ -321,11 +349,11 @@ export async function sendSignupNotification(
   ].join("\n");
 
   await sendWithRetry({
-    to:      notifyTo,
-    from:    FROM_EMAIL,
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
+    to:      REPLY_TO,
     replyTo: REPLY_TO,
     subject: `New signup: ${tier} — ${customerEmail}`,
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2>New Signup</h2>
@@ -337,7 +365,7 @@ export async function sendSignupNotification(
         </table>
       </div>
     `,
-  }, "signup_notification", notifyTo);
+  }, "signup_notification", REPLY_TO);
   console.log(`[email] sendSignupNotification → sent for ${customerEmail} (${tier})`);
 }
 
@@ -346,27 +374,26 @@ export async function sendUpgradeConfirmation(
   tier: string,
   credits: number
 ): Promise<void> {
-  initSg();
   const baseUrl = process.env.BASE_URL ?? "http://localhost:3001";
 
-  const textBody = [
+  const text = [
     `Your Security Orchestra plan has been upgraded to ${tier}`,
     "",
     `${credits} credits have been added to your account.`,
     "",
     "You now have expanded access to all data center intelligence tools.",
     "",
-    "Note: Your credits will reset on the 1st of each month. Unused credits do not roll over.",
+    "Note: Your credits reset on the 1st of each month. Unused credits do not roll over.",
     `Full terms: ${baseUrl}/terms.html`,
     textFooter(to, baseUrl),
   ].join("\n");
 
   await sendWithRetry({
+    from:    `Security Orchestra <${FROM_EMAIL}>`,
     to,
-    from:    FROM_EMAIL,
     replyTo: REPLY_TO,
     subject: `Your plan has been upgraded to ${tier}`,
-    text:    textBody,
+    text,
     html: `
       <div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
         <h2 style="color:#238636">Plan Upgraded</h2>
@@ -374,7 +401,7 @@ export async function sendUpgradeConfirmation(
         <p><strong>${credits} credits</strong> have been added to your account.</p>
         <p>Enjoy expanded access to all data center intelligence tools.</p>
         <p style="background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:12px 16px;font-size:13px;color:#555">
-          Your credits will reset on the 1st of each month. Unused credits do not roll over.
+          Your credits reset on the 1st of each month. Unused credits do not roll over.
           Review our <a href="${baseUrl}/terms.html">Terms of Service</a> for full details.
         </p>
         ${htmlFooter(to, baseUrl)}

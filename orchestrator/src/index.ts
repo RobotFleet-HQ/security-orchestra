@@ -1743,41 +1743,52 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: "get_capabilities",
-        description: "List all available security workflows and their required parameters",
-        inputSchema: { type: "object", properties: {} },
-      },
-      {
-        name: "execute_workflow",
-        description: "Execute a named security workflow against a target",
-        inputSchema: {
-          type: "object",
-          properties: {
-            workflow: { type: "string",
-              description: `Workflow name. Available: ${Object.keys(WORKFLOWS).join(", ")}` },
-            domain:   { type: "string",
-              description: "Target domain (required for subdomain_discovery, asset_discovery)" },
-            target:   { type: "string",
-              description: "Target host or domain (required for vulnerability_assessment)" },
-          },
-          required: ["workflow"],
-        },
-      },
-    ],
-  };
+  function paramsToSchema(params: string[]): {
+    type: "object"; properties: Record<string, { type: string; description: string }>; required: string[];
+  } {
+    const properties: Record<string, { type: string; description: string }> = {};
+    for (const p of params) properties[p] = { type: "string", description: p.replace(/_/g, " ") };
+    return { type: "object", properties, required: params };
+  }
+
+  const tools: Array<{ name: string; description: string; inputSchema: object }> = [
+    {
+      name: "get_capabilities",
+      description: "List all available workflows, chains, credit costs, and required parameters.",
+      inputSchema: { type: "object", properties: {} },
+    },
+  ];
+
+  // One tool per workflow (55 tools)
+  for (const [wfName, wf] of Object.entries(WORKFLOWS)) {
+    tools.push({ name: wfName, description: wf.description, inputSchema: paramsToSchema(wf.params) });
+  }
+
+  // One tool per chain, prefixed with chain_ (8 tools)
+  for (const [chainId, chain] of Object.entries(CHAINS)) {
+    const firstStepParams = WORKFLOWS[chain.steps[0]]?.params ?? [];
+    tools.push({ name: `chain_${chainId}`, description: chain.description, inputSchema: paramsToSchema(firstStepParams) });
+  }
+
+  return { tools };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // ── Auth ───────────────────────────────────────────────────────────────────
   // requireAuth() logs its own auth_failure before throwing
   const { userId, tier } = requireAuth();
-  const { name, arguments: args = {} } = request.params;
+  const { name: _rawName, arguments: args = {} } = request.params;
   const typedArgs = args as Record<string, string>;
 
-  log("info", `tool=${name} user=${userId} tier=${tier}`);
+  // Normalize: Smithery and other MCP clients call tools by their direct name.
+  // Map workflow names → execute_workflow, chain_<id> → chain execution.
+  if (WORKFLOWS[_rawName]) typedArgs.workflow = _rawName;
+  const name         = WORKFLOWS[_rawName]                               ? "execute_workflow"
+                     : (_rawName.startsWith("chain_") && CHAINS[_rawName.slice(6)]) ? "__chain__"
+                     : _rawName;
+  const directChainId = name === "__chain__" ? _rawName.slice(6) : null;
+
+  log("info", `tool=${_rawName} user=${userId} tier=${tier}`);
 
   // ── get_capabilities ───────────────────────────────────────────────────────
   if (name === "get_capabilities") {
@@ -1907,7 +1918,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
-  throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+  // ── chain_* direct tool calls ───────────────────────────────────────────────
+  if (directChainId) {
+    const chain = CHAINS[directChainId]!;
+    try { enforceRateLimit(userId, tier); } catch (err) { throw err; }
+
+    if (process.env.BILLING_API_URL) {
+      const balance = await checkCredits(userId);
+      if (balance < chain.credits) {
+        throw new McpError(ErrorCode.InvalidRequest,
+          `402: Insufficient credits — balance: ${balance}, required: ${chain.credits} for chain:${directChainId}`);
+      }
+    }
+
+    logAudit({ user_id: userId, action: "chain_start", resource: directChainId,
+      result: "success", details: { params: typedArgs, tier } });
+
+    let chainResult: CanonicalResponse;
+    try {
+      chainResult = await runChain(directChainId, typedArgs, userId, tier);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof McpError) throw err;
+      throw new McpError(ErrorCode.InternalError, `Chain error: ${msg}`);
+    }
+    return { content: [{ type: "text", text: JSON.stringify(chainResult, null, 2) }] };
+  }
+
+  throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${_rawName}`);
 });
 
   return server;

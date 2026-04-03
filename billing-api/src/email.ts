@@ -34,9 +34,35 @@ function getGmailTransport(): Transporter {
   });
 }
 
+// ─── SendGrid helper ──────────────────────────────────────────────────────────
+
+async function sendViaSendGrid(message: SendMailOptions): Promise<void> {
+  const key = process.env.SENDGRID_API_KEY;
+  if (!key) throw new Error("SENDGRID_API_KEY not set");
+  sgMail.setApiKey(key);
+  const { headers, ...rest } = message;
+  const sgHeaders = headers
+    ? Object.fromEntries(
+        Object.entries(headers as Record<string, string>).map(([k, v]) => [k, String(v)])
+      )
+    : undefined;
+  await sgMail.send({ ...rest, headers: sgHeaders } as Parameters<typeof sgMail.send>[0]);
+}
+
 // ─── Retry wrapper ────────────────────────────────────────────────────────────
-// 3 attempts with 1s → 2s backoff. On final failure, persists to
-// failed_deliveries so no customer email is silently lost.
+// Strategy:
+//   - If GMAIL_APP_PASSWORD is set, try Gmail SMTP first (proper DKIM alignment).
+//   - On Gmail auth failure (535), immediately fall back to SendGrid — no point
+//     retrying a bad credential. Retries are reserved for transient errors (5xx,
+//     connection resets).
+//   - If GMAIL_APP_PASSWORD is absent, go straight to SendGrid.
+//   - On final failure, persist to failed_deliveries — no email is silently lost.
+
+function isAuthError(err: Error): boolean {
+  return err.message.includes("535") || err.message.includes("BadCredentials") ||
+         err.message.includes("Username and Password not accepted") ||
+         err.message.includes("Invalid login");
+}
 
 async function sendWithRetry(
   message: SendMailOptions,
@@ -45,31 +71,29 @@ async function sendWithRetry(
 ): Promise<void> {
   const retryDelaysMs = [1000, 2000];
   let lastError: Error = new Error("unknown");
+  let gmailAuthFailed = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      if (process.env.GMAIL_APP_PASSWORD) {
+      if (process.env.GMAIL_APP_PASSWORD && !gmailAuthFailed) {
         // Primary: Gmail SMTP — proper DKIM + SPF alignment
         const transport = getGmailTransport();
         await transport.sendMail(message);
       } else {
-        // Fallback: SendGrid
-        const key = process.env.SENDGRID_API_KEY;
-        if (!key) throw new Error("Neither GMAIL_APP_PASSWORD nor SENDGRID_API_KEY is set");
-        sgMail.setApiKey(key);
-        // nodemailer headers is Record<string,…> — SendGrid wants plain object
-        const { headers, ...rest } = message;
-        const sgHeaders = headers
-          ? Object.fromEntries(
-              Object.entries(headers as Record<string, string>).map(([k, v]) => [k, String(v)])
-            )
-          : undefined;
-        await sgMail.send({ ...rest, headers: sgHeaders } as Parameters<typeof sgMail.send>[0]);
+        // Fallback: SendGrid (always, or after Gmail auth failure)
+        await sendViaSendGrid(message);
       }
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`[email] ${emailType} to ${to} failed (attempt ${attempt + 1}/3): ${lastError.message}`);
+      // Auth errors won't recover on retry — immediately switch to SendGrid
+      if (process.env.GMAIL_APP_PASSWORD && !gmailAuthFailed && isAuthError(lastError)) {
+        console.warn(`[email] Gmail auth failed, falling back to SendGrid: ${lastError.message.split("\n")[0]}`);
+        gmailAuthFailed = true;
+        // Don't count this as a retry attempt or sleep — try SendGrid immediately
+        continue;
+      }
+      console.warn(`[email] ${emailType} to ${to} failed (attempt ${attempt + 1}/3): ${lastError.message.split("\n")[0]}`);
       if (attempt < retryDelaysMs.length) {
         await new Promise<void>(r => setTimeout(r, retryDelaysMs[attempt]));
       }

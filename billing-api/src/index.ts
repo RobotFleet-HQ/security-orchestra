@@ -64,6 +64,34 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "billing-api" });
 });
 
+// ─── Unsubscribe ───────────────────────────────────────────────────────────────
+// Handles both GET (link click) and POST (RFC 8058 one-click from Gmail).
+// Logs the request; actual suppression is handled by SendGrid's unsubscribe
+// tracking. When domain auth is active, SendGrid will honour this automatically.
+app.get("/unsubscribe", (req, res) => {
+  const email = (req.query["email"] as string | undefined) ?? "(unknown)";
+  console.log(`[unsubscribe] GET request for ${email}`);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>Unsubscribed — Security Orchestra</title>
+<style>body{background:#0d1117;color:#e6edf3;font-family:-apple-system,sans-serif;
+display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:48px;
+max-width:440px;text-align:center}h1{font-size:20px;margin-bottom:12px}
+p{color:#8b949e;line-height:1.6}a{color:#58a6ff}</style></head>
+<body><div class="card"><h1>You have been unsubscribed</h1>
+<p>You will no longer receive marketing emails from Security Orchestra.<br>
+Transactional emails (API key delivery, billing receipts) may still be sent.</p>
+<p style="margin-top:20px"><a href="/">Return home</a></p></div></body></html>`);
+});
+app.post("/unsubscribe", express.urlencoded({ extended: false }), (req, res) => {
+  const email = (req.body?.["List-Unsubscribe"] as string | undefined)
+    ?? (req.query["email"] as string | undefined)
+    ?? "(unknown)";
+  console.log(`[unsubscribe] POST one-click for ${email}`);
+  res.status(200).end();
+});
+
 // ─── Plans ────────────────────────────────────────────────────────────────────
 app.get("/plans", (_req, res) => {
   const FEATURES: Record<string, string[]> = {

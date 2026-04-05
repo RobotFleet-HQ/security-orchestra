@@ -1685,6 +1685,29 @@ export function validateWorkflowParams(
       break;
     }
 
+    // Phase 4 — grid & weather intelligence
+    case "get_grid_telemetry": {
+      const VALID_REGIONS = ["ERCO", "PJM"];
+      const regionCode = sanitizeInput(params.region_code ?? "").toUpperCase();
+      if (!VALID_REGIONS.includes(regionCode)) {
+        throw new McpError(ErrorCode.InvalidParams,
+          `400: region_code must be one of: ${VALID_REGIONS.join(", ")} (got "${regionCode}")`);
+      }
+      clean.region_code = regionCode;
+      if (params.eia_api_key) clean.eia_api_key = sanitizeInput(params.eia_api_key);
+      break;
+    }
+
+    case "get_active_weather_alerts": {
+      const stateCode = sanitizeInput(params.state_code ?? "").toUpperCase();
+      if (!/^[A-Z]{2}$/.test(stateCode)) {
+        throw new McpError(ErrorCode.InvalidParams,
+          `400: state_code must be a two-letter US state abbreviation (e.g. TX, PA, NC). Got: "${stateCode}"`);
+      }
+      clean.state_code = stateCode;
+      break;
+    }
+
     default:
       throw new McpError(
         ErrorCode.InvalidParams,

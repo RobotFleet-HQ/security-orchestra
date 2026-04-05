@@ -77,6 +77,9 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   compliance_checker:       100,
   // Phase 3 — premium agents
   tier_certification_checker: 100,
+  // Phase 4 — grid & weather intelligence
+  get_grid_telemetry:         5,
+  get_active_weather_alerts:  5,
 };
 
 interface CreditsResponse {

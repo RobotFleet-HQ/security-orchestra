@@ -77,6 +77,9 @@ import { runSolarFeasibility } from "./workflows/solarFeasibility.js";
 import { runBatteryStorage } from "./workflows/batteryStorage.js";
 import { runEnergyProcurement } from "./workflows/energyProcurement.js";
 import { runTierCertification } from "./workflows/tierCertification.js";
+// Phase 4 — grid & weather intelligence
+import { runGridTelemetry } from "./workflows/gridTelemetry.js";
+import { runWeatherAlerts } from "./workflows/weatherAlerts.js";
 import { toCanonical, validateCanonical, CanonicalResponse } from "./canonical.js";
 import { normalize } from "./protocol-adapters/normalize.js";
 
@@ -523,6 +526,19 @@ const WORKFLOWS: Record<string, {
     credits: WORKFLOW_COSTS.nc_utility_interconnect,
     version: "1.0", last_validated: "2026-03-28", standards_refs: ["NCUC Docket E-2 Sub 1142", "IEEE 1547-2018", "FERC Order 2023"], stale_risk: "high",
   },
+  // Phase 4 — grid & weather intelligence
+  get_grid_telemetry: {
+    description: "Fetch real-time grid telemetry (demand, net generation, reserve margin) for a US balancing authority using the free EIA v2 API. Supports ERCO (ERCOT/Texas) and PJM (Mid-Atlantic/Midwest). EIA normalizes both regions into identical JSON so your agent never has to parse different schemas.",
+    params: ["region_code"],
+    credits: WORKFLOW_COSTS.get_grid_telemetry,
+    version: "1.0", last_validated: "2026-04-05", standards_refs: ["EIA-930 Hourly Electric Grid Monitor"], stale_risk: "low",
+  },
+  get_active_weather_alerts: {
+    description: "Fetch active severe weather alerts for any US state from the National Weather Service API (no API key required). Returns alert count, severity, urgency, event types, and pre-computed threat flags (has_thunderstorm, has_tornado, has_hurricane, has_winter_storm, has_extreme_heat) for automated threat scoring.",
+    params: ["state_code"],
+    credits: WORKFLOW_COSTS.get_active_weather_alerts,
+    version: "1.0", last_validated: "2026-04-05", standards_refs: ["NWS CAP 1.2", "IPAWS-OPEN v3.0"], stale_risk: "low",
+  },
 };
 
 // ─── Chain Registry ───────────────────────────────────────────────────────────
@@ -580,6 +596,12 @@ const CHAINS: Record<string, {
     description: "Carbon footprint → Solar feasibility → Battery storage → Energy procurement → Environmental impact. Full green energy analysis.",
     credits: 10,
     steps: ["carbon_footprint", "solar_feasibility", "battery_storage", "energy_procurement", "environmental_impact"],
+  },
+  grid_threat_forecast: {
+    name: "Grid Threat Forecast",
+    description: "Grid telemetry → Weather alerts. Fetches real-time EIA grid data and NWS severe weather alerts for a US balancing authority region. Provides the raw inputs needed to calculate a Grid Threat Score (Low / Elevated / Critical) and trigger a data center mitigation playbook.",
+    credits: 10,
+    steps: ["get_grid_telemetry", "get_active_weather_alerts"],
   },
 };
 
@@ -1424,6 +1446,24 @@ async function dispatchWorkflow(
       });
       log("info", `tier_certification_checker complete — ${tcResult.target} in ${tcResult.results.duration_ms}ms`);
       return tcResult as unknown as WorkflowResult;
+    }
+
+    // Phase 4 — grid & weather intelligence
+    case "get_grid_telemetry": {
+      if (!args.region_code) throw new McpError(ErrorCode.InvalidParams, "Missing required param: region_code (ERCO or PJM)");
+      const gtResult = await runGridTelemetry({
+        region_code: args.region_code as "ERCO" | "PJM",
+        eia_api_key: args.eia_api_key ?? undefined,
+      });
+      log("info", `get_grid_telemetry complete — ${gtResult.target} reserve_margin=${gtResult.results.reserve_margin_pct}% in ${gtResult.results.duration_ms}ms`);
+      return gtResult as unknown as WorkflowResult;
+    }
+
+    case "get_active_weather_alerts": {
+      if (!args.state_code) throw new McpError(ErrorCode.InvalidParams, "Missing required param: state_code (e.g. TX, PA)");
+      const waResult = await runWeatherAlerts({ state_code: args.state_code });
+      log("info", `get_active_weather_alerts complete — ${waResult.target} alerts=${waResult.results.alert_count} in ${waResult.results.duration_ms}ms`);
+      return waResult as unknown as WorkflowResult;
     }
 
     default:

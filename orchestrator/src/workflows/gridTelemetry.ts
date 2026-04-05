@@ -34,13 +34,27 @@ interface GridRecord {
   units:      string;
 }
 
-interface EiaResponse {
+interface EiaRegionResponse {
   response?: {
     data?: Array<{
-      period:       string;
-      respondent:   string;
-      "type-name":  string;
-      value:        number;
+      period:        string;
+      respondent:    string;
+      "type":        string;
+      "type-name":   string;
+      value:         number | string;
+      "value-units": string;
+    }>;
+  };
+}
+
+interface EiaFuelTypeResponse {
+  response?: {
+    data?: Array<{
+      period:        string;
+      respondent:    string;
+      fueltype:      string;
+      "type-name":   string;
+      value:         number | string;
       "value-units": string;
     }>;
   };
@@ -72,19 +86,37 @@ export async function runGridTelemetry(params: GridTelemetryParams): Promise<Gri
   };
   const regionName = regionNames[region_code] ?? region_code;
 
-  const url =
+  // ── Fetch 1: region-data for Demand (D) ────────────────────────────────────
+  // We request only type=D. NG is not available via DEMO_KEY on this endpoint;
+  // we derive it from the fuel-type-data endpoint instead (see below).
+  const demandUrl =
     `https://api.eia.gov/v2/electricity/rto/region-data/data/` +
+    `?api_key=${encodeURIComponent(apiKey)}` +
+    `&frequency=hourly` +
+    `&data[0]=value` +
+    `&facets[respondent][]=${encodeURIComponent(region_code)}` +
+    `&facets[type][]=D` +
+    `&sort[0][column]=period` +
+    `&sort[0][direction]=desc` +
+    `&length=4`;
+
+  // ── Fetch 2: fuel-type-data for Net Generation (sum of all fuel types) ─────
+  // EIA exposes generation by fuel (BAT, COL, NG, NUC, OTH, SUN, WAT, WND).
+  // Summing the latest hour gives total net generation — works with DEMO_KEY.
+  const fuelUrl =
+    `https://api.eia.gov/v2/electricity/rto/fuel-type-data/data/` +
     `?api_key=${encodeURIComponent(apiKey)}` +
     `&frequency=hourly` +
     `&data[0]=value` +
     `&facets[respondent][]=${encodeURIComponent(region_code)}` +
     `&sort[0][column]=period` +
     `&sort[0][direction]=desc` +
-    `&length=5`;
+    `&length=20`;
 
-  let raw: string;
+  let demandRaw: string;
+  let fuelRaw: string;
   try {
-    raw = await httpsGet(url);
+    [demandRaw, fuelRaw] = await Promise.all([httpsGet(demandUrl), httpsGet(fuelUrl)]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
@@ -102,9 +134,11 @@ export async function runGridTelemetry(params: GridTelemetryParams): Promise<Gri
     };
   }
 
-  let parsed: EiaResponse;
+  let demandParsed: EiaRegionResponse;
+  let fuelParsed: EiaFuelTypeResponse;
   try {
-    parsed = JSON.parse(raw) as EiaResponse;
+    demandParsed = JSON.parse(demandRaw) as EiaRegionResponse;
+    fuelParsed   = JSON.parse(fuelRaw)   as EiaFuelTypeResponse;
   } catch {
     return {
       workflow: "get_grid_telemetry",
@@ -116,13 +150,13 @@ export async function runGridTelemetry(params: GridTelemetryParams): Promise<Gri
         reserve_margin_pct: null, raw_records: [],
         data_source: "EIA v2 API",
         duration_ms: Date.now() - start,
-        note: `Invalid JSON from EIA API: ${raw.slice(0, 200)}`,
+        note: "Invalid JSON from EIA API",
       },
     };
   }
 
-  const records = parsed?.response?.data ?? [];
-  if (records.length === 0) {
+  const demandRecords = demandParsed?.response?.data ?? [];
+  if (demandRecords.length === 0) {
     return {
       workflow: "get_grid_telemetry",
       target: region_code,
@@ -138,30 +172,33 @@ export async function runGridTelemetry(params: GridTelemetryParams): Promise<Gri
     };
   }
 
-  const rawRecords: GridRecord[] = records.map(r => ({
-    period:    r.period,
-    type_name: r["type-name"],
-    value:     r.value,
-    units:     r["value-units"],
-  }));
+  // Latest demand record
+  const latestDemandRec = demandRecords[0];
+  const demandMw = parseFloat(String(latestDemandRec.value));
+  const dataPeriod = latestDemandRec.period;
 
-  // Find latest demand (D) and net generation (NG) — exclude forecasts
-  const demandRecord = rawRecords.find(r =>
-    r.type_name.toLowerCase().includes("demand") &&
-    !r.type_name.toLowerCase().includes("forecast")
-  ) ?? null;
+  // Sum all fuel types at the most recent period to get total net generation
+  const fuelRecords = fuelParsed?.response?.data ?? [];
+  const latestFuelPeriod = fuelRecords[0]?.period ?? "";
+  const latestFuelRecords = fuelRecords.filter(r => r.period === latestFuelPeriod);
+  const netGenMw = latestFuelRecords.length > 0
+    ? parseFloat(latestFuelRecords.reduce((sum, r) => sum + parseFloat(String(r.value) || "0"), 0).toFixed(0))
+    : null;
 
-  const ngRecord = rawRecords.find(r =>
-    r.type_name.toLowerCase().includes("net generation")
-  ) ?? null;
-
-  const demandMw       = demandRecord ? demandRecord.value : null;
-  const netGenMw       = ngRecord     ? ngRecord.value     : null;
-  const reserveMargin  = (demandMw !== null && netGenMw !== null && demandMw > 0)
+  const reserveMargin = (netGenMw !== null && demandMw > 0)
     ? parseFloat((((netGenMw - demandMw) / demandMw) * 100).toFixed(1))
     : null;
 
-  const dataPeriod = rawRecords[0]?.period ?? "";
+  const rawRecords: GridRecord[] = [
+    { period: dataPeriod, type_name: "Demand", value: demandMw, units: "megawatthours" },
+    ...(netGenMw !== null ? [{ period: latestFuelPeriod, type_name: "Net generation (fuel-type sum)", value: netGenMw, units: "megawatthours" }] : []),
+    ...latestFuelRecords.map(r => ({
+      period:    r.period,
+      type_name: r["type-name"],
+      value:     parseFloat(String(r.value)),
+      units:     r["value-units"],
+    })),
+  ];
 
   return {
     workflow:  "get_grid_telemetry",

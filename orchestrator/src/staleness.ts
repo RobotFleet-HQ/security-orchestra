@@ -84,4 +84,8 @@ export const STALENESS: Record<string, AgentStaleness> = {
   // ── Premium / compliance ──────────────────────────────────────────────────
   tier_certification_checker: { validated_at: "2026-03-28", standards_ref: ["Uptime Institute Tier Standard 2022", "ANSI/TIA-942-B:2017"],                  stale_risk: "medium", has_pricing: false },
   nc_utility_interconnect:    { validated_at: "2026-03-28", standards_ref: ["NCUC Docket E-2 Sub 1142", "IEEE 1547:2018", "FERC Order 2023"],               stale_risk: "high",   has_pricing: true  },
+
+  // ── Grid & weather intelligence ───────────────────────────────────────────
+  get_grid_telemetry:         { validated_at: "2026-04-07", standards_ref: ["EIA Form 930", "NERC BAL-004-2"],                                              stale_risk: "high",   has_pricing: false },
+  get_active_weather_alerts:  { validated_at: "2026-04-07", standards_ref: ["NWS CAP 1.2", "FEMA IPAWS"],                                                  stale_risk: "high",   has_pricing: false },
 };

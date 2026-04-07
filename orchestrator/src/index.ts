@@ -1716,13 +1716,6 @@ function detectWorkflowFromText(
   if (/voltage.{0,20}drop/i.test(t)) {
     return { workflowName: "voltage_drop", params: { it_load_kw: load_kw } };
   }
-  if (/short.{0,10}circuit/i.test(t)) {
-    return { workflowName: "short_circuit", params: { it_load_kw: load_kw } };
-  }
-  if (/grounding/i.test(t)) {
-    return { workflowName: "grounding_design", params: { it_load_kw: load_kw } };
-  }
-
   // ── Network ─────────────────────────────────────────────────────────────────
   if (/network.{0,20}topolog/i.test(t)) {
     return { workflowName: "network_topology", params: { it_load_kw: load_kw } };

@@ -58,8 +58,6 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   physical_security:        20,
   biometric_design:         20,
   surveillance_coverage:    20,
-  short_circuit:            20,
-  grounding_design:         20,
   // Complex Analysis
   network_topology:         50,
   dns_architecture:         50,

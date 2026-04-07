@@ -82,6 +82,43 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   get_active_weather_alerts:  5,
 };
 
+// ─── Per-leaf chain billing ────────────────────────────────────────────────────
+// Credits charged per agent when it runs as a leaf inside a compound chain.
+// Always lower than WORKFLOW_COSTS (standalone rate).
+// Default for unlisted agents: 1 credit.
+//   1 credit = single-domain computation (sizing, calculation, lookup)
+//   2 credits = multi-factor analysis (ROI, TCO, PUE, carbon, site scoring, etc.)
+export const CHAIN_OVERHEAD_CREDITS = 1; // flat orchestration tax per chain invocation
+
+export const CHAIN_LEAF_CREDITS: Record<string, number> = {
+  // ── 2 credits — analysis agents ────────────────────────────────────────────
+  roi_calculator:             2,
+  tco_analyzer:               2,
+  pue_calculator:             2,
+  carbon_footprint:           2,
+  site_scoring:               2,
+  solar_feasibility:          2,
+  energy_procurement:         2,
+  fiber_connectivity:         2,
+  demand_response:            2,
+  incentive_finder:           2,
+  cybersecurity_controls:     2,
+  compliance_checker:         2,
+  tier_certification_checker: 2,
+  network_topology:           2,
+  bgp_peering:                2,
+  harmonic_analysis:          2,
+  capacity_planning:          2,
+  economizer_analysis:        2,
+  commissioning_plan:         2,
+  construction_timeline:      2,
+  battery_storage:            2,
+  water_availability:         2,
+  // ── 1 credit — single-domain computation agents (default) ──────────────────
+  // All others (generator_sizing, ups_sizing, cooling_load, nfpa_110_checker,
+  // ats_sizing, fuel_storage, etc.) default to 1 via the ?? 1 fallback.
+};
+
 interface CreditsResponse {
   balance: number;
   user_id: string;

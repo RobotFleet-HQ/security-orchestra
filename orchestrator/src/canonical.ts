@@ -1,4 +1,5 @@
 // ─── Canonical Contract Layer ─────────────────────────────────────────────────
+// ─── A2A Sub-Agent Billing Types ─────────────────────────────────────────────
 // Every agent response is wrapped in CanonicalResponse before leaving
 // dispatchWorkflow. This guarantees parseable, unambiguous output for
 // Google A2A, OpenAI Agents SDK, AG-UI, ACP/BeeAI, AGNTCY/OASF, and
@@ -7,6 +8,38 @@
 import crypto from "crypto";
 import { z } from "zod";
 import { STALENESS } from "./staleness.js";
+
+/**
+ * Per-agent billing configuration.
+ * base_credits is the cost charged when the agent runs as a leaf inside a
+ * compound chain (always lower than the standalone WORKFLOW_COSTS rate).
+ */
+export interface AgentCostConfig {
+  base_credits: number;    // flat cost per chain-leaf call (1 = simple, 2 = analysis)
+  per_kb_input?: number;   // optional: scale by input byte size (reserved, not yet used)
+}
+
+/** One row in the leaf breakdown of a chain cost audit. */
+export interface ChainLeafEntry {
+  agent_id:        string;
+  step_index:      number;
+  credits_debited: number;
+  status:          "success" | "skipped" | "failed";
+}
+
+/**
+ * Full cost split audit written after every chain execution (success or abort).
+ * Logged to audit_logs and embedded in the chain result payload + /chain/status response.
+ */
+export interface ChainCostAudit {
+  chain_id:                string;
+  task_id:                 string;
+  customer_id:             string;
+  timestamp:               string;   // ISO 8601
+  total_credits_consumed:  number;
+  chain_overhead_credits:  number;   // orchestration tax (always 1)
+  leaf_breakdown:          ChainLeafEntry[];
+}
 
 // ─── DataFreshness ────────────────────────────────────────────────────────────
 

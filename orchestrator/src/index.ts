@@ -17,7 +17,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { db } from "./database.js";
-import { checkCredits, deductCredits, WORKFLOW_COSTS } from "./billing.js";
+import { checkCredits, deductCredits, WORKFLOW_COSTS, CHAIN_LEAF_CREDITS, CHAIN_OVERHEAD_CREDITS } from "./billing.js";
 import { validateWorkflowParams } from "./validation.js";
 import { enforceRateLimit } from "./rateLimit.js";
 import { logAudit, auditDb, auditDbAll } from "./audit.js";
@@ -80,7 +80,7 @@ import { runTierCertification } from "./workflows/tierCertification.js";
 // Phase 4 — grid & weather intelligence
 import { runGridTelemetry } from "./workflows/gridTelemetry.js";
 import { runWeatherAlerts } from "./workflows/weatherAlerts.js";
-import { toCanonical, validateCanonical, CanonicalResponse } from "./canonical.js";
+import { toCanonical, validateCanonical, CanonicalResponse, ChainCostAudit, ChainLeafEntry } from "./canonical.js";
 import { normalize } from "./protocol-adapters/normalize.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -793,19 +793,85 @@ function applyChainDefaults(params: Record<string, string>): Record<string, stri
 async function runChain(
   chainId: string,
   initialParams: Record<string, string>,
-  _userId: string,
-  _tier: string,
-  taskId?: string
+  userId: string,
+  tier: string,
+  taskId?: string,
+  billingEnabled = false,
 ): Promise<CanonicalResponse> {
   const _chainStart = Date.now();
   const chain = CHAINS[chainId];
-  const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
-  let runningParams = applyChainDefaults({ ...initialParams });
+  const resolvedTaskId = taskId ?? crypto.randomUUID();
 
-  for (const stepId of chain.steps) {
+  const stepResults: Array<{ step: string; result: unknown; error?: string }> = [];
+  const leafBreakdown: ChainLeafEntry[] = [];
+  let runningParams = applyChainDefaults({ ...initialParams });
+  let totalCreditsConsumed = 0;
+
+  // ── Debit chain overhead (orchestration tax) ──────────────────────────────
+  if (billingEnabled) {
+    try {
+      await deductCredits(userId, CHAIN_OVERHEAD_CREDITS, `chain:${chainId}:overhead`);
+      totalCreditsConsumed += CHAIN_OVERHEAD_CREDITS;
+    } catch {
+      // Build a cost audit for the abort before throwing
+      const costAudit: ChainCostAudit = {
+        chain_id:               chainId,
+        task_id:                resolvedTaskId,
+        customer_id:            userId,
+        timestamp:              new Date().toISOString(),
+        total_credits_consumed: 0,
+        chain_overhead_credits: CHAIN_OVERHEAD_CREDITS,
+        leaf_breakdown:         chain.steps.map((id, i) => ({
+          agent_id: id, step_index: i, credits_debited: 0, status: "skipped" as const,
+        })),
+      };
+      logAudit({ user_id: userId, action: "chain_cost_audit", resource: chainId,
+        result: "failure", details: { ...costAudit, abort_reason: "INSUFFICIENT_CREDITS_MID_CHAIN" } });
+      throw new McpError(ErrorCode.InvalidRequest,
+        `402: Insufficient credits for chain overhead — chain:${chainId}`);
+    }
+  }
+
+  // ── Execute each leaf agent with per-step debit ───────────────────────────
+  for (let i = 0; i < chain.steps.length; i++) {
+    const stepId   = chain.steps[i];
+    const leafCost = CHAIN_LEAF_CREDITS[stepId] ?? 1;
+
+    // Debit this leaf before execution
+    if (billingEnabled) {
+      try {
+        await deductCredits(userId, leafCost, `chain:${chainId}:step:${stepId}`);
+        totalCreditsConsumed += leafCost;
+      } catch {
+        // Insufficient credits mid-chain — abort immediately
+        leafBreakdown.push({ agent_id: stepId, step_index: i, credits_debited: 0, status: "skipped" });
+        // Mark all remaining steps skipped
+        for (let j = i + 1; j < chain.steps.length; j++) {
+          leafBreakdown.push({ agent_id: chain.steps[j], step_index: j, credits_debited: 0, status: "skipped" });
+        }
+        const costAudit: ChainCostAudit = {
+          chain_id:               chainId,
+          task_id:                resolvedTaskId,
+          customer_id:            userId,
+          timestamp:              new Date().toISOString(),
+          total_credits_consumed: totalCreditsConsumed,
+          chain_overhead_credits: CHAIN_OVERHEAD_CREDITS,
+          leaf_breakdown:         leafBreakdown,
+        };
+        logAudit({ user_id: userId, action: "chain_cost_audit", resource: chainId,
+          result: "failure",
+          details: { ...costAudit, abort_reason: "INSUFFICIENT_CREDITS_MID_CHAIN", aborted_at_step: stepId } });
+        throw new McpError(ErrorCode.InvalidRequest,
+          `402: INSUFFICIENT_CREDITS_MID_CHAIN — Chain aborted at step "${stepId}" — ` +
+          `credits_consumed_so_far: ${totalCreditsConsumed}`);
+      }
+    }
+
+    // Execute the leaf
     try {
       const result = await dispatchWorkflow(stepId, runningParams);
       stepResults.push({ step: stepId, result });
+      leafBreakdown.push({ agent_id: stepId, step_index: i, credits_debited: billingEnabled ? leafCost : 0, status: "success" });
       // Extract step-specific output→input mappings for next step
       const r = result.result as Record<string, unknown>;
       const derived = extractChainParams(stepId, r);
@@ -813,6 +879,7 @@ async function runChain(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       stepResults.push({ step: stepId, result: null, error: msg });
+      leafBreakdown.push({ agent_id: stepId, step_index: i, credits_debited: billingEnabled ? leafCost : 0, status: "failed" });
       // Continue remaining steps even if this one failed
     }
   }
@@ -822,20 +889,34 @@ async function runChain(
     .map((s) => (s.error ? `${s.step}: FAILED — ${s.error}` : `${s.step}: OK`))
     .join("\n");
 
-  const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary };
-  const _chainCanonical = validateCanonical(toCanonical(`chain:${chainId}`, payload, {
+  // ── Build and log cost audit ──────────────────────────────────────────────
+  const costAudit: ChainCostAudit = {
+    chain_id:               chainId,
+    task_id:                resolvedTaskId,
+    customer_id:            userId,
+    timestamp:              new Date().toISOString(),
+    total_credits_consumed: totalCreditsConsumed,
+    chain_overhead_credits: CHAIN_OVERHEAD_CREDITS,
+    leaf_breakdown:         leafBreakdown,
+  };
+  logAudit({ user_id: userId, action: "chain_cost_audit", resource: chainId,
+    result: "success",
+    details: { ...costAudit, tier, steps_completed: stepsCompleted } });
+
+  const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary, cost_audit: costAudit };
+  const chainCanonical = validateCanonical(toCanonical(`chain:${chainId}`, payload, {
     version:    "1.0",
-    credits:    chain.credits,
-    taskId:     taskId ?? crypto.randomUUID(),
+    credits:    totalCreditsConsumed,
+    taskId:     resolvedTaskId,
     idempotent: true,
   }));
-  const _chainHadError = stepResults.some((s) => s.error);
+  const chainHadError = stepResults.some((s) => s.error);
   recordCall(
     `chain:${chainId}`,
     Date.now() - _chainStart,
-    _chainHadError ? new Error(`${stepResults.filter(s => s.error).length} step(s) failed`) : undefined
+    chainHadError ? new Error(`${stepResults.filter(s => s.error).length} step(s) failed`) : undefined
   );
-  return _chainCanonical;
+  return chainCanonical;
 }
 
 async function dispatchWorkflow(
@@ -1963,11 +2044,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const chain = CHAINS[directChainId]!;
     try { enforceRateLimit(userId, tier); } catch (err) { throw err; }
 
-    if (process.env.BILLING_API_URL) {
+    const billingEnabledChain = !!process.env.BILLING_API_URL;
+    if (billingEnabledChain) {
+      // Quick fail-fast: user needs at least overhead + 1 leaf credit to start
+      const minRequired = CHAIN_OVERHEAD_CREDITS + 1;
       const balance = await checkCredits(userId);
-      if (balance < chain.credits) {
+      if (balance < minRequired) {
         throw new McpError(ErrorCode.InvalidRequest,
-          `402: Insufficient credits — balance: ${balance}, required: ${chain.credits} for chain:${directChainId}`);
+          `402: Insufficient credits — balance: ${balance}, required at least: ${minRequired} to start chain:${directChainId}`);
       }
     }
 
@@ -1976,7 +2060,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     let chainResult: CanonicalResponse;
     try {
-      chainResult = await runChain(directChainId, typedArgs, userId, tier);
+      chainResult = await runChain(directChainId, typedArgs, userId, tier, undefined, billingEnabledChain);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (err instanceof McpError) throw err;
@@ -2036,10 +2120,11 @@ async function main() {
 
     // ── Async chain task store (in-memory, 1 hr TTL) ────────────────────────
     type AsyncChainTask = {
-      status:      "pending" | "running" | "complete" | "error";
-      result?:     CanonicalResponse;
-      error?:      string;
-      createdAt:   number;
+      status:       "pending" | "running" | "complete" | "error";
+      result?:      CanonicalResponse;
+      cost_audit?:  ChainCostAudit;
+      error?:       string;
+      createdAt:    number;
       webhook_url?: string;
     };
     const asyncChainTasks = new Map<string, AsyncChainTask>();
@@ -2104,6 +2189,7 @@ async function main() {
         task_id:      string;
         status:       string;
         result?:      CanonicalResponse;
+        cost_audit?:  ChainCostAudit;
         error?:       string;
         completed_at: string;
       }
@@ -3375,23 +3461,23 @@ async function main() {
         });
         const startTime = Date.now();
         try {
-          const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, taskId);
-          if (billingEnabled) {
-            const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
-            (chainResult.result as Record<string, unknown>).credits_remaining = remaining;
-          }
+          const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, taskId, billingEnabled);
+          const resultPayload = chainResult.result as Record<string, unknown>;
+          const costAudit = resultPayload.cost_audit as ChainCostAudit | undefined;
           logAudit({
             user_id: keyRow.user_id, action: "chain_complete", resource: chainId,
             result: "success", duration_ms: Date.now() - startTime,
-            details: { steps_completed: (chainResult.result as Record<string, unknown>).steps_completed, tier: keyRow.tier, async: true },
+            details: { steps_completed: resultPayload.steps_completed, tier: keyRow.tier, async: true,
+              total_credits_consumed: costAudit?.total_credits_consumed },
           });
           const canonicalResult = validateCanonical(chainResult);
-          asyncChainTasks.set(taskId, { status: "complete", result: canonicalResult, createdAt: Date.now(), webhook_url: webhookUrl });
+          asyncChainTasks.set(taskId, { status: "complete", result: canonicalResult, cost_audit: costAudit, createdAt: Date.now(), webhook_url: webhookUrl });
           if (webhookUrl) {
             void deliverWebhook(taskId, webhookUrl, {
               task_id:      taskId,
               status:       "complete",
               result:       canonicalResult,
+              cost_audit:   costAudit,
               completed_at: new Date().toISOString(),
             });
           }
@@ -3451,7 +3537,7 @@ async function main() {
       }
 
       if (task.status === "complete") {
-        res.json({ task_id: taskId, status: "complete", result: task.result });
+        res.json({ task_id: taskId, status: "complete", result: task.result, cost_audit: task.cost_audit ?? null });
       } else if (task.status === "error") {
         res.json({ task_id: taskId, status: "error", error: task.error });
       } else {

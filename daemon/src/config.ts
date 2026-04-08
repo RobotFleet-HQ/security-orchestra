@@ -29,19 +29,44 @@ export const WEBHOOK_BEARER_TOKEN = process.env.WEBHOOK_BEARER_TOKEN ?? "";
 
 // ─── Site loader ──────────────────────────────────────────────────────────────
 
+const DEFAULT_SITES: SiteConfig[] = [
+  {
+    id:                   "site-001",
+    name:                 "Test Site",
+    contact_email:        "contact.securityorchestra@gmail.com",
+    components:           [],
+    claimed_tier:         "free",
+    as_built_description: "Default test site",
+    scan_interval_hours:  24,
+  },
+];
+
+function sanitizeSitesJson(raw: string): string {
+  return raw
+    .trim()
+    // Strip newlines, carriage returns, and tabs
+    .replace(/[\n\r\t]/g, "")
+    // Replace smart/curly quotes with straight equivalents
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'");
+}
+
 export function loadSitesFromEnv(): SiteConfig[] {
   const raw = process.env.DAEMON_SITES;
-  if (!raw) return [];
+  if (!raw?.trim()) {
+    console.log("[config] DAEMON_SITES parse failed — using default test site");
+    return DEFAULT_SITES;
+  }
   try {
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = JSON.parse(sanitizeSitesJson(raw)) as unknown;
     if (!Array.isArray(parsed)) {
-      console.warn("[config] DAEMON_SITES is not a JSON array — ignoring");
-      return [];
+      console.warn("[config] DAEMON_SITES is not a JSON array — using default test site");
+      return DEFAULT_SITES;
     }
     return parsed as SiteConfig[];
   } catch (err) {
-    console.warn("[config] Failed to parse DAEMON_SITES:", (err as Error).message);
-    return [];
+    console.warn("[config] DAEMON_SITES parse failed — using default test site:", (err as Error).message);
+    return DEFAULT_SITES;
   }
 }
 

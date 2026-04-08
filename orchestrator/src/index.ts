@@ -771,6 +771,61 @@ function extractChainParams(stepId: string, r: Record<string, unknown>): Record<
     if (s(r.annual_kwh))          out.annual_kwh     = s(r.annual_kwh)!;
   }
 
+  // ── Mythos methodology param forwarding ──────────────────────────────────────
+  if (stepId === "infrastructure-ranker") {
+    const ranked = r.ranked_components as Array<Record<string, unknown>> | undefined;
+    if (ranked && ranked.length > 0) {
+      const top = ranked[0];
+      // Forward top-scored component into config-vuln-hunter params
+      if (s(top.name))         out.component_name = s(top.name)!;
+      if (s(top.type))         out.component_type = s(top.type)!;
+      if (s(top.manufacturer)) out.manufacturer   = s(top.manufacturer)!;
+      // Synthesize config_data from known component attributes
+      out.config_data =
+        `Component: ${s(top.name) ?? "unknown"}. ` +
+        `Type: ${s(top.type) ?? "unknown"}. ` +
+        `Manufacturer: ${s(top.manufacturer) ?? "unknown"}. ` +
+        `Internet exposed: ${top.internet_exposed}. ` +
+        `Handles unauthenticated input: ${top.handles_unauth_input}. ` +
+        `Known CVEs: ${top.has_known_cves}.`;
+      // Forward full ranked list for parallel-scan-orchestrator
+      out.ranked_components = JSON.stringify(ranked);
+    }
+  }
+
+  if (stepId === "config-vuln-hunter") {
+    // Stash config findings under a chain-scoped key for later merging
+    const findings = r.findings as unknown[] | undefined;
+    if (Array.isArray(findings) && findings.length > 0) {
+      out.config_findings = JSON.stringify(findings);
+    }
+  }
+
+  if (stepId === "compliance-gap-detector") {
+    // Stash compliance gaps under a chain-scoped key for later merging
+    const gaps = r.gaps as unknown[] | undefined;
+    if (Array.isArray(gaps) && gaps.length > 0) {
+      out.compliance_gaps = JSON.stringify(gaps);
+    }
+  }
+
+  if (stepId === "parallel-scan-orchestrator") {
+    // Forward merged findings from the orchestrator's output
+    const merged = r.merged_findings as unknown[] | undefined;
+    if (Array.isArray(merged) && merged.length > 0) {
+      out.findings = JSON.stringify(merged);
+    }
+  }
+
+  if (stepId === "failure-chain-analyst") {
+    // Forward chains as findings for downstream PoC generation
+    const chains = r.chains as unknown[] | undefined;
+    if (Array.isArray(chains) && chains.length > 0) {
+      // Use the highest-severity chain as the finding for impact-poc-generator
+      out.finding = JSON.stringify(chains[0]);
+    }
+  }
+
   return out;
 }
 
@@ -1710,8 +1765,16 @@ async function dispatchWorkflow(
     }
 
     case "finding-validation": {
-      if (!args.findings) throw new McpError(ErrorCode.InvalidParams, "Missing required param: findings (JSON array)");
-      const fvFindings = JSON.parse(args.findings) as Array<Record<string, unknown>>;
+      // Direct call: findings must be provided explicitly
+      // Chain call: merge config_findings + compliance_gaps accumulated from prior steps
+      let fvJson = args.findings;
+      if (!fvJson) {
+        const configFindings: unknown[] = args.config_findings ? JSON.parse(args.config_findings) as unknown[] : [];
+        const complianceGaps: unknown[] = args.compliance_gaps ? JSON.parse(args.compliance_gaps) as unknown[] : [];
+        const merged = [...configFindings, ...complianceGaps];
+        fvJson = JSON.stringify(merged); // may be [] — runFindingValidation handles empty input gracefully
+      }
+      const fvFindings = JSON.parse(fvJson) as Array<Record<string, unknown>>;
       const fvResult = await runFindingValidation({ findings: fvFindings });
       log("info", `finding-validation complete — ${fvResult.results.validated_finding_count}/${fvResult.results.input_finding_count} findings passed in ${fvResult.results.duration_ms}ms`);
       return fvResult as unknown as WorkflowResult;

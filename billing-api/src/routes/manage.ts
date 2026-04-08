@@ -20,6 +20,15 @@ function getStripe(): Stripe {
 
 // GET /manage/account?email=... — look up account info by email
 router.get("/account", async (req: Request, res: Response) => {
+  const secret = process.env.BILLING_ADMIN_SECRET;
+  if (secret) {
+    const auth  = (req.headers["authorization"] as string | undefined) ?? "";
+    const token = auth.replace(/^Bearer\s+/i, "");
+    if (token !== secret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+
   const email = (req.query.email as string | undefined)?.trim().toLowerCase();
   if (!email) {
     return res.status(400).json({ error: "email is required" });

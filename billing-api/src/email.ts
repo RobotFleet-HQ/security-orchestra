@@ -156,6 +156,20 @@ export function logEmailTransport(): void {
   console.log(`[email] transport: ${transport}, from: ${FROM_EMAIL}`);
 }
 
+export async function verifySmtpOnBoot(): Promise<void> {
+  if (!process.env.GMAIL_APP_PASSWORD) return;
+  try {
+    const transport = getGmailTransport();
+    await transport.verify();
+    console.log("[email] SMTP credentials verified OK");
+  } catch {
+    console.error(
+      "[email] WARNING: SMTP credentials invalid — new signup emails will not deliver. " +
+      "Update GMAIL_APP_PASSWORD in Render env vars."
+    );
+  }
+}
+
 // ─── Email functions ──────────────────────────────────────────────────────────
 
 export async function sendApiKeyEmail(

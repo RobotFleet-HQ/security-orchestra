@@ -122,6 +122,41 @@ function requireAuth(): { userId: string; tier: string } {
   return { userId: authorizedUserId, tier: authorizedTier };
 }
 
+// ─── Per-request MCP auth resolution ─────────────────────────────────────────
+// Resolves caller identity from the HTTP request before the MCP server is
+// created so each /mcp call uses the correct userId for billing and audit.
+//   • Env-var mode:  key matches ORCHESTRATOR_API_KEY exactly → admin/enterprise
+//   • Database mode: key found in keys.db by prefix           → real user session
+async function resolveMcpAuth(req: express.Request): Promise<{ userId: string; tier: string } | null> {
+  const envKey   = process.env.ORCHESTRATOR_API_KEY;
+  const supplied =
+    (req.headers["x-api-key"] as string | undefined) ??
+    (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "");
+
+  if (!supplied) return null;
+
+  // Exact match with the configured admin key → admin/enterprise session
+  if (envKey && supplied === envKey) {
+    return { userId: "admin", tier: "enterprise" };
+  }
+
+  // Fall through to database lookup by key prefix (consistent with /run endpoint)
+  try {
+    const keyRow = await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+      (resolve, reject) =>
+        db.get(
+          "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+          [supplied.slice(0, 16)],
+          (err, row) => (err ? reject(err) : resolve(row as { user_id: string; tier: string; revoked: number } | undefined))
+        )
+    );
+    if (!keyRow || keyRow.revoked) return null;
+    return { userId: keyRow.user_id, tier: keyRow.tier };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Logging ─────────────────────────────────────────────────────────────────
 
 function log(level: "info" | "warn" | "error", msg: string) {
@@ -1048,7 +1083,7 @@ async function runChain(
     result: "success",
     details: { ...costAudit, tier, steps_completed: stepsCompleted } });
 
-  const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary, cost_audit: costAudit };
+  const payload = { chain: chainId, steps_completed: stepsCompleted, results: stepResults, summary, cost_audit: costAudit, duration_ms: Date.now() - _chainStart };
   const chainCanonical = validateCanonical(toCanonical(`chain:${chainId}`, payload, {
     version:    "1.0",
     credits:    totalCreditsConsumed,
@@ -2105,7 +2140,7 @@ function detectWorkflowFromText(
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
-function createServer(): Server {
+function createServer(userId: string, tier: string): Server {
 const server = new Server(
   { name: "orchestrator", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -2143,9 +2178,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  // ── Auth ───────────────────────────────────────────────────────────────────
-  // requireAuth() logs its own auth_failure before throwing
-  const { userId, tier } = requireAuth();
   const { name: _rawName, arguments: args = {} } = request.params;
   const typedArgs = args as Record<string, string>;
 
@@ -2748,7 +2780,12 @@ async function main() {
     // One active SSE transport per session, keyed by sessionId
     const transports = new Map<string, SSEServerTransport>();
 
-    app.get("/sse", async (_req, res) => {
+    app.get("/sse", async (req, res) => {
+      const authCtx = await resolveMcpAuth(req);
+      if (!authCtx) {
+        res.status(401).json({ error: "Missing or invalid API key" });
+        return;
+      }
       const transport = new SSEServerTransport("/message", res);
       transports.set(transport.sessionId, transport);
       res.on("close", () => {
@@ -2756,7 +2793,7 @@ async function main() {
         log("info", `SSE session ${transport.sessionId} closed`);
       });
       log("info", `SSE session ${transport.sessionId} opened`);
-      const srv = createServer();
+      const srv = createServer(authCtx.userId, authCtx.tier);
       await srv.connect(transport);
     });
 
@@ -2774,16 +2811,26 @@ async function main() {
     // Stateless: each POST is independent — initialize and tools/list need no auth.
     // tools/call auth is enforced inside CallToolRequestSchema via requireAuth().
     app.post("/mcp", express.json(), async (req, res) => {
+      const authCtx = await resolveMcpAuth(req);
+      if (!authCtx) {
+        res.status(401).json({ error: "Missing or invalid API key" });
+        return;
+      }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const srv = createServer();
+      const srv = createServer(authCtx.userId, authCtx.tier);
       res.on("close", () => { transport.close().catch(() => {}); });
       await srv.connect(transport);
       await transport.handleRequest(req, res, req.body);
     });
 
     app.get("/mcp", async (req, res) => {
+      const authCtx = await resolveMcpAuth(req);
+      if (!authCtx) {
+        res.status(401).json({ error: "Missing or invalid API key" });
+        return;
+      }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const srv = createServer();
+      const srv = createServer(authCtx.userId, authCtx.tier);
       res.on("close", () => { transport.close().catch(() => {}); });
       await srv.connect(transport);
       await transport.handleRequest(req, res);
@@ -4182,7 +4229,8 @@ async function main() {
   } else {
     // ── Local: stdio transport (Claude Desktop) ──────────────────────────────
     const transport = new StdioServerTransport();
-    const server = createServer();
+    // Stdio has no HTTP request — use env-var admin credentials
+    const server = createServer("admin", "enterprise");
     await server.connect(transport);
     log("info", "Server ready — listening on stdio");
   }

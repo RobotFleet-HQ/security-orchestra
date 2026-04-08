@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { initDb, TIERS, dbGet, dbRunChanges, getFailedDeliveries } from "./database.js";
-import { logEmailTransport } from "./email.js";
+import { logEmailTransport, verifySmtpOnBoot } from "./email.js";
 import usersRouter from "./routes/users.js";
 import creditsRouter from "./routes/credits.js";
 import checkoutRouter from "./routes/checkout.js";
@@ -229,6 +229,7 @@ async function main() {
     console.log("Stripe configured:", !!process.env.STRIPE_SECRET_KEY);
     logEmailTransport();
   });
+  verifySmtpOnBoot().catch(() => {}); // fire-and-forget; never blocks startup
 }
 
 main().catch((err) => {

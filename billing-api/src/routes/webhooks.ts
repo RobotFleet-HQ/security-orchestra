@@ -198,7 +198,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     [session.id, userId, session.customer as string, (session.subscription as string) ?? null, tier, now]
   );
 
-  console.log(`[webhook] User ${userId} (${user.email}) → ${tier}, +${tierConfig.credits} credits`);
+  console.log(`[webhook] User ${userId} → ${tier}, +${tierConfig.credits} credits`);
 
   // Provision API key (with retry for 429/503)
   console.log(`[webhook-email] Step 1: calling provisionApiKey for user ${userId}`);
@@ -206,36 +206,34 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   console.log(`[webhook-email] Step 2: provisionApiKey returned: ${apiKey ? "KEY_OBTAINED" : "NULL"}`);
 
   // Email customer
-  console.log(`[webhook-email] Step 3: preparing to send email to "${user.email}" — SENDGRID_API_KEY set: ${!!process.env.SENDGRID_API_KEY}`);
+  console.log(`[webhook-email] Step 3: preparing to send email to user ${userId} — SENDGRID_API_KEY set: ${!!process.env.SENDGRID_API_KEY}`);
   if (!user.email) {
-    console.error("[webhook-email] ABORT: user.email is empty/null — cannot send email");
+    console.error(`[webhook-email] ABORT: user ${userId} has no email — cannot send`);
     return;
   }
 
   try {
     if (apiKey) {
-      console.log(`[webhook-email] Step 4a: calling sendApiKeyEmail(to="${user.email}", tier="${tierConfig.label}")`);
+      console.log(`[webhook-email] Step 4a: sending API key email to user ${userId} (${tierConfig.label})`);
       await sendApiKeyEmail(user.email, apiKey, tierConfig.label);
-      console.log(`[webhook-email] Step 5a: sendApiKeyEmail completed successfully for ${user.email}`);
+      console.log(`[webhook-email] Step 5a: API key email sent OK for user ${userId}`);
     } else {
-      console.error(`[webhook-email] Step 4b: provision-key returned null — sending upgrade confirmation instead`);
+      console.error(`[webhook-email] Step 4b: provision-key returned null for user ${userId} — sending upgrade confirmation instead`);
       await sendUpgradeConfirmation(user.email, tierConfig.label, tierConfig.credits);
-      console.log(`[webhook-email] Step 5b: sendUpgradeConfirmation completed for ${user.email}`);
+      console.log(`[webhook-email] Step 5b: upgrade confirmation sent for user ${userId}`);
     }
   } catch (err) {
-    // SendGrid errors carry response body in err.response — log everything
     const sgErr = err as { message?: string; response?: { body?: unknown; status?: number } };
-    console.error("[webhook-email] FAILED — message:", sgErr.message);
-    console.error("[webhook-email] FAILED — status:", sgErr.response?.status);
-    console.error("[webhook-email] FAILED — body:", JSON.stringify(sgErr.response?.body));
-    console.error("[webhook-email] FAILED — full error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object)));
+    console.error(`[webhook-email] FAILED for user ${userId} — message:`, sgErr.message);
+    console.error(`[webhook-email] FAILED for user ${userId} — status:`, sgErr.response?.status);
+    console.error(`[webhook-email] FAILED for user ${userId} — body:`, JSON.stringify(sgErr.response?.body));
   }
 
   // Notify internal team of new signup
   try {
     await sendSignupNotification(user.email, tierConfig.label, tierConfig.credits, now);
   } catch (err) {
-    console.error("[webhook-email] Signup notification failed:", (err as Error).message);
+    console.error(`[webhook-email] Signup notification failed for user ${userId}:`, (err as Error).message);
   }
 }
 

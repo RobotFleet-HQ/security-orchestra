@@ -42,7 +42,19 @@ interface NvdResponse {
   totalResults?:    number;
 }
 
-function getNvd(pubStartDate: string, pubEndDate: string): Promise<NvdResponse> {
+// ─── NVD backoff helper ───────────────────────────────────────────────────────
+const NVD_BACKOFF_BASE_MS  = 60_000;  // 60 s base on first 429
+const NVD_BACKOFF_MAX_MS   = 900_000; // 15 min cap
+const NVD_MAX_RETRIES      = 4;
+
+function nvdBackoffMs(attempt: number): number {
+  const base  = NVD_BACKOFF_BASE_MS * Math.pow(2, attempt);
+  const capped = Math.min(base, NVD_BACKOFF_MAX_MS);
+  // ±20% jitter
+  return Math.round(capped * (0.8 + Math.random() * 0.4));
+}
+
+function getNvdRaw(pubStartDate: string, pubEndDate: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const params = new URLSearchParams({
       pubStartDate, pubEndDate,
@@ -64,19 +76,40 @@ function getNvd(pubStartDate: string, pubEndDate: string): Promise<NvdResponse> 
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (d: Buffer) => chunks.push(d));
-        res.on("end", () => {
-          try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")) as NvdResponse);
-          } catch (e) {
-            reject(new Error("NVD response parse failed"));
-          }
-        });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
         res.on("error", reject);
       }
     );
     req.on("error", reject);
     req.end();
   });
+}
+
+async function getNvd(pubStartDate: string, pubEndDate: string): Promise<NvdResponse> {
+  for (let attempt = 0; attempt <= NVD_MAX_RETRIES; attempt++) {
+    const { status, body } = await getNvdRaw(pubStartDate, pubEndDate);
+
+    if (status === 200) {
+      try {
+        return JSON.parse(body) as NvdResponse;
+      } catch {
+        throw new Error("NVD response parse failed");
+      }
+    }
+
+    if (status === 429 || status === 503) {
+      if (attempt === NVD_MAX_RETRIES) {
+        throw new Error(`NVD rate limited after ${NVD_MAX_RETRIES} retries (HTTP ${status})`);
+      }
+      const delay = nvdBackoffMs(attempt);
+      console.warn(`[cveWatcher] NVD HTTP ${status} — retry ${attempt + 1}/${NVD_MAX_RETRIES} in ${Math.round(delay / 1000)}s`);
+      await new Promise<void>((r) => setTimeout(r, delay));
+      continue;
+    }
+
+    throw new Error(`NVD unexpected HTTP ${status}: ${body.substring(0, 200)}`);
+  }
+  throw new Error("NVD: exhausted retries");
 }
 
 // ─── CISA KEV API ─────────────────────────────────────────────────────────────

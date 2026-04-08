@@ -213,8 +213,12 @@ router.post("/", async (req: Request, res: Response) => {
     req.ip ??
     "unknown";
 
-  const WHITELISTED_EMAILS = new Set(["rsaun@gmail.com", "rsaunders612@gmail.com"]);
-  const WHITELISTED_IPS    = new Set(["172.58.253.84"]);
+  const WHITELISTED_EMAILS = new Set(
+    (process.env.SIGNUP_WHITELIST_EMAILS ?? "").split(",").map(e => e.trim()).filter(Boolean)
+  );
+  const WHITELISTED_IPS = new Set(
+    (process.env.SIGNUP_WHITELIST_IPS ?? "").split(",").map(ip => ip.trim()).filter(Boolean)
+  );
   const isWhitelisted =
     WHITELISTED_EMAILS.has(emailLower) ||
     emailLower.endsWith("@security-orchestra.io") ||

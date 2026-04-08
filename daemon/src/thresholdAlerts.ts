@@ -7,9 +7,15 @@
 
 import { Router } from "express";
 import { dbGet, dbRun, dbAll } from "./database.js";
-import { callWorkflow } from "./orchestratorClient.js";
+import { callWorkflow, fetchWorkflowNames } from "./orchestratorClient.js";
 import { WEBHOOK_BEARER_TOKEN } from "./config.js";
 import { ThresholdRow } from "./types.js";
+
+// ─── Production guard ─────────────────────────────────────────────────────────
+if (!WEBHOOK_BEARER_TOKEN && process.env.NODE_ENV === "production") {
+  console.error("[threshold] FATAL: WEBHOOK_BEARER_TOKEN must be set in production — refusing to start");
+  process.exit(1);
+}
 
 function meetsThreshold(
   value: number,
@@ -134,6 +140,15 @@ export function createThresholdRouter(): Router {
     }
     if (!["gt", "lt", "gte", "lte"].includes(operator)) {
       res.status(400).json({ error: "operator must be: gt | lt | gte | lte" });
+      return;
+    }
+
+    // Validate agent_name against orchestrator's known workflows
+    const knownWorkflows = await fetchWorkflowNames();
+    if (knownWorkflows.size > 0 && !knownWorkflows.has(agent_name)) {
+      res.status(400).json({
+        error: `Unknown agent_name "${agent_name}". Must be a valid workflow registered in the orchestrator.`,
+      });
       return;
     }
 

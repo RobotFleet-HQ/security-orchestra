@@ -113,6 +113,30 @@ export async function callChain(
   }
 }
 
+// ─── Workflow name discovery ──────────────────────────────────────────────────
+// Fetches the list of valid workflow names from the orchestrator's capabilities.
+// Used to allowlist agent_name in threshold registrations.
+
+let _workflowNamesCache: Set<string> | null = null;
+
+export async function fetchWorkflowNames(): Promise<Set<string>> {
+  if (_workflowNamesCache) return _workflowNamesCache;
+
+  const result = await callWorkflow("get_capabilities", {});
+  if (!result.ok || !result.raw) {
+    // Fallback: return empty set — caller must handle gracefully
+    return new Set();
+  }
+  try {
+    const list = result.raw as Array<{ name: string }>;
+    const names = new Set(list.map((w) => w.name).filter(Boolean));
+    _workflowNamesCache = names;
+    return names;
+  } catch {
+    return new Set();
+  }
+}
+
 export async function callWorkflow(
   workflowName: string,
   args: Record<string, string>

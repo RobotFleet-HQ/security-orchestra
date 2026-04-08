@@ -1708,6 +1708,120 @@ export function validateWorkflowParams(
       break;
     }
 
+    // ── Mythos security methodology ─────────────────────────────────────────────
+    case "infrastructure-ranker": {
+      const siteName = sanitizeInput(params.site_name ?? "");
+      if (!siteName) throw new McpError(ErrorCode.InvalidParams, "400: site_name is required");
+      clean.site_name = siteName;
+      if (!params.components) throw new McpError(ErrorCode.InvalidParams, "400: components array is required");
+      try { const parsed = JSON.parse(params.components); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: components must be a JSON-encoded array");
+      }
+      clean.components = params.components;
+      break;
+    }
+
+    case "parallel-scan-orchestrator": {
+      const siteName = sanitizeInput(params.site_name ?? "");
+      if (!siteName) throw new McpError(ErrorCode.InvalidParams, "400: site_name is required");
+      clean.site_name = siteName;
+      if (!params.ranked_components) throw new McpError(ErrorCode.InvalidParams, "400: ranked_components array is required");
+      try { const parsed = JSON.parse(params.ranked_components); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: ranked_components must be a JSON-encoded array");
+      }
+      clean.ranked_components = params.ranked_components;
+      const VALID_DEPTHS = ["quick", "standard", "deep"];
+      const depth = sanitizeInput(params.scan_depth ?? "").toLowerCase();
+      if (!VALID_DEPTHS.includes(depth)) throw new McpError(ErrorCode.InvalidParams, `400: scan_depth must be one of: ${VALID_DEPTHS.join(", ")}`);
+      clean.scan_depth = depth;
+      break;
+    }
+
+    case "config-vuln-hunter": {
+      const compName = sanitizeInput(params.component_name ?? "");
+      if (!compName) throw new McpError(ErrorCode.InvalidParams, "400: component_name is required");
+      clean.component_name = compName;
+      const compType = sanitizeInput(params.component_type ?? "");
+      if (!compType) throw new McpError(ErrorCode.InvalidParams, "400: component_type is required");
+      clean.component_type = compType;
+      if (!params.config_data) throw new McpError(ErrorCode.InvalidParams, "400: config_data is required");
+      clean.config_data = params.config_data;
+      const mfr = sanitizeInput(params.manufacturer ?? "");
+      if (!mfr) throw new McpError(ErrorCode.InvalidParams, "400: manufacturer is required");
+      clean.manufacturer = mfr;
+      break;
+    }
+
+    case "compliance-gap-detector": {
+      const siteName = sanitizeInput(params.site_name ?? "");
+      if (!siteName) throw new McpError(ErrorCode.InvalidParams, "400: site_name is required");
+      clean.site_name = siteName;
+      const claimedTier = sanitizeInput(params.claimed_tier ?? "");
+      if (!claimedTier) throw new McpError(ErrorCode.InvalidParams, "400: claimed_tier is required");
+      clean.claimed_tier = claimedTier;
+      if (!params.as_built_description) throw new McpError(ErrorCode.InvalidParams, "400: as_built_description is required");
+      clean.as_built_description = params.as_built_description;
+      if (params.standards) clean.standards = params.standards;
+      break;
+    }
+
+    case "failure-chain-analyst": {
+      const siteName = sanitizeInput(params.site_name ?? "");
+      if (!siteName) throw new McpError(ErrorCode.InvalidParams, "400: site_name is required");
+      clean.site_name = siteName;
+      if (!params.findings) throw new McpError(ErrorCode.InvalidParams, "400: findings array is required");
+      try { const parsed = JSON.parse(params.findings); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: findings must be a JSON-encoded array");
+      }
+      clean.findings = params.findings;
+      break;
+    }
+
+    case "impact-poc-generator": {
+      if (!params.finding) throw new McpError(ErrorCode.InvalidParams, "400: finding object is required");
+      try { JSON.parse(params.finding); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: finding must be a JSON-encoded object");
+      }
+      clean.finding = params.finding;
+      const ctx = sanitizeInput(params.site_context ?? "");
+      if (!ctx) throw new McpError(ErrorCode.InvalidParams, "400: site_context is required");
+      clean.site_context = ctx;
+      break;
+    }
+
+    case "finding-validation": {
+      if (!params.findings) throw new McpError(ErrorCode.InvalidParams, "400: findings array is required");
+      try { const parsed = JSON.parse(params.findings); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: findings must be a JSON-encoded array");
+      }
+      clean.findings = params.findings;
+      break;
+    }
+
+    case "ics-scada-cve-intelligence": {
+      if (!params.installed_equipment) throw new McpError(ErrorCode.InvalidParams, "400: installed_equipment array is required");
+      try { const parsed = JSON.parse(params.installed_equipment); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: installed_equipment must be a JSON-encoded array");
+      }
+      clean.installed_equipment = params.installed_equipment;
+      break;
+    }
+
+    case "responsible-disclosure-coordinator": {
+      if (!params.findings) throw new McpError(ErrorCode.InvalidParams, "400: findings array is required");
+      try { const parsed = JSON.parse(params.findings); if (!Array.isArray(parsed)) throw new Error(); } catch {
+        throw new McpError(ErrorCode.InvalidParams, "400: findings must be a JSON-encoded array");
+      }
+      clean.findings = params.findings;
+      const contact = sanitizeInput(params.site_contact ?? "");
+      if (!contact) throw new McpError(ErrorCode.InvalidParams, "400: site_contact is required");
+      clean.site_contact = contact;
+      const date = sanitizeInput(params.disclosure_date ?? "");
+      if (!date) throw new McpError(ErrorCode.InvalidParams, "400: disclosure_date is required (ISO string)");
+      clean.disclosure_date = date;
+      break;
+    }
+
     default:
       throw new McpError(
         ErrorCode.InvalidParams,

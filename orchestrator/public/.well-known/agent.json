@@ -1,14 +1,52 @@
 {
   "name": "Security Orchestra",
-  "description": "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Threat analysis, asset discovery, generator sizing, PUE, cooling, ROI/TCO, and more.",
-  "version": "1.0",
+  "description": "67 specialized agents across 6 domains — Generator & Power, Utility & Grid, Facility & Compliance, Economics & Strategy, Monitoring & Ops, and Security & Audit — plus 11 compound analysis chains including Mythos-methodology infrastructure scanning. Built for data center and critical power professionals.",
   "url": "https://security-orchestra-orchestrator.onrender.com/a2a",
+  "version": "2.1.0",
   "skills": [
-    { "id": "threat-analysis", "name": "Threat analysis", "description": "Analyze IPs, domains, CVEs, and threat indicators" },
-    { "id": "asset-discovery", "name": "Asset discovery", "description": "Network and host enumeration and fingerprinting" },
-    { "id": "vulnerability-intelligence", "name": "Vulnerability intelligence", "description": "CVE lookup, CVSS scoring, patch guidance" },
-    { "id": "security-monitoring", "name": "Security monitoring", "description": "Log analysis, anomaly detection, alert triage" }
+    "threat-analysis",
+    "asset-discovery",
+    "vulnerability-intelligence",
+    "security-monitoring",
+    "infrastructure-analysis",
+    "compliance-verification",
+    "failure-chain-analysis",
+    "ics-vulnerability-intelligence",
+    "configuration-audit",
+    "disclosure-coordination",
+    "generator-sizing",
+    "utility-interconnect",
+    "tier-certification",
+    "grid-telemetry",
+    "load-forecasting",
+    "fuel-economics"
   ],
-  "authentication": { "schemes": ["bearer"] },
-  "capabilities": { "streaming": true, "pushNotifications": false }
+  "capabilities": {
+    "streaming": false,
+    "parallel_execution": true,
+    "chain_execution": true,
+    "async_chains": true,
+    "protocols": ["a2a", "mcp", "rest"]
+  },
+  "domains": [
+    "Generator & Power",
+    "Utility & Grid",
+    "Facility & Compliance",
+    "Economics & Strategy",
+    "Monitoring & Ops",
+    "Security & Audit"
+  ],
+  "chains": [
+    "mythos-full-scan",
+    "mythos-quick-scan",
+    "site-risk-assessment",
+    "generator-health-check",
+    "utility-interconnect-analysis",
+    "compliance-audit",
+    "economics-forecast",
+    "load-analysis",
+    "threat-landscape",
+    "outage-impact",
+    "fuel-optimization"
+  ]
 }

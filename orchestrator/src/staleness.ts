@@ -5,10 +5,14 @@
 // See VALIDATION_CHECKLIST.md for per-agent cadence (monthly / quarterly / annually).
 
 export interface AgentStaleness {
-  validated_at:  string;                      // ISO date of last logic audit
-  standards_ref: string[];                    // authoritative sources used
-  stale_risk:    "low" | "medium" | "high";  // data volatility classification
-  has_pricing:   boolean;                     // true → pricing_note injected
+  validated_at:            string;                      // ISO date of last logic audit
+  standards_ref:           string[];                    // authoritative sources used
+  stale_risk:              "low" | "medium" | "high";  // data volatility classification
+  has_pricing:             boolean;                     // true → pricing_note injected
+  // Mythos methodology extensions (optional)
+  refresh_interval_hours?: number;    // recommended re-scan cadence
+  data_sources?:           string[];  // input data sources (Mythos agents)
+  notes?:                  string;    // human-readable staleness guidance
 }
 
 export const STALENESS: Record<string, AgentStaleness> = {
@@ -88,4 +92,15 @@ export const STALENESS: Record<string, AgentStaleness> = {
   // ── Grid & weather intelligence ───────────────────────────────────────────
   get_grid_telemetry:         { validated_at: "2026-04-07", standards_ref: ["EIA Form 930", "NERC BAL-004-2"],                                              stale_risk: "high",   has_pricing: false },
   get_active_weather_alerts:  { validated_at: "2026-04-07", standards_ref: ["NWS CAP 1.2", "FEMA IPAWS"],                                                  stale_risk: "high",   has_pricing: false },
+
+  // ── Mythos security methodology ───────────────────────────────────────────
+  "infrastructure-ranker":               { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "low",    has_pricing: false, refresh_interval_hours: 720,  data_sources: ["site_input"],                                                 notes: "Component scoring is deterministic from input — refresh when site changes" },
+  "parallel-scan-orchestrator":          { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "medium", has_pricing: false, refresh_interval_hours: 168,  data_sources: ["config_vuln_hunter", "compliance_gap_detector"],             notes: "Findings may change as configs are updated — weekly refresh recommended" },
+  "config-vuln-hunter":                  { validated_at: "2026-04-08", standards_ref: ["NFPA 110:2022", "EPA RICE NESHAP 40 CFR 63 ZZZZ"],                 stale_risk: "high",   has_pricing: false, refresh_interval_hours: 168,  data_sources: ["nfpa_110", "epa_rice_neshap", "tier_standards", "site_config"], notes: "Standards update annually — rescan after any config change" },
+  "compliance-gap-detector":             { validated_at: "2026-04-08", standards_ref: ["Uptime Institute Tier Standard 2022", "NFPA 110:2022", "NEC 2023"], stale_risk: "medium", has_pricing: false, refresh_interval_hours: 720,  data_sources: ["tier_standards", "nfpa_110", "nec", "site_documentation"],   notes: "Refresh after any infrastructure change or standard revision" },
+  "failure-chain-analyst":               { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "high",   has_pricing: false, refresh_interval_hours: 168,  data_sources: ["findings_input"],                                             notes: "Chains depend on current finding set — rerun after any new findings" },
+  "impact-poc-generator":                { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "low",    has_pricing: false, refresh_interval_hours: 720,  data_sources: ["finding_input", "site_context"],                             notes: "PoC is deterministic from finding — refresh if site context changes" },
+  "finding-validation":                  { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "medium", has_pricing: false, refresh_interval_hours: 168,  data_sources: ["findings_input"],                                             notes: "Rerun validation after any new findings are added to the set" },
+  "ics-scada-cve-intelligence":          { validated_at: "2026-04-08", standards_ref: ["NVD/CVE", "ICS-CERT", "CISA KEV"],                                  stale_risk: "high",   has_pricing: false, refresh_interval_hours: 72,   data_sources: ["nvd_cve_database", "ics_cert", "manufacturer_advisories"],   notes: "CVE landscape changes frequently — refresh every 72 hours minimum" },
+  "responsible-disclosure-coordinator":  { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "high",   has_pricing: false, refresh_interval_hours: 24,   data_sources: ["findings_input", "disclosure_timeline"],                     notes: "Disclosure deadlines are time-sensitive — check daily" },
 };

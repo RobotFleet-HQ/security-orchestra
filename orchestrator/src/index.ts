@@ -80,6 +80,17 @@ import { runTierCertification } from "./workflows/tierCertification.js";
 // Phase 4 — grid & weather intelligence
 import { runGridTelemetry } from "./workflows/gridTelemetry.js";
 import { runWeatherAlerts } from "./workflows/weatherAlerts.js";
+// Mythos security methodology
+import { runInfrastructureRanker } from "./workflows/infrastructureRanker.js";
+import { runParallelScanOrchestrator } from "./workflows/parallelScanOrchestrator.js";
+import { runConfigVulnHunter } from "./workflows/configVulnHunter.js";
+import { runComplianceGapDetector } from "./workflows/complianceGapDetector.js";
+import { runFailureChainAnalyst } from "./workflows/failureChainAnalyst.js";
+import { runImpactPoCGenerator } from "./workflows/impactPoCGenerator.js";
+import { runFindingValidation } from "./workflows/findingValidation.js";
+import { runIcsScdaCveIntelligence } from "./workflows/icsScadaCveIntelligence.js";
+import { runResponsibleDisclosureCoordinator } from "./workflows/responsibleDisclosureCoordinator.js";
+import { SEVERITY_TIERS, SeverityTier } from "./severity.js";
 import { toCanonical, validateCanonical, CanonicalResponse, ChainCostAudit, ChainLeafEntry } from "./canonical.js";
 import { normalize } from "./protocol-adapters/normalize.js";
 
@@ -539,6 +550,61 @@ const WORKFLOWS: Record<string, {
     credits: WORKFLOW_COSTS.get_active_weather_alerts,
     version: "1.0", last_validated: "2026-04-05", standards_refs: ["NWS CAP 1.2", "IPAWS-OPEN v3.0"], stale_risk: "low",
   },
+  // ── Mythos security methodology ──────────────────────────────────────────────
+  "infrastructure-ranker": {
+    description: "Ranks site components 1–5 by vulnerability likelihood to prioritize scan order",
+    params: ["site_name", "components"],
+    credits: 2,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "low",
+  },
+  "parallel-scan-orchestrator": {
+    description: "Dispatches parallel config and compliance agents across top-ranked components simultaneously",
+    params: ["site_name", "ranked_components", "scan_depth"],
+    credits: 10,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "medium",
+  },
+  "config-vuln-hunter": {
+    description: "Hunts misconfigurations in generator, ATS, SCADA, and BMS configs against NFPA 110, EPA RICE NESHAP, and Tier Standards",
+    params: ["component_name", "component_type", "config_data", "manufacturer"],
+    credits: 5,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: ["NFPA 110:2022", "EPA RICE NESHAP 40 CFR 63 ZZZZ"], stale_risk: "high",
+  },
+  "compliance-gap-detector": {
+    description: "Finds gaps between claimed Tier/standard compliance and actual as-built architecture",
+    params: ["site_name", "claimed_tier", "as_built_description", "standards"],
+    credits: 5,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: ["Uptime Institute Tier Standard 2022", "ANSI/TIA-942-B:2017"], stale_risk: "medium",
+  },
+  "failure-chain-analyst": {
+    description: "Chains individually low-severity findings into combined critical failure paths",
+    params: ["site_name", "findings"],
+    credits: 8,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "high",
+  },
+  "impact-poc-generator": {
+    description: "Generates defensive proof-of-concept failure scenarios with trigger conditions and blast radius",
+    params: ["finding", "site_context"],
+    credits: 5,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "low",
+  },
+  "finding-validation": {
+    description: "Validates and filters findings — removes theoretical-only results, assigns confidence scores",
+    params: ["findings"],
+    credits: 4,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "medium",
+  },
+  "ics-scada-cve-intelligence": {
+    description: "Maps installed ICS/SCADA equipment against known CVEs — Schneider, ABB, Siemens, Cummins, Caterpillar, Basler, ComAp, SEL",
+    params: ["installed_equipment"],
+    credits: 6,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: ["NVD/CVE", "ICS-CERT", "CISA KEV"], stale_risk: "high",
+  },
+  "responsible-disclosure-coordinator": {
+    description: "Generates SHA-256 commitment hashes per finding, manages 90-day disclosure timeline",
+    params: ["findings", "site_contact", "disclosure_date"],
+    credits: 3,
+    version: "1.0.0", last_validated: "2026-04-08", standards_refs: [], stale_risk: "high",
+  },
 };
 
 // ─── Chain Registry ───────────────────────────────────────────────────────────
@@ -602,6 +668,30 @@ const CHAINS: Record<string, {
     description: "Grid telemetry → Weather alerts. Fetches real-time EIA grid data and NWS severe weather alerts for a US balancing authority region. Provides the raw inputs needed to calculate a Grid Threat Score (Low / Elevated / Critical) and trigger a data center mitigation playbook.",
     credits: 10,
     steps: ["get_grid_telemetry", "get_active_weather_alerts"],
+  },
+  "mythos-full-scan": {
+    name: "Mythos Full Infrastructure Scan",
+    description: "Complete Mythos-methodology scan: rank → parallel scan → validate → chain analysis → PoC → disclosure package",
+    credits: 40,
+    steps: [
+      "infrastructure-ranker",
+      "parallel-scan-orchestrator",
+      "finding-validation",
+      "failure-chain-analyst",
+      "impact-poc-generator",
+      "responsible-disclosure-coordinator",
+    ],
+  },
+  "mythos-quick-scan": {
+    name: "Mythos Quick Infrastructure Scan",
+    description: "Fast Mythos scan: rank top components → config + compliance check → validate findings",
+    credits: 15,
+    steps: [
+      "infrastructure-ranker",
+      "config-vuln-hunter",
+      "compliance-gap-detector",
+      "finding-validation",
+    ],
   },
 };
 
@@ -1545,6 +1635,108 @@ async function dispatchWorkflow(
       const waResult = await runWeatherAlerts({ state_code: args.state_code });
       log("info", `get_active_weather_alerts complete — ${waResult.target} alerts=${waResult.results.alert_count} in ${waResult.results.duration_ms}ms`);
       return waResult as unknown as WorkflowResult;
+    }
+
+    // ── Mythos security methodology ───────────────────────────────────────────
+    case "infrastructure-ranker": {
+      if (!args.site_name) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_name");
+      if (!args.components) throw new McpError(ErrorCode.InvalidParams, "Missing required param: components (JSON array)");
+      const irComponents = JSON.parse(args.components) as Parameters<typeof runInfrastructureRanker>[0]["components"];
+      const irResult = await runInfrastructureRanker({ site_name: args.site_name, components: irComponents });
+      log("info", `infrastructure-ranker complete — ${irResult.results.component_count} components, highest score ${irResult.results.highest_score} in ${irResult.results.duration_ms}ms`);
+      return irResult as unknown as WorkflowResult;
+    }
+
+    case "parallel-scan-orchestrator": {
+      if (!args.site_name) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_name");
+      if (!args.ranked_components) throw new McpError(ErrorCode.InvalidParams, "Missing required param: ranked_components (JSON array)");
+      if (!args.scan_depth) throw new McpError(ErrorCode.InvalidParams, "Missing required param: scan_depth (quick | standard | deep)");
+      const psoComponents = JSON.parse(args.ranked_components) as Parameters<typeof runParallelScanOrchestrator>[0]["ranked_components"];
+      const psoResult = await runParallelScanOrchestrator({
+        site_name:         args.site_name,
+        ranked_components: psoComponents,
+        scan_depth:        args.scan_depth as "quick" | "standard" | "deep",
+      });
+      log("info", `parallel-scan-orchestrator complete — ${psoResult.results.total_findings} findings across ${psoResult.results.components_scanned} components in ${psoResult.results.duration_ms}ms`);
+      return psoResult as unknown as WorkflowResult;
+    }
+
+    case "config-vuln-hunter": {
+      if (!args.component_name) throw new McpError(ErrorCode.InvalidParams, "Missing required param: component_name");
+      if (!args.component_type) throw new McpError(ErrorCode.InvalidParams, "Missing required param: component_type");
+      if (!args.config_data) throw new McpError(ErrorCode.InvalidParams, "Missing required param: config_data");
+      if (!args.manufacturer) throw new McpError(ErrorCode.InvalidParams, "Missing required param: manufacturer");
+      const cvhResult = await runConfigVulnHunter({
+        component_name: args.component_name,
+        component_type: args.component_type,
+        config_data:    args.config_data,
+        manufacturer:   args.manufacturer,
+      });
+      log("info", `config-vuln-hunter complete — ${cvhResult.results.finding_count} findings for ${cvhResult.target} in ${cvhResult.results.duration_ms}ms`);
+      return cvhResult as unknown as WorkflowResult;
+    }
+
+    case "compliance-gap-detector": {
+      if (!args.site_name) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_name");
+      if (!args.claimed_tier) throw new McpError(ErrorCode.InvalidParams, "Missing required param: claimed_tier");
+      if (!args.as_built_description) throw new McpError(ErrorCode.InvalidParams, "Missing required param: as_built_description");
+      const standards = args.standards ? (JSON.parse(args.standards) as string[]) : ["NFPA 110", "Uptime Institute Tier III", "ANSI/TIA-942"];
+      const cgdResult = await runComplianceGapDetector({
+        site_name:            args.site_name,
+        claimed_tier:         args.claimed_tier,
+        as_built_description: args.as_built_description,
+        standards,
+      });
+      log("info", `compliance-gap-detector complete — ${cgdResult.results.gap_count} gaps for ${cgdResult.target} in ${cgdResult.results.duration_ms}ms`);
+      return cgdResult as unknown as WorkflowResult;
+    }
+
+    case "failure-chain-analyst": {
+      if (!args.site_name) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_name");
+      if (!args.findings) throw new McpError(ErrorCode.InvalidParams, "Missing required param: findings (JSON array)");
+      const fcaFindings = JSON.parse(args.findings) as Array<Record<string, unknown>>;
+      const fcaResult = await runFailureChainAnalyst({ site_name: args.site_name, findings: fcaFindings });
+      log("info", `failure-chain-analyst complete — ${fcaResult.results.chain_count} chains, highest severity ${fcaResult.results.highest_combined_severity} in ${fcaResult.results.duration_ms}ms`);
+      return fcaResult as unknown as WorkflowResult;
+    }
+
+    case "impact-poc-generator": {
+      if (!args.finding) throw new McpError(ErrorCode.InvalidParams, "Missing required param: finding (JSON object)");
+      if (!args.site_context) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_context");
+      const ipgFinding = JSON.parse(args.finding) as Record<string, unknown>;
+      const ipgResult = await runImpactPoCGenerator({ finding: ipgFinding, site_context: args.site_context });
+      log("info", `impact-poc-generator complete — severity ${ipgResult.results.poc?.severity_tier ?? "n/a"} in ${ipgResult.results.duration_ms}ms`);
+      return ipgResult as unknown as WorkflowResult;
+    }
+
+    case "finding-validation": {
+      if (!args.findings) throw new McpError(ErrorCode.InvalidParams, "Missing required param: findings (JSON array)");
+      const fvFindings = JSON.parse(args.findings) as Array<Record<string, unknown>>;
+      const fvResult = await runFindingValidation({ findings: fvFindings });
+      log("info", `finding-validation complete — ${fvResult.results.validated_finding_count}/${fvResult.results.input_finding_count} findings passed in ${fvResult.results.duration_ms}ms`);
+      return fvResult as unknown as WorkflowResult;
+    }
+
+    case "ics-scada-cve-intelligence": {
+      if (!args.installed_equipment) throw new McpError(ErrorCode.InvalidParams, "Missing required param: installed_equipment (JSON array)");
+      const icsEquipment = JSON.parse(args.installed_equipment) as Parameters<typeof runIcsScdaCveIntelligence>[0]["installed_equipment"];
+      const icsResult = await runIcsScdaCveIntelligence({ installed_equipment: icsEquipment });
+      log("info", `ics-scada-cve-intelligence complete — ${icsResult.results.total_cves_found} CVEs across ${icsResult.results.total_equipment} devices in ${icsResult.results.duration_ms}ms`);
+      return icsResult as unknown as WorkflowResult;
+    }
+
+    case "responsible-disclosure-coordinator": {
+      if (!args.findings) throw new McpError(ErrorCode.InvalidParams, "Missing required param: findings (JSON array)");
+      if (!args.site_contact) throw new McpError(ErrorCode.InvalidParams, "Missing required param: site_contact");
+      if (!args.disclosure_date) throw new McpError(ErrorCode.InvalidParams, "Missing required param: disclosure_date (ISO string)");
+      const rdcFindings = JSON.parse(args.findings) as Array<Record<string, unknown>>;
+      const rdcResult = await runResponsibleDisclosureCoordinator({
+        findings:        rdcFindings,
+        site_contact:    args.site_contact,
+        disclosure_date: args.disclosure_date,
+      });
+      log("info", `responsible-disclosure-coordinator complete — ${rdcResult.results.total_findings} findings, deadline ${rdcResult.results.disclosure_deadline} in ${rdcResult.results.duration_ms}ms`);
+      return rdcResult as unknown as WorkflowResult;
     }
 
     default:

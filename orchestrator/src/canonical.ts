@@ -73,6 +73,12 @@ export interface CanonicalResponse {
   error_code?:    string;     // e.g. "WORKFLOW_FAILED", "INVALID_PARAMS"
   error_message?: string;     // human-readable description
 
+  // ── Mythos security fields (optional) ────────────────────────────────────
+  severity_tier?:    1 | 2 | 3 | 4 | 5;  // highest finding tier per SEVERITY_TIERS
+  scan_cost_usd?:    number;              // estimated cost of the scan/assessment
+  commitment_hash?:  string;              // SHA-256 commit hash of the scan ruleset used
+  finding_count?:    number;              // total findings returned by this agent
+
   data_freshness: DataFreshness;  // required on every response
 
   a2a: {
@@ -95,6 +101,10 @@ export const CanonicalResponseSchema = z.object({
   result:            z.unknown(),
   error_code:        z.string().optional(),
   error_message:     z.string().optional(),
+  severity_tier:     z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+  scan_cost_usd:     z.number().optional(),
+  commitment_hash:   z.string().optional(),
+  finding_count:     z.number().optional(),
   data_freshness:    z.object({
     validated_at:  z.string(),
     standards_ref: z.array(z.string()),

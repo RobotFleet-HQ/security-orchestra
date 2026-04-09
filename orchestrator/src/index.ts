@@ -93,6 +93,7 @@ import { runIcsScdaCveIntelligence } from "./workflows/icsScadaCveIntelligence.j
 import { runResponsibleDisclosureCoordinator } from "./workflows/responsibleDisclosureCoordinator.js";
 import { SEVERITY_TIERS, SeverityTier } from "./severity.js";
 import { toCanonical, validateCanonical, CanonicalResponse, ChainCostAudit, ChainLeafEntry } from "./canonical.js";
+import { type MergeAuditRecord } from "./merge.js";
 import { normalize } from "./protocol-adapters/normalize.js";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -1065,7 +1066,7 @@ async function runChain(
     // Execute the leaf — load prior context first so this step can see earlier results
     const priorCtx = sessionId ? (getSession(userId, sessionId)?.entries ?? null) : null;
     try {
-      const result = await dispatchWorkflow(stepId, runningParams, undefined, priorCtx);
+      const result = await dispatchWorkflow(stepId, runningParams, undefined, priorCtx, userId);
       stepResults.push({ step: stepId, result });
       leafBreakdown.push({ agent_id: stepId, step_index: i, credits_debited: billingEnabled ? leafCost : 0, status: "success" });
       // Immediately append to session so subsequent steps can see this result
@@ -1129,6 +1130,7 @@ async function dispatchWorkflow(
   args: Record<string, string>,
   taskId?: string,
   priorContext?: MemoryEntry[] | null,
+  userId = "system",
 ): Promise<CanonicalResponse> {
   const _hwStart = Date.now();
   const result = await (async (): Promise<WorkflowResult> => {
@@ -1774,6 +1776,7 @@ async function dispatchWorkflow(
         scan_depth:        args.scan_depth as "quick" | "standard" | "deep",
       });
       log("info", `parallel-scan-orchestrator complete — ${psoResult.results.total_findings} findings across ${psoResult.results.components_scanned} components in ${psoResult.results.duration_ms}ms`);
+
       return psoResult as unknown as WorkflowResult;
     }
 
@@ -1886,6 +1889,45 @@ async function dispatchWorkflow(
   if (priorContext && priorContext.length > 0) {
     (_canonical.result as Record<string, unknown>).prior_context = priorContext;
   }
+
+  // ── Parallel merge conflict audit (parallel-scan-orchestrator only) ───────
+  if (name === "parallel-scan-orchestrator") {
+    const r  = _canonical.result as Record<string, unknown> | null;
+    const ms = r?.["merge_summary"] as {
+      components_with_conflicts: number;
+      components_with_blocking:  number;
+      blocking_detail?: import("./merge.js").MergeResult;
+    } | undefined;
+
+    if (ms && ms.components_with_conflicts > 0) {
+      const hasBlocking = ms.components_with_blocking > 0;
+      const detail      = ms.blocking_detail;
+      const mergeAudit: MergeAuditRecord = {
+        chain_id:       "parallel-scan-orchestrator",
+        task_id:        _canonical.a2a.task_id,
+        customer_id:    userId,
+        timestamp:      new Date().toISOString(),
+        conflict_count: detail?.conflict_count ?? ms.components_with_conflicts,
+        has_blocking:   hasBlocking,
+        conflicts:      detail?.conflicts ?? [],
+      };
+      logAudit({
+        user_id:  userId,
+        action:   hasBlocking ? "merge_conflict_blocking" : "merge_conflict_advisory",
+        resource: "parallel-scan-orchestrator",
+        result:   hasBlocking ? "failure" : "success",
+        details:  mergeAudit as unknown as Record<string, unknown>,
+      });
+
+      if (hasBlocking && detail) {
+        _canonical.status        = "partial";
+        _canonical.error_code    = "PARALLEL_CONFLICT_BLOCKING";
+        _canonical.error_message = "Parallel agents returned conflicting values exceeding 20% threshold";
+        _canonical.merge_result  = detail;
+      }
+    }
+  }
+
   return _canonical;
 }
 
@@ -2315,7 +2357,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     let result: CanonicalResponse;
     try {
       const priorCtx = sessionId ? (getSession(userId, sessionId)?.entries ?? null) : null;
-      result = await dispatchWorkflow(workflowName, cleanParams, undefined, priorCtx);
+      result = await dispatchWorkflow(workflowName, cleanParams, undefined, priorCtx, userId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logAudit({ user_id: userId, action: "workflow_error", resource: workflowName,

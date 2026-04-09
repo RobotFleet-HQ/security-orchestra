@@ -66,12 +66,16 @@ export interface CanonicalResponse {
   protocol_version:  "1.0";           // fixed — breaking changes use a new version
   execution_context: ExecutionContext; // how the result was produced
 
-  status: "success" | "error";
+  status: "success" | "error" | "partial";
   result: unknown;            // workflow-specific payload; null on error
 
   // Flat error fields — easier to match without nested destructure
-  error_code?:    string;     // e.g. "WORKFLOW_FAILED", "INVALID_PARAMS"
+  error_code?:    string;     // e.g. "WORKFLOW_FAILED", "INVALID_PARAMS", "PARALLEL_CONFLICT_BLOCKING"
   error_message?: string;     // human-readable description
+
+  // ── Parallel merge result (optional) ─────────────────────────────────────
+  // Populated when parallel agents returned conflicting numeric estimates.
+  merge_result?:  import("./merge.js").MergeResult;
 
   // ── Mythos security fields (optional) ────────────────────────────────────
   severity_tier?:    1 | 2 | 3 | 4 | 5;  // highest finding tier per SEVERITY_TIERS
@@ -97,10 +101,11 @@ export const CanonicalResponseSchema = z.object({
   agent_version:     z.string(),
   protocol_version:  z.literal("1.0"),
   execution_context: z.enum(["deterministic_calc", "single_agent", "multi_agent_chain", "cached"]),
-  status:            z.enum(["success", "error"]),
+  status:            z.enum(["success", "error", "partial"]),
   result:            z.unknown(),
   error_code:        z.string().optional(),
   error_message:     z.string().optional(),
+  merge_result:      z.unknown().optional(),
   severity_tier:     z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
   scan_cost_usd:     z.number().optional(),
   commitment_hash:   z.string().optional(),

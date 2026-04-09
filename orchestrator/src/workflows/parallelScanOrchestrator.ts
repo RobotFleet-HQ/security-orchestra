@@ -2,10 +2,16 @@
 // Fans out configVulnHunter + complianceGapDetector concurrently across the
 // top-N components from infrastructureRanker output, collects, deduplicates,
 // and ranks all findings by severity_tier.
+//
+// Per-component merge: after each parallel pair completes, mergeResults() checks
+// numeric fields for divergence. Blocking conflicts are noted; the caller
+// (index.ts case) logs the MergeAuditRecord and may surface status="partial".
 
 import { runConfigVulnHunter, ConfigFinding } from "./configVulnHunter.js";
 import { runComplianceGapDetector, ComplianceGap } from "./complianceGapDetector.js";
 import { RankedComponent } from "./infrastructureRanker.js";
+import { mergeResults, MergeResult } from "../merge.js";
+import type { CanonicalResponse } from "../canonical.js";
 
 export type ScanDepth = "quick" | "standard" | "deep";
 
@@ -31,14 +37,21 @@ export interface ParallelScanOrchestratorResult {
   target:    string;
   timestamp: string;
   results: {
-    site_name:          string;
-    scan_depth:         ScanDepth;
-    components_scanned: number;
-    total_findings:     number;
-    merged_findings:    MergedFinding[];
-    scan_cost_usd:      number;
-    duration_ms:        number;
-    note?:              string;
+    site_name:               string;
+    scan_depth:              ScanDepth;
+    components_scanned:      number;
+    total_findings:          number;
+    merged_findings:         MergedFinding[];
+    scan_cost_usd:           number;
+    duration_ms:             number;
+    /** Aggregate conflict summary across all per-component merges. */
+    merge_summary?: {
+      components_with_conflicts:  number;
+      components_with_blocking:   number;
+      /** Full MergeResult for the last blocking component, for detail. */
+      blocking_detail?: MergeResult;
+    };
+    note?:                   string;
   };
 }
 
@@ -85,6 +98,9 @@ export async function runParallelScanOrchestrator(params: {
   // ── Collect and normalize findings ────────────────────────────────────────
   const rawFindings: MergedFinding[] = [];
   let totalScanCost = 0;
+  let componentsWithConflicts = 0;
+  let componentsWithBlocking  = 0;
+  let lastBlockingMergeResult: MergeResult | undefined;
 
   allJobResults.forEach((jobResult, idx) => {
     const component = selected[idx];
@@ -95,6 +111,29 @@ export async function runParallelScanOrchestrator(params: {
     }
 
     const [configResult, complianceResult] = jobResult.value;
+
+    // ── Merge numeric fields from the two parallel agents ──────────────────
+    const mergeInputs: CanonicalResponse[] = [];
+    if (configResult.status === "fulfilled") {
+      mergeInputs.push({ agent_id: "config_vuln_hunter", result: configResult.value.results } as CanonicalResponse);
+    }
+    if (complianceResult.status === "fulfilled") {
+      mergeInputs.push({ agent_id: "compliance_gap_detector", result: complianceResult.value.results } as CanonicalResponse);
+    }
+    if (mergeInputs.length === 2) {
+      const mr = mergeResults(mergeInputs);
+      if (mr.conflict_count > 0) {
+        componentsWithConflicts++;
+        if (mr.has_blocking_conflicts) {
+          componentsWithBlocking++;
+          lastBlockingMergeResult = mr;
+          notes.push(
+            `Component "${component.name}": parallel agents have blocking numeric conflict — ` +
+            mr.conflicts.filter((c) => c.severity === "blocking").map((c) => c.field).join(", ")
+          );
+        }
+      }
+    }
 
     // Config vulnerability findings
     if (configResult.status === "fulfilled") {
@@ -144,6 +183,14 @@ export async function runParallelScanOrchestrator(params: {
   // ── Sort by severity_tier descending ──────────────────────────────────────
   dedupedFindings.sort((a, b) => b.severity_tier - a.severity_tier);
 
+  const merge_summary = (componentsWithConflicts > 0)
+    ? {
+        components_with_conflicts: componentsWithConflicts,
+        components_with_blocking:  componentsWithBlocking,
+        ...(lastBlockingMergeResult && { blocking_detail: lastBlockingMergeResult }),
+      }
+    : undefined;
+
   return {
     workflow:  "parallel_scan_orchestrator",
     target:    site_name,
@@ -156,6 +203,7 @@ export async function runParallelScanOrchestrator(params: {
       merged_findings:    dedupedFindings,
       scan_cost_usd:      totalScanCost,
       duration_ms:        Date.now() - start,
+      ...(merge_summary   && { merge_summary }),
       ...(notes.length > 0 && { note: notes.join(" | ") }),
     },
   };

@@ -4183,6 +4183,153 @@ async function main() {
       }
     });
 
+    // ── POST /autogen — Microsoft AutoGen agent adapter ──────────────────────
+    // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
+    // Body:   AutoGenRequest — messages array with optional function_call
+    // Reply:  CanonicalResponse (returned directly — no wire-format wrapping)
+    //
+    // Routing priority:
+    //   1. Last message with function_call → function_call.name = workflow name,
+    //      function_call.arguments (JSON) = workflow params
+    //   2. Last message with string content → detectWorkflowFromText() fallback
+    app.post("/autogen", express.json(), async (req, res) => {
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const messages: {
+        role: string;
+        name?: string;
+        content: string | null;
+        function_call?: { name: string; arguments: string };
+      }[] = req.body?.messages ?? [];
+      const sessionId: string | undefined = req.body?.session_id;
+      const autogenTaskId = extractTaskId(req, sessionId);
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json(toCanonical("security-orchestra", null,
+          { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+          { code: "INVALID_PARAMS", message: "messages array is required" }));
+        return;
+      }
+
+      // Scan messages in reverse for the last actionable entry
+      const lastActionable = [...messages].reverse().find(
+        (m) => m.function_call?.name || (typeof m.content === "string" && m.content)
+      );
+
+      let workflowName: string | null = null;
+      let params: Record<string, string> = {};
+
+      if (lastActionable?.function_call?.name) {
+        // Structured path — function_call.name is the exact workflow (or chain_*) name
+        workflowName = lastActionable.function_call.name;
+        try {
+          const parsed: unknown = JSON.parse(lastActionable.function_call.arguments ?? "{}");
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            params = Object.fromEntries(
+              Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)])
+            );
+          }
+        } catch {
+          res.status(400).json(toCanonical(workflowName, null,
+            { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+            { code: "INVALID_PARAMS", message: "function_call.arguments is not valid JSON" }));
+          return;
+        }
+      } else if (lastActionable?.content) {
+        // Natural-language fallback — same detection used by ACP and /chat
+        const detected = detectWorkflowFromText(lastActionable.content);
+        workflowName = detected.workflowName;
+        params = detected.params;
+      }
+
+      if (!workflowName) {
+        res.status(400).json(toCanonical("security-orchestra", null,
+          { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+          { code: "INVALID_PARAMS", message: "Could not determine workflow from messages — provide a function_call or clear natural-language content" }));
+        return;
+      }
+
+      // ── Chain support (chain_<id> prefix mirrors OpenAI adapter) ─────────────
+      const autogenChainId = workflowName.startsWith("chain_") ? workflowName.slice(6) : undefined;
+      if (autogenChainId) {
+        const chain = CHAINS[autogenChainId];
+        if (!chain) {
+          res.status(400).json(toCanonical(`chain:${autogenChainId}`, null,
+            { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+            { code: "UNKNOWN_CHAIN", message: `Unknown chain "${autogenChainId}"` }));
+          return;
+        }
+        try {
+          enforceRateLimit(keyRow.user_id, keyRow.tier);
+          logAudit({ user_id: keyRow.user_id, action: "autogen_run_start", resource: autogenChainId,
+            result: "success", details: { tier: keyRow.tier } });
+          const chainResult = await runChain(autogenChainId, params, keyRow.user_id, keyRow.tier, autogenTaskId);
+          if (!!process.env.BILLING_API_URL) await deductCredits(keyRow.user_id, chain.credits, `chain:${autogenChainId}`);
+          logAudit({ user_id: keyRow.user_id, action: "autogen_run_complete", resource: autogenChainId,
+            result: "success", details: { tier: keyRow.tier } });
+          res.json(chainResult);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log("error", `[autogen] chain error — ${autogenChainId}: ${msg}`);
+          res.status(500).json(toCanonical(`chain:${autogenChainId}`, null,
+            { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+            { code: "WORKFLOW_ERROR", message: msg }));
+        }
+        return;
+      }
+
+      // ── Single workflow ────────────────────────────────────────────────────────
+      const wf = WORKFLOWS[workflowName];
+      if (!wf) {
+        res.status(400).json(toCanonical(workflowName, null,
+          { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+          { code: "UNKNOWN_TOOL", message: `Unknown workflow "${workflowName}"` }));
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const cleanParams = validateWorkflowParams(workflowName, params);
+
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json(toCanonical(workflowName, null,
+              { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+              { code: "INSUFFICIENT_CREDITS", message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` }));
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "autogen_run_start", resource: workflowName,
+          result: "success", details: { tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams, autogenTaskId);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "autogen_run_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.json(result);
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[autogen] workflow error — ${workflowName}: ${msg}`);
+        res.status(500).json(toCanonical(workflowName, null,
+          { version: "1.0", credits: 0, taskId: autogenTaskId, idempotent: true },
+          { code: "WORKFLOW_ERROR", message: msg }));
+      }
+    });
+
     // ── POST /chat — conversational workflow interface ────────────────────────
     // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
     // Body:   { messages: [{ role: "user"|"assistant", content: string }] }

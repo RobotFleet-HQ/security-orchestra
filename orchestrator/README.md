@@ -139,6 +139,62 @@ Use the get_capabilities tool
 
 ---
 
+## Protocol Adapters
+
+The orchestrator speaks multiple agent protocols. Every adapter shares the same auth, rate limiting, and billing pipeline.
+
+| Protocol | Endpoint | Response format |
+|---|---|---|
+| MCP | `POST /mcp` | MCP content array |
+| Google A2A | `POST /a2a` | JSON-RPC 2.0 |
+| AG-UI | `POST /agui` | SSE event stream |
+| ACP / BeeAI | `POST /acp/runs` | ACP run envelope |
+| AGNTCY / OASF | mounted under `/acp/agents` | OASF run response |
+| OpenAI Agents SDK | `POST /openai/run` | `{role:"tool", content}` |
+| **Microsoft AutoGen** | **`POST /autogen`** | **CanonicalResponse (JSON)** |
+
+### Microsoft AutoGen (`POST /autogen`)
+
+AutoGen agents communicate via function-call style messages. The adapter extracts the last actionable message and dispatches the matching workflow.
+
+**Request body:**
+```json
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": null,
+      "function_call": {
+        "name": "generator_sizing",
+        "arguments": "{\"load_kw\": \"2000\", \"tier\": \"2N\"}"
+      }
+    }
+  ],
+  "session_id": "optional-uuid-for-idempotency"
+}
+```
+
+**Routing rules:**
+1. Last message with `function_call.name` → that name is the workflow (or `chain_<id>` for chains). `function_call.arguments` must be valid JSON; values are coerced to strings.
+2. Last message with string `content` and no `function_call` → natural-language workflow detection (same as `/acp/runs`).
+
+**Response:** Raw `CanonicalResponse` JSON — no wrapper envelope.
+
+```bash
+curl -X POST https://security-orchestra-orchestrator.onrender.com/autogen \
+  -H "x-api-key: sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{
+      "role": "assistant",
+      "content": null,
+      "function_call": {"name": "generator_sizing", "arguments": "{\"load_kw\":\"1500\",\"tier\":\"2N\"}"}
+    }]
+  }'
+```
+
+---
+
 ## Rate Limits
 
 Limits are enforced per-user using a **sliding window** algorithm across three window sizes.

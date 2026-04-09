@@ -21,6 +21,7 @@ import { checkCredits, deductCredits, WORKFLOW_COSTS, CHAIN_LEAF_CREDITS, CHAIN_
 import { validateWorkflowParams } from "./validation.js";
 import { enforceRateLimit } from "./rateLimit.js";
 import { logAudit, auditDb, auditDbAll } from "./audit.js";
+import { getSession, appendEntry, clearSession, pruneExpiredSessions, getSessionStats, MAX_ENTRIES_PER_SESSION, type MemoryEntry } from "./memory.js";
 import { recordCall, getHealthReport } from "./health-monitor.js";
 import { runSubdomainDiscovery } from "./workflows/subdomain.js";
 import { runGeneratorSizing } from "./workflows/generatorSizing.js";
@@ -155,6 +156,19 @@ async function resolveMcpAuth(req: express.Request): Promise<{ userId: string; t
   } catch {
     return null;
   }
+}
+
+// ─── Session ID extraction ────────────────────────────────────────────────────
+/**
+ * Extract and sanitize the x-session-id header value.
+ * Returns null when the header is absent, empty, or contains only invalid chars.
+ * Allowed chars: alphanumeric, hyphen, underscore. Max 128 chars.
+ */
+function extractSessionId(req: express.Request): string | null {
+  const raw = req.headers["x-session-id"];
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const clean = raw.trim().replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 128);
+  return clean || null;
 }
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
@@ -977,6 +991,7 @@ async function runChain(
   tier: string,
   taskId?: string,
   billingEnabled = false,
+  sessionId?: string | null,
 ): Promise<CanonicalResponse> {
   const _chainStart = Date.now();
   const chain = CHAINS[chainId];
@@ -1047,11 +1062,21 @@ async function runChain(
       }
     }
 
-    // Execute the leaf
+    // Execute the leaf — load prior context first so this step can see earlier results
+    const priorCtx = sessionId ? (getSession(userId, sessionId)?.entries ?? null) : null;
     try {
-      const result = await dispatchWorkflow(stepId, runningParams);
+      const result = await dispatchWorkflow(stepId, runningParams, undefined, priorCtx);
       stepResults.push({ step: stepId, result });
       leafBreakdown.push({ agent_id: stepId, step_index: i, credits_debited: billingEnabled ? leafCost : 0, status: "success" });
+      // Immediately append to session so subsequent steps can see this result
+      if (sessionId) {
+        appendEntry(userId, sessionId, {
+          agent_id:  stepId,
+          task_id:   result.a2a.task_id,
+          timestamp: new Date().toISOString(),
+          result:    result.result,
+        });
+      }
       // Extract step-specific output→input mappings for next step
       const r = result.result as Record<string, unknown>;
       const derived = extractChainParams(stepId, r);
@@ -1102,7 +1127,8 @@ async function runChain(
 async function dispatchWorkflow(
   name: string,
   args: Record<string, string>,
-  taskId?: string
+  taskId?: string,
+  priorContext?: MemoryEntry[] | null,
 ): Promise<CanonicalResponse> {
   const _hwStart = Date.now();
   const result = await (async (): Promise<WorkflowResult> => {
@@ -1856,6 +1882,10 @@ async function dispatchWorkflow(
     idempotent: true,
   }));
   recordCall(name, Date.now() - _hwStart);
+  // ── Attach prior session context (injected by caller when session is active) ─
+  if (priorContext && priorContext.length > 0) {
+    (_canonical.result as Record<string, unknown>).prior_context = priorContext;
+  }
   return _canonical;
 }
 
@@ -2140,7 +2170,7 @@ function detectWorkflowFromText(
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 
-function createServer(userId: string, tier: string): Server {
+function createServer(userId: string, tier: string, sessionId: string | null = null): Server {
 const server = new Server(
   { name: "orchestrator", version: "1.0.0" },
   { capabilities: { tools: {} } }
@@ -2284,7 +2314,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     let result: CanonicalResponse;
     try {
-      result = await dispatchWorkflow(workflowName, cleanParams);
+      const priorCtx = sessionId ? (getSession(userId, sessionId)?.entries ?? null) : null;
+      result = await dispatchWorkflow(workflowName, cleanParams, undefined, priorCtx);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logAudit({ user_id: userId, action: "workflow_error", resource: workflowName,
@@ -2310,6 +2341,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result: "success", duration_ms: durationMs,
       details: { params: cleanParams, tier } });
     log("info", `workflow_complete — ${workflowName} in ${durationMs}ms`);
+    // Append to session memory (fire-and-forget — never blocks response)
+    if (sessionId) {
+      appendEntry(userId, sessionId, {
+        agent_id:  workflowName,
+        task_id:   result.a2a.task_id,
+        timestamp: new Date().toISOString(),
+        result:    result.result,
+      });
+    }
 
     return {
       content: [{
@@ -2340,7 +2380,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     let chainResult: CanonicalResponse;
     try {
-      chainResult = await runChain(directChainId, typedArgs, userId, tier, undefined, billingEnabledChain);
+      chainResult = await runChain(directChainId, typedArgs, userId, tier, undefined, billingEnabledChain, sessionId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (err instanceof McpError) throw err;
@@ -2793,7 +2833,7 @@ async function main() {
         log("info", `SSE session ${transport.sessionId} closed`);
       });
       log("info", `SSE session ${transport.sessionId} opened`);
-      const srv = createServer(authCtx.userId, authCtx.tier);
+      const srv = createServer(authCtx.userId, authCtx.tier, extractSessionId(req));
       await srv.connect(transport);
     });
 
@@ -2817,7 +2857,7 @@ async function main() {
         return;
       }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const srv = createServer(authCtx.userId, authCtx.tier);
+      const srv = createServer(authCtx.userId, authCtx.tier, extractSessionId(req));
       res.on("close", () => { transport.close().catch(() => {}); });
       await srv.connect(transport);
       await transport.handleRequest(req, res, req.body);
@@ -2830,7 +2870,7 @@ async function main() {
         return;
       }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const srv = createServer(authCtx.userId, authCtx.tier);
+      const srv = createServer(authCtx.userId, authCtx.tier, extractSessionId(req));
       res.on("close", () => { transport.close().catch(() => {}); });
       await srv.connect(transport);
       await transport.handleRequest(req, res);
@@ -2880,7 +2920,8 @@ async function main() {
         return;
       }
 
-      const requestTaskId = extractTaskId(req, req.body?.task_id);
+      const requestTaskId  = extractTaskId(req, req.body?.task_id);
+      const runSessionId   = extractSessionId(req);
 
       try {
         enforceRateLimit(keyRow.user_id, keyRow.tier);
@@ -2898,8 +2939,9 @@ async function main() {
 
         logAudit({ user_id: keyRow.user_id, action: "run_workflow_start", resource: workflowName,
           result: "success", details: { params: cleanParams, tier: keyRow.tier } });
-        const startTime = Date.now();
-        const result = await dispatchWorkflow(workflowName, cleanParams, requestTaskId);
+        const startTime  = Date.now();
+        const priorCtx   = runSessionId ? (getSession(keyRow.user_id, runSessionId)?.entries ?? null) : null;
+        const result     = await dispatchWorkflow(workflowName, cleanParams, requestTaskId, priorCtx);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
@@ -2909,6 +2951,14 @@ async function main() {
 
         logAudit({ user_id: keyRow.user_id, action: "run_workflow_complete", resource: workflowName,
           result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+        if (runSessionId) {
+          appendEntry(keyRow.user_id, runSessionId, {
+            agent_id:  workflowName,
+            task_id:   result.a2a.task_id,
+            timestamp: new Date().toISOString(),
+            result:    result.result,
+          });
+        }
 
         res.json(validateCanonical(result));
       } catch (err) {
@@ -3647,7 +3697,8 @@ async function main() {
         state: stateMatch, capacity_mw: load_mw,
       };
 
-      const chainTaskId = extractTaskId(req, req.body?.task_id);
+      const chainTaskId   = extractTaskId(req, req.body?.task_id);
+      const chainSessId   = extractSessionId(req);
 
       logAudit({
         user_id: keyRow.user_id, action: "chain_start", resource: chainId,
@@ -3656,7 +3707,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, chainTaskId);
+        const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, chainTaskId, false, chainSessId);
 
         if (billingEnabled) {
           const remaining = await deductCredits(keyRow.user_id, chain.credits, `chain:${chainId}`);
@@ -3739,6 +3790,7 @@ async function main() {
         (req.headers["x-task-id"] as string | undefined) ??
         (req.body?.task_id as string | undefined) ??
         crypto.randomUUID();
+      const asyncSessId = extractSessionId(req); // captured before async IIFE
       pruneAsyncTasks();
       asyncChainTasks.set(taskId, { status: "pending", createdAt: Date.now(), webhook_url: webhookUrl });
 
@@ -3764,7 +3816,7 @@ async function main() {
         });
         const startTime = Date.now();
         try {
-          const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, taskId, billingEnabled);
+          const chainResult = await runChain(chainId, initialParams, keyRow.user_id, keyRow.tier, taskId, billingEnabled, asyncSessId);
           const resultPayload = chainResult.result as Record<string, unknown>;
           const costAudit = resultPayload.cost_audit as ChainCostAudit | undefined;
           logAudit({
@@ -3846,6 +3898,70 @@ async function main() {
       } else {
         res.json({ task_id: taskId, status: task.status });
       }
+    });
+
+    // ── Session memory endpoints ──────────────────────────────────────────────
+
+    // GET /session/:session_id — return all entries in the caller's session
+    app.get("/session/:session_id", async (req, res) => {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) => err ? reject(err) : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+      const sessionId = (req.params.session_id ?? "").replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 128);
+      const session = getSession(keyRow.user_id, sessionId);
+      if (!session) {
+        res.status(404).json({ error: `Session "${sessionId}" not found or expired` });
+        return;
+      }
+      res.json({
+        session_id:       session.session_id,
+        user_id:          session.user_id,
+        entry_count:      session.entries.length,
+        max_entries:      MAX_ENTRIES_PER_SESSION,
+        created_at:       session.created_at,
+        last_accessed_at: session.last_accessed_at,
+        entries:          session.entries,
+      });
+    });
+
+    // DELETE /session/:session_id — clear session memory
+    app.delete("/session/:session_id", async (req, res) => {
+      const supplied = (
+        req.headers["x-api-key"] ??
+        (req.headers["authorization"] as string | undefined)?.replace(/^Bearer\s+/i, "")
+      ) as string | undefined;
+      const keyRow = supplied
+        ? await new Promise<{ user_id: string; tier: string; revoked: number } | undefined>(
+            (resolve, reject) =>
+              db.get(
+                "SELECT user_id, tier, revoked FROM api_keys WHERE key_prefix = ?",
+                [supplied.slice(0, 16)],
+                (err, row) => err ? reject(err) : resolve(row as { user_id: string; tier: string; revoked: number } | undefined)
+              )
+          )
+        : undefined;
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+      const sessionId = (req.params.session_id ?? "").replace(/[^a-zA-Z0-9\-_]/g, "").slice(0, 128);
+      const deleted = clearSession(keyRow.user_id, sessionId);
+      res.json({ deleted, session_id: sessionId });
     });
 
     // ── OpenAI Agents SDK compatibility ──────────────────────────────────────
@@ -4234,6 +4350,12 @@ async function main() {
     app.listen(PORT, HOST, () =>
       log("info", `HTTP/SSE MCP server listening on ${HOST}:${PORT}`)
     );
+
+    // Prune idle sessions every 10 minutes
+    setInterval(() => {
+      const pruned = pruneExpiredSessions();
+      if (pruned > 0) log("info", `[memory] pruned ${pruned} expired session(s)`);
+    }, 10 * 60 * 1000);
   } else {
     // ── Local: stdio transport (Claude Desktop) ──────────────────────────────
     const transport = new StdioServerTransport();

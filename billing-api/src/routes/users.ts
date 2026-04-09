@@ -1,8 +1,23 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { dbGet, dbRun, TIERS } from "../database.js";
 
 const router = Router();
+
+// All /users routes are internal admin operations — require BILLING_ADMIN_SECRET.
+function requireBillingAdmin(req: Request, res: Response, next: NextFunction): void {
+  const secret = process.env.BILLING_ADMIN_SECRET;
+  if (!secret) {
+    res.status(503).json({ error: "Admin not configured" });
+    return;
+  }
+  const supplied = (req.headers["x-admin-key"] as string | undefined) ?? "";
+  if (supplied !== secret) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
 
 interface User {
   id: string;
@@ -19,8 +34,8 @@ interface Credits {
   updated_at: string;
 }
 
-// POST /users — create a new user (default tier: free)
-router.post("/", async (req: Request, res: Response) => {
+// POST /users — create a new user (ADMIN ONLY)
+router.post("/", requireBillingAdmin, async (req: Request, res: Response) => {
   const { email, tier = "free" } = req.body;
 
   if (!email || typeof email !== "string") {
@@ -57,8 +72,8 @@ router.post("/", async (req: Request, res: Response) => {
   });
 });
 
-// GET /users/:userId — get user info + credit balance
-router.get("/:userId", async (req: Request, res: Response) => {
+// GET /users/:userId — get user info + credit balance (ADMIN ONLY)
+router.get("/:userId", requireBillingAdmin, async (req: Request, res: Response) => {
   const { userId } = req.params;
 
   const user = await dbGet<User>("SELECT * FROM users WHERE id = ?", [userId]);

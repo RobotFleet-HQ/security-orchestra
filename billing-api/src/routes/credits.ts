@@ -1,8 +1,22 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { dbGet, dbRun, dbRunChanges } from "../database.js";
 import { sendLowCreditWarning } from "../email.js";
 
 const router = Router();
+
+function requireBillingAdmin(req: Request, res: Response, next: NextFunction): void {
+  const secret = process.env.BILLING_ADMIN_SECRET;
+  if (!secret) {
+    res.status(503).json({ error: "Admin not configured" });
+    return;
+  }
+  const supplied = (req.headers["x-admin-key"] as string | undefined) ?? "";
+  if (supplied !== secret) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
 
 interface Credits {
   user_id: string;
@@ -90,8 +104,8 @@ router.post("/:userId/deduct", async (req: Request, res: Response) => {
   });
 });
 
-// POST /credits/:userId/add — manually add credits (admin use)
-router.post("/:userId/add", async (req: Request, res: Response) => {
+// POST /credits/:userId/add — manually add credits (ADMIN ONLY)
+router.post("/:userId/add", requireBillingAdmin, async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { amount } = req.body;
 

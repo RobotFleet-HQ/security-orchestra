@@ -194,7 +194,7 @@ export function toCanonical(
       task_id:           meta.taskId,
       input_tokens_used: 0,
       credits_consumed:  meta.credits,
-      callable_by:       ["google-a2a", "openai-agents", "ag-ui", "acp", "agntcy", "autogen"],
+      callable_by:       ["google-a2a", "openai-agents", "ag-ui", "acp", "agntcy", "autogen", "fipa-acl"],
       idempotent:        meta.idempotent ?? true,
     },
   };

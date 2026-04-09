@@ -152,6 +152,7 @@ The orchestrator speaks multiple agent protocols. Every adapter shares the same 
 | AGNTCY / OASF | mounted under `/acp/agents` | OASF run response |
 | OpenAI Agents SDK | `POST /openai/run` | `{role:"tool", content}` |
 | **Microsoft AutoGen** | **`POST /autogen`** | **CanonicalResponse (JSON)** |
+| **FIPA ACL** | **`POST /fipa`** | **FIPAACLMessage (inform / failure / not-understood)** |
 
 ### Microsoft AutoGen (`POST /autogen`)
 
@@ -190,6 +191,45 @@ curl -X POST https://security-orchestra-orchestrator.onrender.com/autogen \
       "content": null,
       "function_call": {"name": "generator_sizing", "arguments": "{\"load_kw\":\"1500\",\"tier\":\"2N\"}"}
     }]
+  }'
+```
+
+### FIPA ACL (`POST /fipa`)
+
+FIPA ACL is the legacy standard used in enterprise, defense, and government multi-agent systems. Only `performative: "request"` triggers a workflow — all other performatives return `"not-understood"` immediately.
+
+**Request body:**
+```json
+{
+  "performative": "request",
+  "sender": { "name": "my-autogen-agent" },
+  "content": "{\"workflow\": \"generator_sizing\", \"params\": {\"load_kw\": \"2000\", \"tier\": \"2N\"}}",
+  "language": "JSON",
+  "ontology": "security-orchestra-v1",
+  "conversation_id": "optional-uuid-maps-to-task-id",
+  "reply_with": "msg-001"
+}
+```
+
+**Performative routing:**
+
+| Inbound performative | Response performative | When |
+|---|---|---|
+| `request` | `inform` | Workflow succeeded |
+| `request` | `failure` | Auth/validation/billing/workflow error |
+| anything else | `not-understood` | Non-actionable performative |
+
+`conversation_id` maps to `task_id` in the `CanonicalResponse` (idempotency key). `reply_with` is echoed back as `in_reply_to`. The `content` field of the `inform` response is the full `CanonicalResponse` JSON-stringified.
+
+```bash
+curl -X POST https://security-orchestra-orchestrator.onrender.com/fipa \
+  -H "x-api-key: sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "performative": "request",
+    "sender": {"name": "my-agent"},
+    "content": "{\"workflow\":\"generator_sizing\",\"params\":{\"load_kw\":\"1500\",\"tier\":\"2N\"}}",
+    "conversation_id": "session-abc-123"
   }'
 ```
 

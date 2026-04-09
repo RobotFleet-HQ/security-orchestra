@@ -4330,6 +4330,115 @@ async function main() {
       }
     });
 
+    // ── POST /fipa — FIPA ACL multi-agent protocol adapter ───────────────────
+    // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
+    // Body:   FIPAACLMessage — performative + content (JSON workflow+params)
+    // Reply:  FIPAACLMessage — "inform" on success, "failure" on error,
+    //         "not-understood" for non-"request" performatives
+    app.post("/fipa", express.json(), async (req, res) => {
+      // ── Auth ──────────────────────────────────────────────────────────────────
+      const keyRow = await resolveKeyRow(req);
+      if (!keyRow || keyRow.revoked) {
+        res.status(401).json({ error: "Unauthorized: missing or invalid API key" });
+        return;
+      }
+
+      const performative: string = req.body?.performative ?? "";
+      const content: string      = req.body?.content      ?? "";
+      const conversationId: string | undefined = req.body?.conversation_id;
+      const replyWith: string | undefined      = req.body?.reply_with;
+      const sender: unknown                    = req.body?.sender;
+
+      // FIPA reply skeleton — receiver mirrors the inbound sender
+      const baseReply = {
+        sender:    { name: "security-orchestra" },
+        receiver:  sender ?? undefined,
+        language:  "JSON",
+        ontology:  "security-orchestra-v1",
+        protocol:  "fipa-request",
+        ...(conversationId && { conversation_id: conversationId }),
+        ...(replyWith      && { in_reply_to: replyWith }),
+      };
+
+      // ── Performative gate — only "request" is actionable ─────────────────────
+      if (performative !== "request") {
+        res.json({ ...baseReply, performative: "not-understood",
+          content: JSON.stringify({ reason: `Performative "${performative}" is not supported. Send performative "request".` }) });
+        return;
+      }
+
+      // ── Parse content as { workflow, params } ────────────────────────────────
+      let workflowName: string;
+      let rawParams: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(content);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("content must be a JSON object");
+        const p = parsed as Record<string, unknown>;
+        if (typeof p["workflow"] !== "string" || !p["workflow"]) throw new Error("content.workflow (string) is required");
+        workflowName = p["workflow"] as string;
+        rawParams    = (p["params"] && typeof p["params"] === "object" && !Array.isArray(p["params"]))
+          ? p["params"] as Record<string, unknown>
+          : {};
+      } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ ...baseReply, performative: "failure",
+          content: JSON.stringify({ error_code: "INVALID_PARAMS", error_message: `content parse error: ${reason}` }) });
+        return;
+      }
+
+      // Coerce param values to strings (validateWorkflowParams expects Record<string, string>)
+      const params: Record<string, string> = Object.fromEntries(
+        Object.entries(rawParams).map(([k, v]) => [k, String(v)])
+      );
+
+      const fipaTaskId = extractTaskId(req, conversationId);
+
+      // ── Dispatch ──────────────────────────────────────────────────────────────
+      const wf = WORKFLOWS[workflowName];
+      if (!wf) {
+        res.status(400).json({ ...baseReply, performative: "failure",
+          content: JSON.stringify({ error_code: "UNKNOWN_TOOL", error_message: `Unknown workflow "${workflowName}"` }) });
+        return;
+      }
+
+      try {
+        enforceRateLimit(keyRow.user_id, keyRow.tier);
+        const cleanParams = validateWorkflowParams(workflowName, params);
+
+        const billingEnabled = !!process.env.BILLING_API_URL;
+        if (billingEnabled) {
+          const balance = await checkCredits(keyRow.user_id);
+          if (balance < wf.credits) {
+            res.status(402).json({ ...baseReply, performative: "failure",
+              content: JSON.stringify({ error_code: "INSUFFICIENT_CREDITS",
+                error_message: `Insufficient credits — balance: ${balance}, required: ${wf.credits}` }) });
+            return;
+          }
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "fipa_run_start", resource: workflowName,
+          result: "success", details: { tier: keyRow.tier } });
+        const startTime = Date.now();
+        const result = await dispatchWorkflow(workflowName, cleanParams, fipaTaskId);
+
+        if (billingEnabled) {
+          const remaining = await deductCredits(keyRow.user_id, wf.credits, workflowName);
+          (result.result as Record<string, unknown>).credits_used      = wf.credits;
+          (result.result as Record<string, unknown>).credits_remaining = remaining;
+        }
+
+        logAudit({ user_id: keyRow.user_id, action: "fipa_run_complete", resource: workflowName,
+          result: "success", duration_ms: Date.now() - startTime, details: { tier: keyRow.tier } });
+
+        res.json({ ...baseReply, performative: "inform", content: JSON.stringify(result) });
+      } catch (err) {
+        const msg = err instanceof McpError ? err.message : err instanceof Error ? err.message : String(err);
+        log("error", `[fipa] workflow error — ${workflowName}: ${msg}`);
+        res.status(500).json({ ...baseReply, performative: "failure",
+          content: JSON.stringify({ error_code: "WORKFLOW_ERROR", error_message: msg }) });
+      }
+    });
+
     // ── POST /chat — conversational workflow interface ────────────────────────
     // Auth:   x-api-key: <key>  OR  Authorization: Bearer <key>
     // Body:   { messages: [{ role: "user"|"assistant", content: string }] }

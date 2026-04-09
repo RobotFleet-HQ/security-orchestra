@@ -29,7 +29,9 @@ export function initDb(): Promise<void> {
           created_at TEXT NOT NULL,
           ip_address TEXT,
           verification_token TEXT,
-          verification_status TEXT NOT NULL DEFAULT 'verified'
+          verification_status TEXT NOT NULL DEFAULT 'verified',
+          name TEXT,
+          company TEXT
         )
       `);
 
@@ -38,6 +40,8 @@ export function initDb(): Promise<void> {
         "ip_address TEXT",
         "verification_token TEXT",
         "verification_status TEXT NOT NULL DEFAULT 'verified'",
+        "name TEXT",
+        "company TEXT",
       ]) {
         db.run(`ALTER TABLE users ADD COLUMN ${col}`, () => { /* ignore errors */ });
       }

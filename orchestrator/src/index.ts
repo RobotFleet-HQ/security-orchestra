@@ -2922,14 +2922,22 @@ async function main() {
     });
 
     // ── A2A: Agent Card endpoints ─────────────────────────────────────────────
+    const _wfCount    = Object.keys(WORKFLOWS).length;
+    const _chainCount = Object.keys(CHAINS).length;
     const AGENT_CARD = {
       name: "Security Orchestra",
-      description: "56 specialized agents + 8 compound chains = 64 total callable tools for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.",
+      description: `${_wfCount} specialized agents + ${_chainCount} compound chains = ${_wfCount + _chainCount} total callable tools for data center critical power infrastructure. Generator sizing, NFPA 110 compliance, UPS/ATS sizing, PUE, cooling, ROI/TCO, site scoring, and more.`,
       url: "https://security-orchestra-orchestrator.onrender.com",
       version: "1.0.0",
       provider: {
         organization: "RobotFleet-HQ",
         url: "https://robotfleet-hq.github.io/security-orchestra-landing/",
+      },
+      registration: {
+        url: "https://security-orchestra-billing.onrender.com/signup",
+        method: "POST",
+        body: { email: "string", tier: "free | starter | pro | enterprise", name: "string (optional)", company: "string (optional)" },
+        note: "Free tier is instant — API key returned by email. Use email test@security-orchestra.io for sandbox access.",
       },
       capabilities: {
         streaming: true,

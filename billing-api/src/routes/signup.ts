@@ -192,7 +192,9 @@ function getStripe(): Stripe {
 
 // POST /signup
 router.post("/", async (req: Request, res: Response) => {
-  const { email, tier = "free" } = req.body;
+  const { email, tier = "free", name, company } = req.body;
+  const cleanName    = typeof name    === "string" ? name.trim().slice(0, 120)    : null;
+  const cleanCompany = typeof company === "string" ? company.trim().slice(0, 120) : null;
 
   if (!email || typeof email !== "string") {
     return res.status(400).json({ error: "email is required" });
@@ -263,9 +265,9 @@ router.post("/", async (req: Request, res: Response) => {
     } else {
       testUserId = uuidv4();
       await dbRun(
-        `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
-         VALUES (?, ?, 'free', ?, 'test-bypass', 'verified')`,
-        [testUserId, emailLower, now]
+        `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status, name, company)
+         VALUES (?, ?, 'free', ?, 'test-bypass', 'verified', ?, ?)`,
+        [testUserId, emailLower, now, cleanName, cleanCompany]
       );
       await dbRun(
         "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
@@ -281,6 +283,8 @@ router.post("/", async (req: Request, res: Response) => {
       email: emailLower,
       tier: "free",
       credits: testTierConfig.credits,
+      ...(cleanName    && { name:    cleanName }),
+      ...(cleanCompany && { company: cleanCompany }),
       apiKey,
     });
   }
@@ -308,9 +312,9 @@ router.post("/", async (req: Request, res: Response) => {
 
     // Create verified user immediately — no email verification step
     await dbRun(
-      `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
-       VALUES (?, ?, ?, ?, ?, 'verified')`,
-      [userId, emailLower, tier, now, clientIp]
+      `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status, name, company)
+       VALUES (?, ?, ?, ?, ?, 'verified', ?, ?)`,
+      [userId, emailLower, tier, now, clientIp, cleanName, cleanCompany]
     );
     await dbRun(
       "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
@@ -341,6 +345,8 @@ router.post("/", async (req: Request, res: Response) => {
       email: emailLower,
       tier,
       credits: tierConfig.credits,
+      ...(cleanName    && { name:    cleanName }),
+      ...(cleanCompany && { company: cleanCompany }),
     });
   }
 
@@ -348,9 +354,9 @@ router.post("/", async (req: Request, res: Response) => {
   const tierConfig = TIERS[tier];
 
   await dbRun(
-    `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
-     VALUES (?, ?, 'free', ?, ?, 'pending')`,
-    [userId, emailLower, now, clientIp]
+    `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status, name, company)
+     VALUES (?, ?, 'free', ?, ?, 'pending', ?, ?)`,
+    [userId, emailLower, now, clientIp, cleanName, cleanCompany]
   );
   await dbRun(
     "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, 0, 0, 0, ?)",

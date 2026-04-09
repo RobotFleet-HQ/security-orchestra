@@ -35,7 +35,7 @@ security-orchestra/
 ├── billing-api/           # Billing REST API — secondary service
 │   ├── src/
 │   │   ├── index.ts       # Express app: all routes, startup, admin endpoints
-│   │   ├── email.ts       # Gmail SMTP (primary) + SendGrid (fallback)
+│   │   ├── email.ts       # SendGrid (primary) + Gmail SMTP (fallback)
 │   │   ├── database.ts    # billing.db SQLite: users, subscriptions, credits,
 │   │   │                  #   failed_deliveries
 │   │   └── routes/
@@ -57,7 +57,7 @@ security-orchestra/
 | HTTP server | Express 5.x (orchestrator), Express 4.x (billing-api) |
 | Database | SQLite3 (callback style, wrapped in Promises) — `audit.db`, `billing.db`, `keys.db` |
 | Payments | Stripe SDK v14 (billing-api) |
-| Email | nodemailer + Gmail SMTP (primary), @sendgrid/mail (fallback) |
+| Email | @sendgrid/mail (primary), nodemailer + Gmail SMTP (fallback) |
 | Deployment | Render (both services), GitHub → auto-deploy on push to `main` |
 | Registry | Smithery (`registry.smithery.ai`) — re-publish after tool count changes |
 | Package manager | pnpm (workspace), npm (per-service) |
@@ -258,7 +258,7 @@ Smithery's registry caches the old tool count until you re-publish. Always re-pu
 
 - **Smithery proxies through `run.tools`.** The URL `https://security-orchestra--robotfleet-hq.run.tools` is Smithery's OAuth-gated proxy — it requires a bearer token. Test the MCP protocol directly against `https://security-orchestra-orchestrator.onrender.com/mcp`.
 
-- **Email transport fallback.** Gmail SMTP is primary (`GMAIL_APP_PASSWORD` must be set correctly — it's a 16-char App Password, not the Gmail account password). On auth failure, billing-api immediately falls back to SendGrid (100/day limit). Failed deliveries are logged in `failed_deliveries` table.
+- **Email transport.** SendGrid is primary when `SENDGRID_API_KEY` is set (preferred — no token revocation). Gmail SMTP is the fallback when `SENDGRID_API_KEY` is absent (`GMAIL_APP_PASSWORD` must be a 16-char App Password, not the account password). Startup log prints `[email] Transport: SendGrid (primary)` or `[email] Transport: Gmail SMTP (fallback)`. Failed deliveries are logged in `failed_deliveries` table.
 
 - **pnpm workspace** is configured but both services use their own `npm install` independently. Run `npm install` inside `orchestrator/` or `billing-api/` directly, not from root.
 

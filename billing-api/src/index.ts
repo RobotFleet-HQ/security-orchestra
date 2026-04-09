@@ -96,7 +96,7 @@ app.post("/unsubscribe", express.urlencoded({ extended: false }), (req, res) => 
 // ─── Plans ────────────────────────────────────────────────────────────────────
 app.get("/plans", (_req, res) => {
   const FEATURES: Record<string, string[]> = {
-    free:       ["100 credits/month", "All 54 agents", "API access"],
+    free:       ["120 credits/month", "All 54 agents", "API access"],
     starter:    ["500 credits/month", "All 54 agents", "API access", "Email support"],
     pro:        ["2,000 credits/month", "All 54 agents", "API access", "Priority support"],
     enterprise: ["10,000 credits/month", "All 54 agents", "API access", "Dedicated support", "Custom integrations"],
@@ -474,7 +474,7 @@ const LANDING_HTML = `<!DOCTYPE html>
         <div class="plan">
           <div class="plan-name">Free</div>
           <div class="plan-price">$0</div>
-          <div class="plan-credits">100 credits / signup</div>
+          <div class="plan-credits">120 credits / signup</div>
           <a href="/signup" class="plan-cta">Get Started</a>
         </div>
         <div class="plan featured">

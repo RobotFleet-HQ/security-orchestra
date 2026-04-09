@@ -235,7 +235,10 @@ router.post("/", async (req: Request, res: Response) => {
   if (!isWhitelisted) {
     const domain = emailLower.split("@")[1] ?? "";
     if (DISPOSABLE_DOMAINS.has(domain)) {
-      return res.status(400).json({ error: "Disposable email addresses are not allowed." });
+      return res.status(400).json({
+        error: "Disposable email addresses are not supported. Please use your work or personal email — your API key will be sent there.",
+        hint: "If you need a test account, use the internal bypass: POST /signup with email test@security-orchestra.io",
+      });
     }
   }
 
@@ -249,11 +252,16 @@ router.post("/", async (req: Request, res: Response) => {
       [emailLower]
     );
     let testUserId: string;
+    const now = new Date().toISOString();
     if (existing) {
       testUserId = existing.id;
+      // Reset credits to a fresh free-tier allocation so each test run starts clean
+      await dbRun(
+        "UPDATE credits SET balance = ?, total_purchased = ?, total_used = 0, updated_at = ? WHERE user_id = ?",
+        [testTierConfig.credits, testTierConfig.credits, now, testUserId]
+      );
     } else {
       testUserId = uuidv4();
-      const now = new Date().toISOString();
       await dbRun(
         `INSERT INTO users (id, email, tier, created_at, ip_address, verification_status)
          VALUES (?, ?, 'free', ?, 'test-bypass', 'verified')`,
@@ -261,7 +269,7 @@ router.post("/", async (req: Request, res: Response) => {
       );
       await dbRun(
         "INSERT INTO credits (user_id, balance, total_purchased, total_used, updated_at) VALUES (?, ?, ?, 0, ?)",
-        [testUserId, testTierConfig.credits, testTierConfig.credits, new Date().toISOString()]
+        [testUserId, testTierConfig.credits, testTierConfig.credits, now]
       );
     }
     const apiKey = await provisionApiKey(testUserId, "free");
@@ -272,6 +280,7 @@ router.post("/", async (req: Request, res: Response) => {
       message: "Test bypass: API key provisioned",
       email: emailLower,
       tier: "free",
+      credits: testTierConfig.credits,
       apiKey,
     });
   }
@@ -331,6 +340,7 @@ router.post("/", async (req: Request, res: Response) => {
       message: "Your API key has been sent to your email!",
       email: emailLower,
       tier,
+      credits: tierConfig.credits,
     });
   }
 

@@ -1,12 +1,17 @@
 // ─── Email transport ──────────────────────────────────────────────────────────
-// Primary:  Gmail SMTP via nodemailer (App Password auth).
-//           Google signs outgoing mail with gmail.com DKIM + SPF, so DMARC
-//           alignment succeeds for the contact.securityorchestra@gmail.com FROM.
-// Fallback: SendGrid API (@sendgrid/mail) — used when GMAIL_APP_PASSWORD is not
-//           set. Note: SendGrid cannot achieve DMARC alignment for a gmail.com
-//           FROM address, so deliverability is lower on the fallback path.
+// Primary:  SendGrid API (@sendgrid/mail) — used when SENDGRID_API_KEY is set.
+//           When the key is present, SendGrid is used exclusively (no Gmail
+//           fallback). Gmail App Passwords get revoked by Google unpredictably,
+//           making SendGrid the more reliable primary transport.
+// Fallback: Gmail SMTP via nodemailer (App Password auth) — used only when
+//           SENDGRID_API_KEY is absent. Google DKIM + SPF alignment is better
+//           for a gmail.com FROM address, but token revocation makes it
+//           unsuitable as primary.
 //
-// To enable Gmail SMTP:
+// To enable SendGrid (recommended):
+//   Set SENDGRID_API_KEY in your environment. Optionally set SENDGRID_FROM_EMAIL.
+//
+// To use Gmail SMTP as fallback (when SENDGRID_API_KEY is not set):
 //   1. Enable 2-Step Verification on the sending Gmail account.
 //   2. Generate an App Password: myaccount.google.com/apppasswords
 //   3. Set GMAIL_APP_PASSWORD in your environment (and GMAIL_USER if different
@@ -51,11 +56,10 @@ async function sendViaSendGrid(message: SendMailOptions): Promise<void> {
 
 // ─── Retry wrapper ────────────────────────────────────────────────────────────
 // Strategy:
-//   - If GMAIL_APP_PASSWORD is set, try Gmail SMTP first (proper DKIM alignment).
-//   - On Gmail auth failure (535), immediately fall back to SendGrid — no point
-//     retrying a bad credential. Retries are reserved for transient errors (5xx,
-//     connection resets).
-//   - If GMAIL_APP_PASSWORD is absent, go straight to SendGrid.
+//   - If SENDGRID_API_KEY is set, use SendGrid exclusively (primary transport).
+//     Retries are for transient errors (5xx, network resets) only.
+//   - If SENDGRID_API_KEY is absent, fall back to Gmail SMTP.
+//   - On Gmail auth failure (535), no point retrying — log and exhaust.
 //   - On final failure, persist to failed_deliveries — no email is silently lost.
 
 function isAuthError(err: Error): boolean {
@@ -71,27 +75,24 @@ async function sendWithRetry(
 ): Promise<void> {
   const retryDelaysMs = [1000, 2000];
   let lastError: Error = new Error("unknown");
-  let gmailAuthFailed = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      if (process.env.GMAIL_APP_PASSWORD && !gmailAuthFailed) {
-        // Primary: Gmail SMTP — proper DKIM + SPF alignment
+      if (process.env.SENDGRID_API_KEY) {
+        // Primary: SendGrid API — reliable, no token revocation issues
+        await sendViaSendGrid(message);
+      } else {
+        // Fallback: Gmail SMTP (when SENDGRID_API_KEY is not configured)
         const transport = getGmailTransport();
         await transport.sendMail(message);
-      } else {
-        // Fallback: SendGrid (always, or after Gmail auth failure)
-        await sendViaSendGrid(message);
       }
       return;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      // Auth errors won't recover on retry — immediately switch to SendGrid
-      if (process.env.GMAIL_APP_PASSWORD && !gmailAuthFailed && isAuthError(lastError)) {
-        console.warn(`[email] Gmail auth failed, falling back to SendGrid: ${lastError.message.split("\n")[0]}`);
-        gmailAuthFailed = true;
-        // Don't count this as a retry attempt or sleep — try SendGrid immediately
-        continue;
+      // Gmail auth errors won't recover on retry — stop immediately
+      if (!process.env.SENDGRID_API_KEY && isAuthError(lastError)) {
+        console.warn(`[email] Gmail auth failed (no recovery): ${lastError.message.split("\n")[0]}`);
+        break;
       }
       console.warn(`[email] ${emailType} to ${to} failed (attempt ${attempt + 1}/3): ${lastError.message.split("\n")[0]}`);
       if (attempt < retryDelaysMs.length) {
@@ -152,12 +153,16 @@ function textFooter(to: string, baseUrl: string): string {
 }
 
 export function logEmailTransport(): void {
-  const transport = process.env.GMAIL_APP_PASSWORD ? "Gmail SMTP" : "SendGrid (fallback)";
-  console.log(`[email] transport: ${transport}, from: ${FROM_EMAIL}`);
+  if (process.env.SENDGRID_API_KEY) {
+    console.log(`[email] Transport: SendGrid (primary), from: ${FROM_EMAIL}`);
+  } else {
+    console.log(`[email] Transport: Gmail SMTP (fallback), from: ${FROM_EMAIL}`);
+  }
 }
 
 export async function verifySmtpOnBoot(): Promise<void> {
-  if (!process.env.GMAIL_APP_PASSWORD) return;
+  // Only verify Gmail SMTP when it is actually the active transport
+  if (process.env.SENDGRID_API_KEY || !process.env.GMAIL_APP_PASSWORD) return;
   try {
     const transport = getGmailTransport();
     await transport.verify();
@@ -165,7 +170,7 @@ export async function verifySmtpOnBoot(): Promise<void> {
   } catch {
     console.error(
       "[email] WARNING: SMTP credentials invalid — new signup emails will not deliver. " +
-      "Update GMAIL_APP_PASSWORD in Render env vars."
+      "Set SENDGRID_API_KEY (preferred) or update GMAIL_APP_PASSWORD in Render env vars."
     );
   }
 }

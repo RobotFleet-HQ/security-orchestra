@@ -1682,6 +1682,13 @@ export function validateWorkflowParams(
       const pt = sanitizeInput(params.project_type ?? "").toLowerCase();
       if (!VALID_PROJ.includes(pt)) throw new McpError(ErrorCode.InvalidParams, `400: project_type must be one of: ${VALID_PROJ.join(", ")}`);
       clean.project_type = pt;
+
+      // fetch_live_docket — optional, "yes" | "no" (default "no")
+      // Triggers Playwright NCUC portal scrape when "yes" (adds 30–60 s).
+      if (params.fetch_live_docket) {
+        const fld = sanitizeInput(params.fetch_live_docket).toLowerCase();
+        if (fld === "yes" || fld === "no") clean.fetch_live_docket = fld;
+      }
       break;
     }
 

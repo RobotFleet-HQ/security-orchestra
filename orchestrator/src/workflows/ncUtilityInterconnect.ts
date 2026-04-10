@@ -1,22 +1,30 @@
 import { spawn } from "child_process";
 import path from "path";
+import { scrapeNcucDockets } from "../scrapers/ncucDocket.js";
+import { ScrapeResult }      from "../scrapers/types.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface NcUtilityInterconnectParams {
-  utility:          string;
-  capacity_kw:      number;
-  county:           string;
-  interconnect_type: string;
-  voltage_level:    string;
-  project_type:     string;
+  utility:            string;
+  capacity_kw:        number;
+  county:             string;
+  interconnect_type:  string;
+  voltage_level:      string;
+  project_type:       string;
+  /** Pass "yes" to trigger live NCUC docket scraping (adds ~30–60 s). */
+  fetch_live_docket?: string;
 }
 
 export interface NcUtilityInterconnectResult {
   workflow:  string;
   target:    string;
   timestamp: string;
-  results:   AgentOutput & { duration_ms: number };
+  results:   AgentOutput & {
+    duration_ms:       number;
+    /** Populated when fetch_live_docket="yes". */
+    ncuc_live_filings?: ScrapeResult;
+  };
 }
 
 interface AgentOutput {
@@ -112,12 +120,22 @@ function runPython(args: string[]): Promise<string> {
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
+// Utilities that support live NCUC docket scraping
+const DUKE_UTILITIES = new Set([
+  "duke energy progress",
+  "duke energy carolinas",
+]);
+
 export async function runNcUtilityInterconnect(
   params: NcUtilityInterconnectParams
 ): Promise<NcUtilityInterconnectResult> {
-  const { utility, capacity_kw, county, interconnect_type, voltage_level, project_type } = params;
+  const {
+    utility, capacity_kw, county, interconnect_type,
+    voltage_level, project_type, fetch_live_docket,
+  } = params;
   const t0 = Date.now();
 
+  // ── Run Python agent (existing logic) ────────────────────────────────────────
   const raw = await runPython([
     utility,
     String(capacity_kw),
@@ -134,13 +152,37 @@ export async function runNcUtilityInterconnect(
     throw new Error(`NC utility agent returned non-JSON: ${raw.substring(0, 200)}`);
   }
 
+  // ── Optional live NCUC docket scrape ─────────────────────────────────────────
+  // Only runs when fetch_live_docket="yes" AND the utility is Duke Energy,
+  // because Duke is the primary large-load reporter to the NCUC in NC.
+  let ncuc_live_filings: ScrapeResult | undefined;
+
+  if (
+    fetch_live_docket?.toLowerCase() === "yes" &&
+    DUKE_UTILITIES.has(utility.toLowerCase())
+  ) {
+    try {
+      ncuc_live_filings = await scrapeNcucDockets(utility, "large load");
+    } catch {
+      // Scrape failure is non-fatal — static agent output is always returned.
+      ncuc_live_filings = {
+        source:      "ncuc_portal",
+        utility,
+        scraped_at:  new Date().toISOString(),
+        dockets:     [],
+        note:        "Scrape failed — live data unavailable. Static agent data returned.",
+      };
+    }
+  }
+
   return {
     workflow:  "nc_utility_interconnect",
     target:    `${capacity_kw} kW — ${utility} (${county} County, NC)`,
     timestamp: new Date().toISOString(),
     results: {
       ...agentOutput,
-      duration_ms: Date.now() - t0,
+      duration_ms:       Date.now() - t0,
+      ...(ncuc_live_filings !== undefined && { ncuc_live_filings }),
     },
   };
 }

@@ -7,12 +7,15 @@
     "build": "tsc",
     "init": "node dist/scripts/initDatabase.js",
     "start": "npm run init && node dist/index.js",
-    "generate-key": "node dist/scripts/generateKey.js"
+    "generate-key": "node dist/scripts/generateKey.js",
+    "install:browsers": "playwright install chromium --with-deps"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "express": "^5.2.1",
+    "pdf-parse": "^1.1.4",
+    "playwright": "^1.59.1",
     "sqlite3": "^5.1.7",
     "stripe": "^20.4.1",
     "validator": "^13.15.26",
@@ -22,6 +25,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/sqlite3": "^3.1.11",
     "@types/validator": "^13.15.10",
     "typescript": "^5.0.0"

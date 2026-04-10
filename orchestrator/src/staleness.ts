@@ -93,6 +93,17 @@ export const STALENESS: Record<string, AgentStaleness> = {
   get_grid_telemetry:         { validated_at: "2026-04-07", standards_ref: ["EIA Form 930", "NERC BAL-004-2"],                                              stale_risk: "high",   has_pricing: false },
   get_active_weather_alerts:  { validated_at: "2026-04-07", standards_ref: ["NWS CAP 1.2", "FEMA IPAWS"],                                                  stale_risk: "high",   has_pricing: false },
 
+  // ── Regulatory data intelligence ─────────────────────────────────────────
+  ncuc_docket_agent: {
+    validated_at:           "2026-04-10",
+    standards_ref:          ["NCUC E-100 docket series", "Duke Energy E-2/E-7 quarterly filings", "NCUC Docket E-100 Sub 190 (2024 CPIRP Order)"],
+    stale_risk:             "high",
+    has_pricing:            true,
+    refresh_interval_hours: 24,
+    data_sources:           ["starw1.ncuc.gov/NCUC/Page/recentFilings", "NCUC PSCDocumentDetailsPageNCUC"],
+    notes:                  "Regulatory filings post daily; large-load semi-annual reports (E-100) filed ~twice/year. PDF enrichment blocked by Cloudflare without NCID auth.",
+  },
+
   // ── Mythos security methodology ───────────────────────────────────────────
   "infrastructure-ranker":               { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "low",    has_pricing: false, refresh_interval_hours: 720,  data_sources: ["site_input"],                                                 notes: "Component scoring is deterministic from input — refresh when site changes" },
   "parallel-scan-orchestrator":          { validated_at: "2026-04-08", standards_ref: [],                                                                   stale_risk: "medium", has_pricing: false, refresh_interval_hours: 168,  data_sources: ["config_vuln_hunter", "compliance_gap_detector"],             notes: "Findings may change as configs are updated — weekly refresh recommended" },

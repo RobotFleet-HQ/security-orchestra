@@ -78,6 +78,8 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   // Phase 4 — grid & weather intelligence
   get_grid_telemetry:         5,
   get_active_weather_alerts:  5,
+  // Phase 5 — regulatory data intelligence
+  ncuc_docket_agent:          50,
 };
 
 // ─── Per-leaf chain billing ────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ export const CHAIN_LEAF_CREDITS: Record<string, number> = {
   cybersecurity_controls:     2,
   compliance_checker:         2,
   tier_certification_checker: 2,
+  ncuc_docket_agent:          5,   // live web scrape — higher than calculation agents
   network_topology:           2,
   bgp_peering:                2,
   harmonic_analysis:          2,

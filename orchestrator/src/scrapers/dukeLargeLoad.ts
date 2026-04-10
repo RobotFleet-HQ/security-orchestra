@@ -204,5 +204,63 @@ export async function parseDukeLargeLoadPdf(
     }
   }
 
+  // ── Strategy D: Duke E-100 semiannual aggregate table ────────────────────
+  // "Table 1: Status of Advanced Development Projects" in the Semi-Annual
+  // Update Reports (E-100 Sub 208+) is a category-summary table — not a
+  // per-project list.  Three contract categories × three time periods:
+  //   [SPA count, SPA MW, Spring count, Spring MW, Fall count, Fall MW]
+  // We extract the Fall (latest) column and emit one TrancheEntry per category.
+  if (entries.length === 0) {
+    const tableMarker = lines.findIndex(l => /Table\s+1:/i.test(l));
+    if (tableMarker >= 0) {
+      type Cat = { pattern: RegExp; label: string; status: TrancheEntry["status"] };
+      const CATS: Cat[] = [
+        { pattern: /electric\s+service\s+agr/i, label: "Electric Service Agreement", status: "approved" },
+        { pattern: /letter\s+agr/i,              label: "Letter Agreement",           status: "pending"  },
+        { pattern: /late[\s-]+stage/i,           label: "Late Stage Pipeline",        status: "pending"  },
+      ];
+
+      let currentCat: Cat | null = null;
+      const window: string[] = [];   // rolling 3-line window for multi-line labels
+
+      for (let i = tableMarker; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        window.push(line);
+        if (window.length > 3) window.shift();
+        const combined = window.join(" ");
+
+        // Detect category from rolling window
+        for (const cat of CATS) {
+          if (cat.pattern.test(combined)) { currentCat = cat; break; }
+        }
+
+        // Extract all integers/decimals from this line
+        const nums = [...line.matchAll(/([\d,]+(?:\.\d+)?)/g)]
+          .map(m2 => parseFloat(m2[1].replace(/,/g, "")))
+          .filter(n => !isNaN(n));
+
+        // A full data row has ≥ 6 numbers (3 columns × [count, MW]).
+        // The final pair is the latest (Fall/Spring YYYY) update.
+        if (currentCat && nums.length >= 6) {
+          const fallCount = nums[nums.length - 2];
+          const fallMw    = nums[nums.length - 1];
+          if (fallMw > 50) {   // sanity: must be > 50 MW (not a footnote number)
+            entries.push({
+              tranche:        currentCat.label,
+              project_name:   currentCat.label,
+              capacity_mw:    fallMw,
+              queue_position: fallCount,
+              status:         currentCat.status,
+            });
+            currentCat = null;
+            window.length = 0;
+          }
+        }
+      }
+    }
+  }
+
   return entries;
 }

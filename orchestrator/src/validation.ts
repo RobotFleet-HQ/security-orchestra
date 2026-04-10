@@ -1715,6 +1715,67 @@ export function validateWorkflowParams(
       break;
     }
 
+    // Phase 5 — regulatory data intelligence
+    case "ncuc_docket_agent": {
+      // utility — optional, validated against known NC utilities
+      const VALID_UTILITIES = [
+        "Duke Energy Progress",
+        "Duke Energy Carolinas",
+        "Dominion Energy NC",
+        "Generic Electric",
+      ];
+      if (params.utility) {
+        const util = sanitizeInput(params.utility);
+        if (!VALID_UTILITIES.some(v => v.toLowerCase() === util.toLowerCase())) {
+          throw new McpError(ErrorCode.InvalidParams,
+            `400: utility must be one of: ${VALID_UTILITIES.join(", ")}`);
+        }
+        clean.utility = util;
+      }
+
+      // keyword — optional free-text (max 80 chars)
+      if (params.keyword) {
+        const kw = sanitizeInput(params.keyword);
+        if (kw.length > 80) throw new McpError(ErrorCode.InvalidParams, "400: keyword max 80 chars");
+        clean.keyword = kw;
+      }
+
+      // docket_numbers — optional comma-separated, each max 40 chars
+      if (params.docket_numbers) {
+        const dn = sanitizeInput(params.docket_numbers);
+        if (dn.length > 500) throw new McpError(ErrorCode.InvalidParams, "400: docket_numbers max 500 chars");
+        clean.docket_numbers = dn;
+      }
+
+      // include_pdf_enrichment — optional "true"/"false"
+      if (params.include_pdf_enrichment) {
+        const ipdf = sanitizeInput(params.include_pdf_enrichment).toLowerCase();
+        if (ipdf !== "true" && ipdf !== "false") {
+          throw new McpError(ErrorCode.InvalidParams, "400: include_pdf_enrichment must be true or false");
+        }
+        clean.include_pdf_enrichment = ipdf;
+      }
+
+      // ncid_auth — optional "true"/"false"
+      if (params.ncid_auth) {
+        const na = sanitizeInput(params.ncid_auth).toLowerCase();
+        if (na !== "true" && na !== "false") {
+          throw new McpError(ErrorCode.InvalidParams, "400: ncid_auth must be true or false");
+        }
+        clean.ncid_auth = na;
+      }
+
+      // max_entries — optional 1–20
+      if (params.max_entries) {
+        const me = parseInt(sanitizeInput(params.max_entries), 10);
+        if (isNaN(me) || me < 1 || me > 20) {
+          throw new McpError(ErrorCode.InvalidParams, "400: max_entries must be 1–20");
+        }
+        clean.max_entries = String(me);
+      }
+      break;
+    }
+
     // ── Mythos security methodology ─────────────────────────────────────────────
     case "infrastructure-ranker": {
       const siteName = sanitizeInput(params.site_name ?? "");

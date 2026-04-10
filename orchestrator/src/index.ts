@@ -81,6 +81,8 @@ import { runTierCertification } from "./workflows/tierCertification.js";
 // Phase 4 — grid & weather intelligence
 import { runGridTelemetry } from "./workflows/gridTelemetry.js";
 import { runWeatherAlerts } from "./workflows/weatherAlerts.js";
+// Phase 5 — regulatory data intelligence
+import { runNcucDocketAgent } from "./workflows/ncucDocketAgent.js";
 // Mythos security methodology
 import { runInfrastructureRanker } from "./workflows/infrastructureRanker.js";
 import { runParallelScanOrchestrator } from "./workflows/parallelScanOrchestrator.js";
@@ -600,6 +602,13 @@ const WORKFLOWS: Record<string, {
     credits: WORKFLOW_COSTS.get_active_weather_alerts,
     version: "1.0", last_validated: "2026-04-05", standards_refs: ["NWS CAP 1.2", "IPAWS-OPEN v3.0"], stale_risk: "low",
   },
+  // Phase 5 — regulatory data intelligence
+  ncuc_docket_agent: {
+    description: "Scrape NC Utilities Commission eDockets Recent Filings for Duke Energy or Dominion large-load / interconnection queue filings. Extracts tranche MW capacity data from PDFs using in-browser fetch (Cloudflare-safe). Returns DocketEntry[] with optional TrancheEntry[] enrichment. The E-100 docket series (Generic Electric) is auto-merged when keyword='large load' or 'data center'.",
+    params: ["utility", "keyword", "docket_numbers", "include_pdf_enrichment", "ncid_auth", "max_entries"],
+    credits: WORKFLOW_COSTS.ncuc_docket_agent,
+    version: "1.0", last_validated: "2026-04-10", standards_refs: ["NCUC E-100 docket series", "Duke Energy E-2/E-7 quarterly filings"], stale_risk: "high",
+  },
   // ── Mythos security methodology ──────────────────────────────────────────────
   "infrastructure-ranker": {
     description: "Ranks site components 1–5 by vulnerability likelihood to prioritize scan order",
@@ -719,6 +728,12 @@ const CHAINS: Record<string, {
     credits: 10,
     steps: ["get_grid_telemetry", "get_active_weather_alerts"],
   },
+  utility_interconnect_chain: {
+    name: "Utility Interconnect Analysis",
+    description: "NCUC docket scrape → generator sizing → NFPA 110 compliance. Pulls live large-load tranche data from the NC Utilities Commission, sizes backup generators for the aggregate MW demand, and validates NFPA 110 compliance. Set include_pdf_enrichment=true for full tranche extraction.",
+    credits: 7,
+    steps: ["ncuc_docket_agent", "generator_sizing", "nfpa_110_checker"],
+  },
   "mythos-full-scan": {
     name: "Mythos Full Infrastructure Scan",
     description: "Complete Mythos-methodology scan: rank → parallel scan → validate → chain analysis → PoC → disclosure package",
@@ -779,6 +794,19 @@ function extractChainParams(stepId: string, r: Record<string, unknown>): Record<
   if (stepId === "nc_utility_interconnect") {
     const cap = r.capacity_kw ?? r.load_kw;
     if (s(cap)) { out.load_kw = s(cap)!; out.generator_kw = s(cap)!; }
+  }
+
+  if (stepId === "ncuc_docket_agent") {
+    // Sum MW across all tranches → total load for generator sizing
+    const tranches = r.tranche_summary as Array<{ capacity_mw?: number }> | undefined;
+    if (tranches && tranches.length > 0) {
+      const totalMw = tranches.reduce((sum, t) => sum + (t.capacity_mw ?? 0), 0);
+      if (totalMw > 0) {
+        const totalKw = Math.round(totalMw * 1000);
+        out.load_kw      = String(totalKw);
+        out.generator_kw = String(totalKw);
+      }
+    }
   }
 
   if (stepId === "ups_sizing") {
@@ -1753,6 +1781,20 @@ async function dispatchWorkflow(
       const waResult = await runWeatherAlerts({ state_code: args.state_code });
       log("info", `get_active_weather_alerts complete — ${waResult.target} alerts=${waResult.results.alert_count} in ${waResult.results.duration_ms}ms`);
       return waResult as unknown as WorkflowResult;
+    }
+
+    // Phase 5 — regulatory data intelligence
+    case "ncuc_docket_agent": {
+      const ncucResult = await runNcucDocketAgent({
+        utility:                args.utility,
+        keyword:                args.keyword,
+        docket_numbers:         args.docket_numbers,
+        include_pdf_enrichment: args.include_pdf_enrichment,
+        ncid_auth:              args.ncid_auth,
+        max_entries:            args.max_entries,
+      });
+      log("info", `ncuc_docket_agent complete — ${ncucResult.target} dockets=${ncucResult.results.docket_count} tranches=${ncucResult.results.tranche_count} in ${ncucResult.results.duration_ms}ms`);
+      return ncucResult as unknown as WorkflowResult;
     }
 
     // ── Mythos security methodology ───────────────────────────────────────────

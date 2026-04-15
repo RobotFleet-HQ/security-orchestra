@@ -80,6 +80,7 @@ export const WORKFLOW_COSTS: Record<string, number> = {
   get_active_weather_alerts:  5,
   // Phase 5 — regulatory data intelligence
   ncuc_docket_agent:          50,
+  nc_trench:                  50,
 };
 
 // ─── Per-leaf chain billing ────────────────────────────────────────────────────

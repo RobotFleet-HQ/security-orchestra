@@ -1890,6 +1890,48 @@ export function validateWorkflowParams(
       break;
     }
 
+    case "nc_trench": {
+      // route_length_ft — required, numeric, 10–50000
+      const rlf = parseFloat(sanitizeInput(params.route_length_ft ?? ""));
+      if (isNaN(rlf) || rlf < 10 || rlf > 50_000) throw new McpError(ErrorCode.InvalidParams, "400: route_length_ft must be 10–50000");
+      clean.route_length_ft = String(rlf);
+
+      // conduit_count — required, integer, 1–24
+      const cc = parseInt(sanitizeInput(params.conduit_count ?? ""), 10);
+      if (isNaN(cc) || cc < 1 || cc > 24) throw new McpError(ErrorCode.InvalidParams, "400: conduit_count must be 1–24");
+      clean.conduit_count = String(cc);
+
+      // conduit_size_in — required, enum
+      const VALID_SIZES = ["1", "1.5", "2", "3", "4", "5", "6"];
+      const csi = sanitizeInput(params.conduit_size_in ?? "");
+      if (!VALID_SIZES.includes(csi)) throw new McpError(ErrorCode.InvalidParams, `400: conduit_size_in must be one of: ${VALID_SIZES.join(", ")}`);
+      clean.conduit_size_in = csi;
+
+      // soil_type — required, enum
+      const VALID_SOILS = ["clay", "sandy_loam", "rock", "fill"];
+      const st = sanitizeInput(params.soil_type ?? "").toLowerCase();
+      if (!VALID_SOILS.includes(st)) throw new McpError(ErrorCode.InvalidParams, `400: soil_type must be one of: ${VALID_SOILS.join(", ")}`);
+      clean.soil_type = st;
+
+      // voltage_class — required, enum
+      const VALID_VC = ["low_voltage", "medium_voltage", "high_voltage", "telecom"];
+      const vc = sanitizeInput(params.voltage_class ?? "").toLowerCase();
+      if (!VALID_VC.includes(vc)) throw new McpError(ErrorCode.InvalidParams, `400: voltage_class must be one of: ${VALID_VC.join(", ")}`);
+      clean.voltage_class = vc;
+
+      // county — required, free-text
+      const trenchCounty = sanitizeInput(params.county ?? "");
+      if (!trenchCounty || trenchCounty.length > 100) throw new McpError(ErrorCode.InvalidParams, "400: county is required (max 100 chars)");
+      clean.county = trenchCounty;
+
+      // crossing_type — required, enum
+      const VALID_CROSSINGS = ["private_land", "state_road", "us_highway", "railroad", "municipal_road"];
+      const ct = sanitizeInput(params.crossing_type ?? "").toLowerCase();
+      if (!VALID_CROSSINGS.includes(ct)) throw new McpError(ErrorCode.InvalidParams, `400: crossing_type must be one of: ${VALID_CROSSINGS.join(", ")}`);
+      clean.crossing_type = ct;
+      break;
+    }
+
     default:
       throw new McpError(
         ErrorCode.InvalidParams,

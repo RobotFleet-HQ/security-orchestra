@@ -83,6 +83,7 @@ import { runGridTelemetry } from "./workflows/gridTelemetry.js";
 import { runWeatherAlerts } from "./workflows/weatherAlerts.js";
 // Phase 5 — regulatory data intelligence
 import { runNcucDocketAgent } from "./workflows/ncucDocketAgent.js";
+import { runNcTrench } from "./workflows/ncTrench.js";
 // Mythos security methodology
 import { runInfrastructureRanker } from "./workflows/infrastructureRanker.js";
 import { runParallelScanOrchestrator } from "./workflows/parallelScanOrchestrator.js";
@@ -588,6 +589,12 @@ const WORKFLOWS: Record<string, {
     params: ["utility", "capacity_kw", "county", "interconnect_type", "voltage_level", "project_type"],
     credits: WORKFLOW_COSTS.nc_utility_interconnect,
     version: "1.0", last_validated: "2026-03-28", standards_refs: ["NCUC Docket E-2 Sub 1142", "IEEE 1547-2018", "FERC Order 2023"], stale_risk: "high",
+  },
+  nc_trench: {
+    description: "Model underground conduit and trench routing for NC data center power/telecom infrastructure. Calculates trench dimensions, conduit fill per NEC Chapter 9, soil-specific excavation costs, NCDOT encroachment permit timelines, and OSHA trench safety requirements. Supports low/medium/high voltage and telecom conduit classes.",
+    params: ["route_length_ft", "conduit_count", "conduit_size_in", "soil_type", "voltage_class", "county", "crossing_type"],
+    credits: WORKFLOW_COSTS.nc_trench,
+    version: "1.0", last_validated: "2026-04-15", standards_refs: ["NEC Article 300.5", "OSHA 29 CFR 1926 Subpart P", "NCDOT Utility Accommodation Policy 2024", "IEEE C2-2023"], stale_risk: "low",
   },
   // Phase 4 — grid & weather intelligence
   get_grid_telemetry: {
@@ -1795,6 +1802,20 @@ async function dispatchWorkflow(
       });
       log("info", `ncuc_docket_agent complete — ${ncucResult.target} dockets=${ncucResult.results.docket_count} tranches=${ncucResult.results.tranche_count} in ${ncucResult.results.duration_ms}ms`);
       return ncucResult as unknown as WorkflowResult;
+    }
+
+    case "nc_trench": {
+      const ncTrenchResult = await runNcTrench({
+        route_length_ft:  parseFloat(args.route_length_ft),
+        conduit_count:    parseInt(args.conduit_count, 10),
+        conduit_size_in:  parseFloat(args.conduit_size_in),
+        soil_type:        args.soil_type,
+        voltage_class:    args.voltage_class,
+        county:           args.county,
+        crossing_type:    args.crossing_type,
+      });
+      log("info", `nc_trench complete — ${ncTrenchResult.target} in ${ncTrenchResult.results.duration_ms}ms`);
+      return ncTrenchResult as unknown as WorkflowResult;
     }
 
     // ── Mythos security methodology ───────────────────────────────────────────
